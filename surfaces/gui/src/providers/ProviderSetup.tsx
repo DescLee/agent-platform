@@ -245,6 +245,11 @@ export function useProviderSetup(opts?: { onSaved?: () => void }): ProviderSetup
       return false;
     }
     setDiscoveredModels(res.models || []);
+    if (!(res.models || []).length) {
+      setNotice("接口未返回可用模型");
+      if (noticeTimer.current) window.clearTimeout(noticeTimer.current);
+      noticeTimer.current = window.setTimeout(() => setNotice(null), 3500);
+    }
     setVerify({ state: "ok" });
     return true;
   };

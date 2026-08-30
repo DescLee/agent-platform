@@ -3345,6 +3345,14 @@ class SessionManager:
         if self.model not in selectable:
             selectable.insert(0, self.model)
         from ..providers.matrix import model_context_windows, model_labels
+        labels = model_labels()
+        custom_index = self.secrets.get("provider:custom_index") or {}
+        for custom_id in (custom_index.get("ids", []) if isinstance(custom_index, dict) else []):
+            profile = self.secrets.get(f"provider:{custom_id}") or {}
+            supplier = profile.get("supplier_name") or "自定义"
+            for model in selectable:
+                if model.startswith(f"{custom_id}:"):
+                    labels[model] = f"{model.split(':', 1)[1]} · {supplier}"
 
         return {
             "provider": "openai",
@@ -3352,7 +3360,7 @@ class SessionManager:
             "models": selectable,
             # Curated-matrix display names ({full id → "GLM-5.2 · via Together"}) so every
             # picker shows human labels; custom models absent here render their raw id.
-            "model_labels": model_labels(),
+            "model_labels": labels,
             # {full id → context window in tokens}, verified matrix entries only —
             # drives the composer's context-fill meter (absent id → meter hides).
             "model_context_windows": model_context_windows(),

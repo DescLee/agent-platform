@@ -482,10 +482,16 @@ export function Composer(props: Props) {
     new Set([props.model, ...(props.models || [])]),
   ).map((m) => ({
     value: m,
-    group: m.includes(":") ? (m.split(":", 1)[0].startsWith("custom-") ? m.split(":", 1)[0].slice(7).toUpperCase() : m.split(":", 1)[0]) : "OpenAI",
+    group: (() => {
+      const configured = props.modelLabels?.[m];
+      if (m.startsWith("custom-") && configured?.includes(" · ")) return configured.split(" · ").slice(1).join(" · ");
+      if (!m.includes(":")) return "OpenAI";
+      const provider = m.split(":", 1)[0];
+      return provider.startsWith("custom-") ? provider.slice(7).toUpperCase() : provider;
+    })(),
     label: (() => {
       const configured = props.modelLabels?.[m];
-      if (configured) return configured;
+      if (configured) return configured.split(" · ")[0];
       if (!m.includes(":")) return shortModel(m);
       const [provider] = m.split(":", 1);
       const providerLabel = provider.startsWith("custom-")

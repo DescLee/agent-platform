@@ -5,6 +5,7 @@ export interface Option {
   value: string;
   label: string;
   description?: string;
+  group?: string;
 }
 
 interface Props {
@@ -35,20 +36,13 @@ export function Dropdown({ prefix, value, options, onChange, align = "left", cla
         <>
           <div className="dd-backdrop" onClick={() => setOpen(false)} />
           <div className={"dd-menu " + align}>
-            {options.map((o) => (
-              <div
-                key={o.value}
-                className={"dd-item" + (o.value === value ? " sel" : "")}
-                onClick={() => {
-                  onChange(o.value);
-                  setOpen(false);
-                }}
-              >
-                <div className="dd-label">
-                  {o.label}
-                  {o.value === value && <span className="chk">✓</span>}
+            {options.map((o, i) => (
+              <div key={o.value}>
+                {o.group && (i === 0 || options[i - 1].group !== o.group) && <div className="dd-group">{o.group}</div>}
+                <div className={"dd-item" + (o.value === value ? " sel" : "")} onClick={() => { onChange(o.value); setOpen(false); }}>
+                  <div className="dd-label">{o.label}{o.value === value && <span className="chk">✓</span>}</div>
+                  {o.description && <div className="dd-desc">{o.description}</div>}
                 </div>
-                {o.description && <div className="dd-desc">{o.description}</div>}
               </div>
             ))}
           </div>

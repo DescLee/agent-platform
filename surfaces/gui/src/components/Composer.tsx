@@ -482,6 +482,7 @@ export function Composer(props: Props) {
     new Set([props.model, ...(props.models || [])]),
   ).map((m) => ({
     value: m,
+    group: m.includes(":") ? (m.split(":", 1)[0].startsWith("custom-") ? m.split(":", 1)[0].slice(7).toUpperCase() : m.split(":", 1)[0]) : "OpenAI",
     label: (() => {
       const configured = props.modelLabels?.[m];
       if (configured) return configured;

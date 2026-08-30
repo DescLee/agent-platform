@@ -593,6 +593,7 @@ button.btn.danger { color: var(--accent); }
 }
 .dd-menu.right { left: auto; right: 0; }
 .dd-item { padding: 8px 10px; border-radius: 8px; cursor: pointer; }
+.dd-group { padding: 9px 10px 4px; color: var(--faint); font-size: 12px; font-weight: 600; }
 .dd-item:hover { background: var(--paper); }
 .dd-item.sel .dd-label { color: var(--accent); }
 .dd-label { font-size: 13px; color: var(--ink); display: flex; justify-content: space-between; align-items: center; }

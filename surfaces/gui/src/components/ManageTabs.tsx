@@ -112,6 +112,8 @@ export function ModelsTab() {
             <button
               className="rounded-lg border border-danger/30 px-3 py-1.5 text-[13px] text-danger hover:border-danger hover:bg-danger/5 hover:underline underline-offset-2"
               data-testid="set-remove-key"
+              aria-label={`删除${info?.title || "该供应商"}配置`}
+              title="删除此供应商配置"
               onClick={() => setConfirmDelete(true)}
             >
               删除

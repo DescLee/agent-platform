@@ -1079,6 +1079,10 @@ def verify_provider_key(
                 or default_base.rstrip("/")
                 or "https://api.openai.com/v1"
             )
+            # DeepSeek advertises its host root but exposes the OpenAI-compatible
+            # model resource under /v1/models.
+            if name == "deepseek" and not base.endswith("/v1"):
+                base += "/v1"
             resp = httpx.get(
                 base + "/models",
                 headers={"Authorization": f"Bearer {key}"},

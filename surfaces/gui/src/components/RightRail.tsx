@@ -212,7 +212,14 @@ export function RightRail({
     const match = (list: ArtifactInfo[], path: string) =>
       list.find((a) => a.path === path || a.path.endsWith("/" + path) || a.name === path);
     const onOpen = (e: Event) => {
-      const path = String((e as CustomEvent).detail?.path || "");
+      const rawPath = String((e as CustomEvent).detail?.path || "");
+      let path = rawPath;
+      try {
+        // Markdown artifact links may percent-encode non-ASCII filenames.
+        path = decodeURIComponent(rawPath);
+      } catch {
+        // Keep the original path when a model emitted malformed encoding.
+      }
       if (!path) return;
       const found = match(artifacts, path);
       if (found) {

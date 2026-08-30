@@ -281,8 +281,6 @@ def _compat(
         title=title,
         needs_key=True,
         fields=[
-            ProviderField("supplier_name", "供应商名称", secret=False, placeholder="例如：公司模型网关", required=False),
-            ProviderField("note", "备注", secret=False, placeholder="可选备注", required=False),
             ProviderField(
                 "api_key",
                 f"{vendor} API key",

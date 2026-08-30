@@ -3267,6 +3267,21 @@ class SessionManager:
 
         user = self._prefs.get("models")
         user = user if isinstance(user, list) else []
+        # Legacy custom models used the shared `custom:` prefix. Bind them to the
+        # first saved custom profile so the default remains usable after migration.
+        if not self.secrets.get("provider:custom"):
+            index = self.secrets.get("provider:custom_index") or {}
+            ids = index.get("ids", []) if isinstance(index, dict) else []
+            if ids:
+                target = ids[0]
+                migrated = [f"{target}:{m.split(':', 1)[1]}" if isinstance(m, str) and m.startswith("custom:") else m for m in user]
+                if migrated != user:
+                    self._prefs["models"] = migrated
+                    if isinstance(self._prefs.get("default_model"), str) and self._prefs["default_model"].startswith("custom:"):
+                        self._prefs["default_model"] = f"{target}:{self._prefs['default_model'].split(':', 1)[1]}"
+                        self.model = self._prefs["default_model"]
+                    self._save_prefs()
+                    user = migrated
         hidden = set(self._prefs.get("hidden_models") or [])
         models = [m for m in [*MATRIX, *user] if m not in hidden]
         return list(dict.fromkeys([self.model, *models]))

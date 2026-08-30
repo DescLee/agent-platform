@@ -493,7 +493,7 @@ export function Composer(props: Props) {
         : provider;
       return `${providerLabel} · ${shortModel(m)}`;
     })(),
-  }));
+  })).sort((a, b) => (a.group || "").localeCompare(b.group || "") || a.label.localeCompare(b.label));
 
   const iconBtn =
     "w-7 h-7 grid place-items-center rounded-md text-muted hover:text-ink hover:bg-paper shrink-0";

@@ -962,7 +962,26 @@ def _verify_vertex(fields: dict[str, Any], timeout: float) -> dict[str, Any]:
     except Exception as exc:
         return {"ok": False, "error": f"Couldn't reach Vertex AI ({exc.__class__.__name__})."}
     if resp.status_code < 300:
-        return {"ok": True}
+        # Return discovered models when the provider exposes a model-list
+        # endpoint. Different APIs use either `data[].id` or `models[].name`.
+        try:
+            payload = resp.json()
+        except Exception:
+            payload = None
+        names: list[str] = []
+        if isinstance(payload, dict):
+            entries = payload.get("data") or payload.get("models") or []
+            if isinstance(entries, list):
+                for entry in entries:
+                    if not isinstance(entry, dict):
+                        continue
+                    value = entry.get("id") or entry.get("name")
+                    if value:
+                        names.append(str(value).removeprefix("models/"))
+        result: dict[str, Any] = {"ok": True}
+        if names:
+            result["models"] = list(dict.fromkeys(names))
+        return result
     if resp.status_code in (401, 403):
         return {
             "ok": False,

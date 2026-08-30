@@ -159,10 +159,9 @@ export function ModelsTab() {
 
       {info?.configured && !ps.isBlank && !ps.sel.startsWith("custom-") && ps.sel !== "custom" ? (
         <div className="mt-6">
-          <div className={SEC_H + " mb-1.5"}>Models</div>
+          <div className={SEC_H + " mb-1.5"}>模型</div>
           <p className="text-[12px] text-muted mb-2.5 leading-relaxed">
-            Ticked models show in the composer's picker; the black badge marks the default for new
-            sessions.
+            勾选的模型会显示在对话模型选择器中；黑色标记表示新会话的默认模型。
           </p>
           <ModelChecklist
             provider={ps.sel}
@@ -179,9 +178,9 @@ export function ModelsTab() {
         // key unlocks is part of deciding to get one at all (owner ask, 2026-07-04).
         (info?.suggested_models?.length || 0) > 0 && (
           <div className="mt-6" data-testid="model-preview">
-            <div className={SEC_H + " mb-1.5"}>Included models</div>
+            <div className={SEC_H + " mb-1.5"}>包含的模型</div>
             <p className="text-[12px] text-muted mb-2.5 leading-relaxed">
-              Curated, agent-capable models this provider serves — add your key above to enable them.
+              该供应商提供的精选智能体模型，填写上方密钥后即可启用。
             </p>
             <div className="space-y-1">
               {(info?.suggested_models || []).map((m) => {

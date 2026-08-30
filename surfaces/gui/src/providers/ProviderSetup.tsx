@@ -61,6 +61,30 @@ export type Verify = { state: "idle" | "testing" | "ok" | "error"; msg?: string 
 const isCustomProvider = (name: string | null | undefined) =>
   name === "custom" || !!name?.startsWith("custom-");
 
+const FIELD_LABELS: Record<string, string> = {
+  api_key: "API 密钥",
+  base_url: "接口地址",
+  supplier_name: "供应商名称",
+  note: "备注",
+  auth_method: "认证方式",
+  project_id: "项目 ID",
+  region: "区域",
+};
+
+const localizeBlurb = (blurb: string | undefined, title: string | undefined) => {
+  if (!blurb) return blurb;
+  if (/OpenAI-compatible/i.test(blurb)) return `使用 ${title || "该供应商"} 的 OpenAI 兼容 API，接口地址已预填，请填写密钥。`;
+  if (/Sign in with your ChatGPT plan/i.test(blurb)) return "使用 ChatGPT 订阅登录并运行 OpenAI 模型。";
+  return blurb;
+};
+
+const localizeHelp = (help: string | undefined) => {
+  if (!help) return help;
+  if (/Prefilled with .*official endpoint; edit only for a regional or proxy variant\./i.test(help))
+    return "已填入官方接口地址，仅在使用区域或代理地址时修改。";
+  return help;
+};
+
 /** Brand chip: always a light plate so multicolor marks read on any theme. */
 export function ProviderMark({ name, title, size = 32 }: { name: string; title: string; size?: number }) {
   const url = PROVIDER_LOGOS[name];
@@ -355,24 +379,24 @@ export function useProviderSetup(opts?: { onSaved?: () => void }): ProviderSetup
       // The card keeps just the state — the account email truncated badly at card
       // width (owner-hit 2026-08-21); the detail pane shows who is signed in.
       if (p.signed_in)
-        return <span className="block text-[12px] text-ok font-medium truncate">✓ Signed in</span>;
-      return <span className="block text-[12px] text-faint truncate">Sign in with your plan</span>;
+        return <span className="block text-[12px] text-ok font-medium truncate">✓ 已登录</span>;
+      return <span className="block text-[12px] text-faint truncate">使用订阅计划登录</span>;
     }
     if (p.configured && p.needs_key) {
       const used = o?.lastUsed ? relTime(p.last_used_at) : null;
       return (
         <span className="block text-[12px] text-ok font-medium truncate">
-          ✓ Connected{used ? <span className="text-muted font-normal"> · used {used}</span> : ""}
+          ✓ 已连接{used ? <span className="text-muted font-normal"> · 最近使用于 {used}</span> : ""}
         </span>
       );
     }
     if (!p.needs_key)
       return (
         <span className="block text-[12px] text-faint truncate">
-          {keylessOk.has(p.name) ? <span className="text-ok font-medium">✓ Running</span> : "No key needed"}
+          {keylessOk.has(p.name) ? <span className="text-ok font-medium">✓ 运行中</span> : "无需密钥"}
         </span>
       );
-    return <span className="block text-[12px] text-faint truncate">Not set up</span>;
+    return <span className="block text-[12px] text-faint truncate">未配置</span>;
   };
 
   return {
@@ -464,7 +488,7 @@ function OAuthSignIn({ info, tp, onChanged }: { info: ProviderInfo; tp: string; 
   const start = async () => {
     setBusy(true);
     setError(null);
-    await codexSignin().catch(() => setError("Couldn't start the sign-in."));
+    await codexSignin().catch(() => setError("无法启动登录，请稍后重试。"));
     void poll();
   };
 
@@ -473,7 +497,7 @@ function OAuthSignIn({ info, tp, onChanged }: { info: ProviderInfo; tp: string; 
       <div className="mt-4">
         <div className="flex items-center gap-2.5 rounded-xl border border-okLine bg-okSoft px-3 py-2.5">
           <span className="text-[13px] text-ink min-w-0 flex-1 truncate" data-testid={`${tp}-oauth-account`}>
-            ✓ Signed in{info.account ? ` as ${info.account}` : ""}
+            ✓ 已登录{info.account ? `（${info.account}）` : ""}
           </span>
           <button
             className="shrink-0 rounded-lg border border-line bg-panel px-3 py-1.5 text-[13px] text-ink hover:border-lineStrong"
@@ -483,11 +507,11 @@ function OAuthSignIn({ info, tp, onChanged }: { info: ProviderInfo; tp: string; 
               await onChanged();
             }}
           >
-            Sign out
+            退出登录
           </button>
         </div>
         <p className="text-[12px] text-faint mt-2">
-          Usage draws on the plan's rolling window, not per-token billing. Sign-in stays on this computer.
+          用量取决于订阅计划的滚动窗口，而非按 token 计费。登录信息仅保存在此电脑。
         </p>
       </div>
     );
@@ -500,11 +524,11 @@ function OAuthSignIn({ info, tp, onChanged }: { info: ProviderInfo; tp: string; 
         disabled={busy}
         data-testid={`${tp}-oauth-signin`}
       >
-        {busy ? "Waiting for the browser…" : "Sign in with ChatGPT"}
+        {busy ? "等待浏览器操作…" : "使用 ChatGPT 登录"}
       </button>
       {busy && (
         <p className="text-[12px] text-faint mt-2">
-          Finish signing in in the browser window.
+          请在浏览器窗口完成登录。
           {reopenUrl && (
             <>
               {" "}
@@ -512,7 +536,7 @@ function OAuthSignIn({ info, tp, onChanged }: { info: ProviderInfo; tp: string; 
                 className="text-muted underline decoration-line underline-offset-2 hover:text-ink"
                 onClick={() => openExternal(reopenUrl)}
               >
-                Reopen the sign-in page
+                重新打开登录页面
               </button>
             </>
           )}
@@ -597,7 +621,7 @@ export function ProviderForm({
 
   const fieldRow = (f: ProviderFieldT, testable: boolean) => (
     <div key={f.key}>
-      <label className={label}>{f.label}</label>
+        <label className={label}>{FIELD_LABELS[f.key] || f.label}</label>
       <div className="flex gap-2">
         <div className="relative flex-1 min-w-0">
           <input
@@ -614,7 +638,7 @@ export function ProviderForm({
               className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-medium text-ok bg-okSoft rounded-full px-2 py-0.5 pointer-events-none"
               data-testid={`${tp}-field-saved-${f.key}`}
             >
-              ✓ Saved
+              ✓ 已保存
             </span>
           )}
           {/* §39: state lives IN the field — no status lines below. */}
@@ -623,7 +647,7 @@ export function ProviderForm({
               className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-medium text-ok bg-okSoft rounded-full px-2 py-0.5 pointer-events-none"
               data-testid={`${tp}-saved-pill`}
             >
-              {isCustomProvider(sel) ? <>✓ 连接成功</> : info?.needs_key ? <>✓ Tested &amp; saved</> : <>✓ Detected</>}
+              {isCustomProvider(sel) ? <>✓ 连接成功</> : info?.needs_key ? <>✓ 测试通过并已保存</> : <>✓ 已检测</>}
             </span>
           )}
         </div>
@@ -634,11 +658,11 @@ export function ProviderForm({
             disabled={ps.verify.state === "testing" || (!ps.secretFilled && !ps.credentialed)}
             data-testid={`${tp}-test`}
           >
-            {ps.verify.state === "testing" ? "…" : isCustomProvider(sel) ? "连接测试" : info?.needs_key ? "Test" : "Detect"}
+            {ps.verify.state === "testing" ? "…" : isCustomProvider(sel) ? "连接测试" : info?.needs_key ? "测试" : "检测"}
           </button>
         )}
       </div>
-      {f.help && <p className="text-[12px] text-faint mt-1">{f.help}</p>}
+      {f.help && <p className="text-[12px] text-faint mt-1">{localizeHelp(f.help)}</p>}
     </div>
   );
 
@@ -651,7 +675,7 @@ export function ProviderForm({
         </div>
       )}
       <button className="text-[13px] text-muted hover:text-ink" onClick={ps.backToGallery} data-testid={`${tp}-back`}>
-        ‹ All providers
+        ‹ 所有供应商
       </button>
       <div className="flex items-center gap-3 mt-3 mb-1">
         <ProviderMark name={info?.name || ""} title={info?.title || ""} size={36} />
@@ -682,7 +706,7 @@ export function ProviderForm({
           {!ps.isBlank && footer}
         </div>
       </div>
-      {info?.blurb && <p className="text-[12px] text-faint mt-1">{info.blurb}</p>}
+      {info?.blurb && <p className="text-[12px] text-faint mt-1">{localizeBlurb(info.blurb, info.title)}</p>}
 
       {info?.auth === "oauth" && <OAuthSignIn info={info} tp={tp} onChanged={ps.refreshProviders} />}
 
@@ -739,7 +763,7 @@ export function ProviderForm({
               <button
                 className="mt-2.5 inline-flex items-center gap-2 rounded-lg border border-line bg-panel px-2.5 py-1.5 text-[12px] font-mono text-ink hover:border-lineStrong"
                 onClick={() => void navigator.clipboard?.writeText(selected.command || "")}
-                title="Copy command"
+                title="复制命令"
                 data-testid={`${tp}-cmd-copy`}
               >
                 {selected.command}
@@ -750,11 +774,11 @@ export function ProviderForm({
             <div className="mt-3.5 flex items-center justify-between gap-3 border-t border-line pt-3">
               {ps.savedState ? (
                 <span className="text-[12px] font-medium text-ok" data-testid={`${tp}-saved-pill`}>
-                  {isCustomProvider(sel) ? <>✓ 连接成功</> : <>✓ Tested &amp; saved</>}
+                  {isCustomProvider(sel) ? <>✓ 连接成功</> : <>✓ 测试通过并已保存</>}
                 </span>
               ) : (
                 <span className="text-[12px] text-faint">
-                  {isCustomProvider(sel) ? "仅测试接口，不会保存配置。" : "Runs one read-only check, then saves."}
+                  {isCustomProvider(sel) ? "仅测试接口，不会保存配置。" : "执行一次只读检查，随后保存配置。"}
                 </span>
               )}
               <div className="flex shrink-0 items-center gap-2">
@@ -764,7 +788,7 @@ export function ProviderForm({
                   disabled={ps.verify.state === "testing"}
                   data-testid={`${tp}-test`}
                 >
-                  {ps.verify.state === "testing" ? "…" : <>{isCustomProvider(sel) ? "连接测试" : "Test & save"}</>}
+                  {ps.verify.state === "testing" ? "…" : <>{isCustomProvider(sel) ? "连接测试" : "测试并保存"}</>}
                 </button>
                 {isCustomProvider(sel) && (
                   <button
@@ -784,24 +808,24 @@ export function ProviderForm({
 
       {info?.needs_key && KEY_HELP[sel] && (
         <p className="text-[12px] text-faint mt-2">
-          No key yet?{" "}
+          还没有密钥？{" "}
           <button
             className="text-muted underline decoration-line underline-offset-2 hover:text-ink"
             onClick={() => openExternal(KEY_HELP[sel].url)}
           >
-            Create one at {KEY_HELP[sel].label} ↗
+            前往 {KEY_HELP[sel].label} 创建 ↗
           </button>{" "}
-          — takes about a minute.
+          ，大约需要一分钟。
         </p>
       )}
       {info && !info.needs_key && info.auth !== "oauth" && (
         <p className="text-[12px] text-faint mt-2">
-          No API key needed — Ollama runs models on this computer.{" "}
+          无需 API 密钥，Ollama 会在此电脑上运行模型。{" "}
           <button
             className="text-muted underline decoration-line underline-offset-2 hover:text-ink"
             onClick={() => openExternal("https://ollama.com/download")}
           >
-            Install Ollama ↗
+            安装 Ollama ↗
           </button>
         </p>
       )}
@@ -821,12 +845,12 @@ export function ProviderForm({
               onClick={() => ps.setShowEndpoint(true)}
               data-testid={`${tp}-endpoint-link`}
             >
-              Custom endpoint ⌄
+              自定义接口 ⌄
             </button>
           );
         return (
           <div className="mt-4">
-            <label className={label}>{ep.label}</label>
+            <label className={label}>{FIELD_LABELS[ep.key] || ep.label}</label>
             <div className="relative">
               <input
                 className={input + " border-line"}
@@ -842,7 +866,7 @@ export function ProviderForm({
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-medium text-ok bg-okSoft rounded-full px-2 py-0.5 pointer-events-none"
                   data-testid={`${tp}-field-saved-${ep.key}`}
                 >
-                  ✓ Saved
+                ✓ 已保存
                 </span>
               )}
             </div>

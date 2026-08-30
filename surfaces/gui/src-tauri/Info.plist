@@ -7,14 +7,14 @@
 <plist version="1.0">
 <dict>
   <key>NSMicrophoneUsageDescription</key>
-  <string>OpenWorker records only while you use the composer microphone to turn your spoken prompt into editable text. Audio is transcribed locally and is not uploaded.</string>
+  <string>绿巨人仅在你使用输入框麦克风时录音，将语音转换为可编辑文字。音频只在本机转写，不会上传。</string>
   <key>NSDesktopFolderUsageDescription</key>
-  <string>A task you run may need to read or save files on your Desktop. OpenWorker never scans this folder on its own.</string>
+  <string>你运行的任务可能需要读取或保存桌面文件。绿巨人不会自行扫描此文件夹。</string>
   <key>NSDocumentsFolderUsageDescription</key>
-  <string>A task you run may need to read or save files in Documents. OpenWorker never scans this folder on its own.</string>
+  <string>你运行的任务可能需要读取或保存“文稿”中的文件。绿巨人不会自行扫描此文件夹。</string>
   <key>NSDownloadsFolderUsageDescription</key>
-  <string>A task you run may need to read or save files in Downloads. OpenWorker never scans this folder on its own.</string>
+  <string>你运行的任务可能需要读取或保存“下载”中的文件。绿巨人不会自行扫描此文件夹。</string>
   <key>NSPhotoLibraryUsageDescription</key>
-  <string>A task you run may need to read an image from your photo library. OpenWorker never scans your photos on its own.</string>
+  <string>你运行的任务可能需要读取照片图库中的图片。绿巨人不会自行扫描你的照片。</string>
 </dict>
 </plist>

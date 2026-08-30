@@ -80,11 +80,11 @@ describe("Sidebar group/filter control", () => {
     render(<Sidebar {...baseProps} />);
 
     // personas load drives the surfaces; the RECENT header's group/filter control is always present.
-    const control = await screen.findByLabelText("Group and filter conversations");
+    const control = await screen.findByLabelText("分组和筛选会话");
 
     // Open the popover and choose "Group by → Coworker".
     fireEvent.click(control);
-    fireEvent.click(await screen.findByText("Coworker"));
+    fireEvent.click(await screen.findByText("协作助手"));
 
     // POSTs the new layout pref.
     await waitFor(() => {
@@ -140,7 +140,7 @@ describe("Chronological list row actions (⋮ menu)", () => {
     openOpsMenu();
     fireEvent.click(screen.getByTestId("row-menu-delete"));
     expect(baseProps.onDeleteSession).not.toHaveBeenCalled();
-    expect(screen.getByTestId("row-menu-delete").textContent).toContain("Delete?");
+    expect(screen.getByTestId("row-menu-delete").textContent).toContain("确认删除？");
     fireEvent.click(screen.getByTestId("row-menu-delete"));
     expect(baseProps.onDeleteSession).toHaveBeenCalledWith("s-ops-1");
   });
@@ -207,7 +207,7 @@ describe("New session button", () => {
     await screen.findByText("incident watch");
 
     expect(screen.queryByLabelText("Choose a persona")).toBeNull();
-    fireEvent.click(screen.getByText("New session"));
+    fireEvent.click(screen.getByText("新会话"));
     expect(baseProps.onNewSession).toHaveBeenCalledWith("cowork");
   });
 });

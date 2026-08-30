@@ -7,20 +7,18 @@ import {
   disallowUser,
   getSettings,
   getSubscriptions,
-  removeModel,
   resolveUnauthorized,
   unsubscribeChannel,
-  setDefaultModel,
   updateConnectorTools,
   type CloudStatus,
   type Connector,
   type Subscription,
   type ModelSettings,
-  type ProviderInfo,
 } from "../api";
+import { Icon } from "./Icon";
 import { CloudSignInInline, CloudStatusPending } from "./connectors/CloudSignIn";
 import { ModelChecklist } from "./ModelChecklist";
-import { ProviderCards, ProviderForm, useProviderSetup } from "../providers/ProviderSetup";
+import { ProviderCards, ProviderForm, ProviderMark, useProviderSetup } from "../providers/ProviderSetup";
 
 // "2h ago"-style label for the providers' Last-used line (null when never used).
 const relTime = (epoch?: number | null): string | null => {
@@ -71,8 +69,34 @@ export function ModelsTab() {
   if (ps.sel === null) {
     return (
       <div>
-        <ProviderCards ps={ps} tp="set" gridClass="grid grid-cols-2 xl:grid-cols-3 gap-2.5" lastUsed />
-        <ComposerPickerCard settings={settings} providers={ps.providers} onChanged={refreshSettings} />
+        <div className="flex items-center justify-end mb-3">
+          <button
+            className={BTN_ACCENT + " inline-flex items-center gap-1.5"}
+            onClick={() => ps.openProviderBlank("custom")}
+            data-testid="set-custom-provider"
+          >
+            <Icon name="plus" size={14} /> 自定义
+          </button>
+        </div>
+        <div className="grid grid-cols-2 xl:grid-cols-3 gap-2.5">
+          <ProviderCards ps={ps} tp="set" gridClass="contents" lastUsed />
+          {ps.providers.find((p) => p.name === "custom" && p.configured) && (
+            <button
+            className="flex items-center gap-2.5 rounded-xl border border-line bg-panel px-3 py-2.5 text-left hover:border-lineStrong"
+            onClick={() => ps.openProvider("custom")}
+            data-testid="set-custom-provider-card"
+            >
+              <ProviderMark name="custom" title="自定义" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[13px] font-semibold">
+                  {ps.providers.find((p) => p.name === "custom")?.values?.supplier_name || "自定义"}
+                </span>
+                <span className="block truncate text-[12px] text-ok">✓ 已连接</span>
+              </span>
+              <span className="text-faint text-[14px]">›</span>
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -83,15 +107,15 @@ export function ModelsTab() {
         ps={ps}
         tp="set"
         footer={
-          ps.credentialed ? (
+          ps.credentialed && !ps.isBlank ? (
             <button
-              className="text-[13px] text-danger/80 hover:text-danger hover:underline underline-offset-2"
+              className="rounded-lg border border-danger/30 px-3 py-1.5 text-[13px] text-danger hover:border-danger hover:bg-danger/5 hover:underline underline-offset-2"
               data-testid="set-remove-key"
               onClick={() => {
-                if (window.confirm(`Remove the ${info?.title} key from this computer?`)) ps.removeKey();
+                if (window.confirm(`确定要删除 ${info?.title || "该供应商"} 的配置吗？`)) ps.removeKey();
               }}
             >
-              Remove key…
+              删除
             </button>
           ) : null
         }
@@ -104,7 +128,7 @@ export function ModelsTab() {
         </p>
       )}
 
-      {info?.configured ? (
+      {info?.configured && !ps.isBlank && ps.sel !== "custom" ? (
         <div className="mt-6">
           <div className={SEC_H + " mb-1.5"}>Models</div>
           <p className="text-[12px] text-muted mb-2.5 leading-relaxed">
@@ -147,67 +171,6 @@ export function ModelsTab() {
           </div>
         )
       )}
-    </div>
-  );
-}
-
-// The gallery view's "In the composer's picker" card: every curated model across providers,
-// with its provider tag. Unticking removes it from the picker; adding happens from a
-// provider's card (the ModelChecklist there has the suggested list + free-type add).
-function ComposerPickerCard({
-  settings,
-  providers,
-  onChanged,
-}: {
-  settings: ModelSettings;
-  providers: ProviderInfo[];
-  onChanged: () => void;
-}) {
-  const names = providers.map((p) => p.name);
-  const provOf = (id: string) => {
-    const i = id.indexOf(":");
-    return i > 0 && names.includes(id.slice(0, i)) ? id.slice(0, i) : "openai";
-  };
-  const tag = (id: string) => {
-    const p = providers.find((x) => x.name === provOf(id));
-    return (p?.title || provOf(id)).split(" (")[0];
-  };
-  return (
-    <div className="mt-6" data-testid="composer-picker">
-      <div className={SEC_H + " mb-1.5"}>In the composer's picker</div>
-      <p className="text-[12px] text-muted mb-2.5 leading-relaxed">
-        The models offered when starting a session; the black badge marks the default. Add more
-        from a provider's card above.
-      </p>
-      <div className="mlist">
-        {settings.models.map((id) => {
-          const isDefault = id === settings.model;
-          return (
-            <div className="mlist-row" key={id}>
-              <label className="mlist-main">
-                <input
-                  type="checkbox"
-                  checked
-                  disabled={isDefault}
-                  title={isDefault ? "The default model is always shown — make another model default first" : "Remove from the picker"}
-                  onChange={() => removeModel(id).then((r) => r.ok && onChanged())}
-                />
-                <span className="mlist-name" title={id}>
-                  {settings.model_labels?.[id] || id}
-                </span>
-              </label>
-              <span className="text-[11px] text-faint mr-2 shrink-0">{tag(id)}</span>
-              {isDefault ? (
-                <span className="mlist-default">default</span>
-              ) : (
-                <button className="mlist-make" onClick={() => setDefaultModel(id).then(() => onChanged())}>
-                  Make default
-                </button>
-              )}
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 }
@@ -439,7 +402,7 @@ export function ConnectorTools({ c, onChanged }: { c: Connector; onChanged: () =
     );
   return (
     <div className="border-t border-line px-3.5 py-3">
-      <div className={SEC_H + " mb-2"}>Tools exposed to OpenWorker</div>
+      <div className={SEC_H + " mb-2"}>向绿巨人开放的工具</div>
       <div className="space-y-1.5">
         {c.tools.map((tool) => (
           <label

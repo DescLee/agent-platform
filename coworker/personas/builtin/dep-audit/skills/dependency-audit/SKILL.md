@@ -1,6 +1,6 @@
 ---
 name: dependency-audit
-description: Scan lockfiles for vulnerable dependencies and triage by real reachability
+description: 扫描锁文件中的依赖漏洞，并按实际可达性进行研判
 ---
 Audit the project's dependencies and separate what's exploitable from what's noise.
 

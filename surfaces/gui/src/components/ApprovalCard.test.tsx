@@ -31,16 +31,16 @@ describe("ApprovalCard — standing scoped approvals (§25)", () => {
         runTask={RUN_TASK}
       />,
     );
-    fireEvent.click(screen.getByText("Allow every time"));
+    fireEvent.click(screen.getByText("每次都允许"));
     expect(onApprove).toHaveBeenCalledWith("always_task");
-    expect(screen.queryByText("Always allow")).toBeNull();
+    expect(screen.queryByText("本会话始终允许")).toBeNull();
     cleanup();
 
     // No run context (a plain session) → never offered.
     render(
       <ApprovalCard item={sendApproval({ standingTarget: "slack:T1/C1" })} onApprove={vi.fn()} />,
     );
-    expect(screen.queryByText("Allow every time")).toBeNull();
+    expect(screen.queryByText("每次都允许")).toBeNull();
     cleanup();
 
     // Run context but no eligible target (e.g. run_shell) → never offered.
@@ -51,7 +51,7 @@ describe("ApprovalCard — standing scoped approvals (§25)", () => {
         runTask={RUN_TASK}
       />,
     );
-    expect(screen.queryByText("Allow every time")).toBeNull();
+    expect(screen.queryByText("每次都允许")).toBeNull();
   });
 
   it("renders the create_scheduled_task consent proposal: reads disclose, writes grant", () => {
@@ -74,9 +74,9 @@ describe("ApprovalCard — standing scoped approvals (§25)", () => {
     );
     const grants = screen.getByTestId("approval-grants");
     expect(grants.textContent).toContain("slack:T1/C1");
-    expect(grants.textContent).toContain("always allowed once you approve");
+    expect(grants.textContent).toContain("批准后将持续允许");
     expect(grants.textContent).toContain("rohit/agent-platform");
-    expect(grants.textContent).toContain("read-only");
+    expect(grants.textContent).toContain("只读");
     // The raw permissions JSON must not also dump into the args line.
     expect(screen.queryByText(/permissions=/)).toBeNull();
   });
@@ -96,17 +96,17 @@ describe("ApprovalCard — §35 shapes", () => {
       />,
     );
     const row = screen.getByTestId("approval-row");
-    expect(row.textContent).toContain("Write ");
+    expect(row.textContent).toContain("写入 ");
     expect(row.textContent).toContain("fetch_data.py");
     expect(screen.queryByText(/Permission required/i)).toBeNull();
 
     // Preview expands INLINE from the tool args (the file doesn't exist yet).
     expect(screen.queryByText(/import json/)).toBeNull();
-    fireEvent.click(screen.getByText(/preview/));
+    fireEvent.click(screen.getByText(/预览/));
     expect(screen.getByText(/import json/)).toBeTruthy();
-    expect(screen.getByText("show all 6 lines")).toBeTruthy();
+    expect(screen.getByText("显示全部 6 行")).toBeTruthy();
 
-    fireEvent.click(screen.getByText("Allow"));
+    fireEvent.click(screen.getByText("允许"));
     expect(onApprove).toHaveBeenCalledWith("once");
   });
 
@@ -120,11 +120,11 @@ describe("ApprovalCard — §35 shapes", () => {
         onApprove={vi.fn()}
       />,
     );
-    expect(screen.getByText(/Send a file to/).textContent).toContain("C9");
-    expect(screen.getByText(/leaves this computer → Slack/)).toBeTruthy();
+    expect(screen.getByText(/发送文件/).textContent).toContain("C9");
+    expect(screen.getByText(/数据将离开本机 → Slack/)).toBeTruthy();
     expect(screen.getByText(/report\.pdf/)).toBeTruthy();
     expect(screen.getByText(/here you go/)).toBeTruthy();
-    expect(screen.getByText("Allow once")).toBeTruthy();
+    expect(screen.getByText("仅允许一次")).toBeTruthy();
   });
 
   it("long single-paragraph send_message text is clamped, expandable, and never a wall", () => {
@@ -135,9 +135,9 @@ describe("ApprovalCard — §35 shapes", () => {
 
     const prev = document.querySelector(".approval-prev") as HTMLElement;
     expect(prev.textContent!.length).toBeLessThan(500);
-    fireEvent.click(screen.getByText("show the full message"));
+    fireEvent.click(screen.getByText("显示完整消息"));
     expect(document.querySelector(".approval-prev")!.textContent!.length).toBeGreaterThan(1000);
-    expect(screen.getByText("show less")).toBeTruthy();
+    expect(screen.getByText("收起")).toBeTruthy();
   });
 
   it("short send_message text keeps the inline quote (no preview box)", () => {
@@ -157,10 +157,10 @@ describe("ApprovalCard — §35 shapes", () => {
         onApprove={vi.fn()}
       />,
     );
-    expect(screen.getByText(/Run a command — fetch semiconductor stock data/)).toBeTruthy();
+    expect(screen.getByText(/运行命令 — fetch semiconductor stock data/)).toBeTruthy();
     expect(screen.getByText(/python3 fetch\.py/)).toBeTruthy();
-    expect(screen.getByText(/stays on this computer/)).toBeTruthy();
-    expect(screen.getByText("Always allow this command")).toBeTruthy();
+    expect(screen.getByText(/操作仅在本机进行/)).toBeTruthy();
+    expect(screen.getByText("始终允许此命令")).toBeTruthy();
   });
 });
 
@@ -213,9 +213,9 @@ describe("InboxItemCard — Allow every time on parked run approvals", () => {
     expect(screen.getByText("fetch_data.py")).toBeTruthy();
     expect(screen.queryByText("Run `send_message`?")).toBeNull();
     expect(screen.getByText(/import json/)).toBeTruthy();
-    expect(screen.getByText(/stays on this computer/)).toBeTruthy();
+    expect(screen.getByText(/操作仅在本机进行/)).toBeTruthy();
     // §35 labels; resolution vocabulary unchanged (works on every approver path).
-    fireEvent.click(screen.getByText("Allow once"));
+    fireEvent.click(screen.getByText("仅允许一次"));
     expect(onResolve).toHaveBeenCalledWith("i1", "allow");
     // Old rows without tool data keep the legacy treatment (covered above).
   });
@@ -239,10 +239,10 @@ describe("ApprovalCard — save_skill (SKILLS-SPEC §5.2)", () => {
   it("shows name-first title, description, instructions, and every bundled file", () => {
     render(<ApprovalCard item={skillApproval()} onApprove={vi.fn()} />);
     expect(screen.getByText("weekly-github-report")).toBeTruthy(); // bold obj in the title
-    expect(screen.getAllByText(/to your skills/).length).toBeGreaterThan(0); // title + footer
+    expect(screen.getAllByText(/技能/).length).toBeGreaterThan(0); // title + footer
     // The corner answers WHERE; the footer answers what approving means (§5.2 review round).
-    expect(screen.getByText("saves to Settings ▸ Skills")).toBeTruthy();
-    expect(screen.getByText(/usable in every conversation from\s+then on/)).toBeTruthy();
+    expect(screen.getByText("保存至“设置 ▸ 技能”")).toBeTruthy();
+    expect(screen.getByText(/所有会话均可使用/)).toBeTruthy();
     expect(
       screen.getByText("Create a concise Monday status report from GitHub activity."),
     ).toBeTruthy();
@@ -255,11 +255,11 @@ describe("ApprovalCard — save_skill (SKILLS-SPEC §5.2)", () => {
   it("uses the §7 button copy and never offers a session-wide always", () => {
     const onApprove = vi.fn();
     render(<ApprovalCard item={skillApproval()} onApprove={onApprove} />);
-    expect(screen.queryByText("Always allow")).toBeNull(); // every proposal gets its own review
-    expect(screen.queryByText("Deny")).toBeNull();
-    fireEvent.click(screen.getByText("Add to my skills"));
+    expect(screen.queryByText("本会话始终允许")).toBeNull(); // every proposal gets its own review
+    expect(screen.queryByText("拒绝")).toBeNull();
+    fireEvent.click(screen.getByText("添加到我的技能"));
     expect(onApprove).toHaveBeenCalledWith("once");
-    fireEvent.click(screen.getByText("Not now"));
+    fireEvent.click(screen.getByText("暂不添加"));
     expect(onApprove).toHaveBeenCalledWith("deny");
   });
 });
@@ -278,16 +278,16 @@ describe("ApprovalCard — §1.9 egress cards", () => {
     const onApprove = vi.fn();
     render(<ApprovalCard item={fetchApproval()} onApprove={onApprove} />);
     // The grant button names exactly what it covers — the spelling the server mints.
-    fireEvent.click(screen.getByText("Always allow bbc.com this session"));
+    fireEvent.click(screen.getByText("本会话始终允许访问 bbc.com"));
     expect(onApprove).toHaveBeenCalledWith("always_domain");
     expect(screen.queryByText("Always allow")).toBeNull(); // no tool-wide button
-    expect(screen.getByText(/leaves this computer → bbc\.com/)).toBeTruthy();
+    expect(screen.getByText(/数据将离开本机 → bbc\.com/)).toBeTruthy();
   });
 
   it("web_fetch with an unparseable url falls back to once/deny only", () => {
     render(<ApprovalCard item={fetchApproval({ args: { url: "not a url" } })} onApprove={vi.fn()} />);
     expect(screen.queryByText(/Always allow/)).toBeNull();
-    expect(screen.getByText("Allow once")).toBeTruthy();
+    expect(screen.getByText("仅允许一次")).toBeTruthy();
   });
 
   it("web_search offers the searches grant and names the LIVE provider", () => {
@@ -303,11 +303,11 @@ describe("ApprovalCard — §1.9 egress cards", () => {
       />,
     );
     expect(
-      screen.getByText(/Queries go to your configured search provider \(currently: duckduckgo\)\./),
+      screen.getByText(/查询将发送到已配置的搜索服务商（当前：duckduckgo）。/),
     ).toBeTruthy();
-    fireEvent.click(screen.getByText("Always allow searches this session"));
+    fireEvent.click(screen.getByText("本会话始终允许搜索"));
     expect(onApprove).toHaveBeenCalledWith("always_tool"); // tool-wide IS provider-wide here
-    expect(screen.getByText(/leaves this computer → your search provider/)).toBeTruthy();
+    expect(screen.getByText(/数据将离开本机 → 搜索服务商/)).toBeTruthy();
   });
 
   it("Auto-Approve fall-through cards hide every session 'always' (§1.5: grants don't skip the reviewer)", () => {
@@ -331,8 +331,8 @@ describe("ApprovalCard — §1.9 egress cards", () => {
       />,
     );
     expect(screen.queryByText("Always allow this command")).toBeNull();
-    expect(screen.getByText("Allow once")).toBeTruthy();
-    expect(screen.getByText("Deny")).toBeTruthy();
+    expect(screen.getByText("仅允许一次")).toBeTruthy();
+    expect(screen.getByText("拒绝")).toBeTruthy();
   });
 });
 
@@ -362,17 +362,17 @@ describe("InboxItemCard — parked save_skill proposals (SKILLS-SPEC §5.2)", ()
   it("wears the same review surface and button copy as the live card", () => {
     const onResolve = vi.fn();
     render(<InboxItemCard item={parked()} onResolve={onResolve} />);
-    expect(screen.getByText("saves to Settings ▸ Skills")).toBeTruthy();
+    expect(screen.getByText("保存至“设置 ▸ 技能”")).toBeTruthy();
     expect(
       screen.getByText("Create a concise Monday status report from GitHub activity."),
     ).toBeTruthy();
     expect(screen.getByText(/Fetch PRs/)).toBeTruthy();
     expect(screen.getByTestId("skill-bundle-files").textContent).toContain("fetch_prs.py");
-    expect(screen.getByText(/usable in every conversation/)).toBeTruthy();
-    expect(screen.queryByText("Allow once")).toBeNull();
-    fireEvent.click(screen.getByText("Add to my skills"));
+    expect(screen.getByText(/所有会话均可使用/)).toBeTruthy();
+    expect(screen.queryByText("仅允许一次")).toBeNull();
+    fireEvent.click(screen.getByText("添加到我的技能"));
     expect(onResolve).toHaveBeenCalledWith("i9", "allow");
-    fireEvent.click(screen.getByText("Not now"));
+    fireEvent.click(screen.getByText("暂不添加"));
     expect(onResolve).toHaveBeenCalledWith("i9", "deny");
   });
 });
@@ -392,7 +392,7 @@ describe("ApprovalCard — session read-only grant", () => {
     fireEvent.click(screen.getByTestId("allow-readonly-session"));
     expect(onApprove).toHaveBeenCalledWith("readonly_session");
     // The command-scoped grant stays alongside — different scopes, both legitimate.
-    expect(screen.getByText("Always allow this command")).toBeTruthy();
+    expect(screen.getByText("始终允许此命令")).toBeTruthy();
     cleanup();
 
     // Not classified read-only (a write) → the button never renders.

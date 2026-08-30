@@ -1,6 +1,6 @@
 ---
 name: aws-posture
-description: Read-only AWS posture check — public exposure, IAM blast radius, hygiene
+description: 只读检查 AWS 安全态势，包括公网暴露、IAM 影响范围与配置规范
 ---
 Check the live AWS account's security posture using strictly read-only CLI calls, then
 fix root causes in the IaC.

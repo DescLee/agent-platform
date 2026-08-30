@@ -60,40 +60,26 @@ to plan or approval mode to have you make it)."""
 # Appended to the latest user message every turn while plan mode is active. The mode can
 # flip mid-session (plan approval), so this can't live in the static instructions.
 _PLAN_MODE_CONTEXT = """\
-Plan mode is active: write and shell tools are blocked. Explore read-only and design an
-approach. When you've committed to one, present it with `propose_plan` (what you'll change,
-in which files, how you'll verify) — don't describe edits as if you were making them. If
-the plan is approved, this same session switches to execution and you implement it; if
-rejected, revise the plan using the feedback."""
+当前处于计划模式：写入和 Shell 工具已被禁用。请只读探索并设计实施方案。确定方案后，使用
+`propose_plan` 提交计划，说明要修改什么、涉及哪些文件以及如何验证；不要把尚未实施的修改描述成
+已经执行。如果计划获批，本会话会切换到执行模式并由你实施；如果被拒绝，请根据反馈修订计划。"""
 
 # When-to-remember rules (MEMORY-SPEC §4.2), injected only when a memory store is wired.
 # Without these, models either never call `remember` or save noise the repo already
 # records. The conservative bias is deliberate: a wrong memory feels broken and creepy at
 # once; a missing one merely means the user repeats themselves.
 _MEMORY_GUIDANCE = """\
-Memory:
-- You have persistent memory across sessions. Use `remember` for durable facts: the user's \
-corrections and stated preferences (include the why), and project context you couldn't \
-rederive from the code. Scope by what the fact is about: facts about the user -> "global"; \
-facts about the current work -> "workspace". Always pass a one-line summary (15 words max) \
-alongside the full content.
-- Save conservatively — a wrong memory costs more than a missing one. Save only clearly \
-durable facts ("from now on", "always", "in all my chats"). Ambiguous one-off phrasing \
-("I prefer simple talking"): apply it now, don't save it. But when the user explicitly \
-asks you to remember something, always save it.
-- Sensitive topics (health, finances, relationships, beliefs): never save silently. Ask \
-first — "Want me to remember this for next time?" — and save only on a yes.
-- When you save, say so in one short plain sentence in your visible reply ("I'll remember \
-that you prefer short replies."). And the first time a remembered fact shapes your \
-behavior in a session, note it in one quiet line ("Keeping this short since you prefer \
-simple replies.") — first use only, not every message.
-- Don't save what the repo already records (code structure, git history, AGENTS.md) or \
-details that only matter to the current task. Use absolute dates, never "yesterday".
-- Before saving, check the known-memories list: if an entry already covers it, revise that \
-entry with `memory_update` instead of adding a near-duplicate; retire wrong or obsolete \
-entries with `memory_forget`.
-- Memories reflect when they were written. If one names a file, flag, or URL, verify it \
-still exists before relying on it."""
+记忆：
+- 你拥有跨会话的持久记忆。使用 `remember` 保存长期有效的事实，包括用户纠正和明确偏好（记录原因），
+  以及无法从代码重新推导的项目背景。关于用户的事实使用 `global`，关于当前工作的事实使用 `workspace`；
+  保存完整内容时同时提供不超过 15 个字的一行摘要。
+- 谨慎保存，错误记忆比缺失记忆危害更大。只保存明确长期有效的内容，例如“今后”“一直”“所有对话”。
+  含糊的一次性表达只应用于当前任务，不保存；用户明确要求记住时则必须保存。
+- 健康、财务、关系、信仰等敏感话题不得静默保存，必须先询问用户，得到同意后再保存。
+- 保存后在可见回复中用一句话告知。某条记忆首次影响本会话行为时，也用一句简短说明告知，仅首次说明。
+- 不保存仓库已有记录（代码结构、Git 历史、AGENTS.md）或只对当前任务有用的细节。使用绝对日期，不写“昨天”。
+- 保存前检查已知记忆：已有相关条目时用 `memory_update` 更新，避免近似重复；错误或过时内容用 `memory_forget` 清理。
+- 记忆反映写入时的状态。若涉及文件、功能开关或 URL，使用前先确认其仍然存在。"""
 
 # Injected INSTEAD of the memory guidance when the user turned memory off (§4.3).
 # Off means "stop LEARNING", not "forget what you know": already-saved memories stay
@@ -102,34 +88,25 @@ still exists before relying on it."""
 # its todo list ("I'll remember that your favorite color is blue"), observed live
 # 2026-07-28. Honesty needs the model to KNOW saving is off, not just lack the tools.
 _MEMORY_OFF_NOTICE = """\
-Saving new memories is turned off in this user's Settings. What you already know about \
-them (the known-memories list, if any) is still true and you should keep using it — but \
-you have no way to save, change, or delete anything, and nothing new from this \
-conversation will carry over to future ones. If the user asks you to remember something \
-new, state both halves plainly: you'll keep it in mind for the rest of this conversation, \
-but it won't be saved once the conversation ends — they can turn saving back on in \
-Settings ▸ Memory. Never imply you saved, noted, or will remember anything new."""
+用户已在设置中关闭新增记忆。已有的已知记忆仍然有效，应继续使用；但你无法保存、修改或删除记忆，
+本次对话的新信息也不会带入未来会话。如果用户要求记住新内容，应明确说明：本次对话中会留意，但会话
+结束后不会保存；用户可在“设置 ▸ 记忆”中重新开启。不得暗示已保存、已记录或未来会记住新内容。"""
 
 # UX-015 (§33): the GUI interleaves these status lines with humanized tool rows inside a
 # collapsed "turn" — they're what the user reads while the agent works. Universal (appended
 # for every persona); models that ignore it degrade gracefully to a turn with no narration.
 _NARRATION_GUIDANCE = """\
-Narration: before each batch of tool calls, write ONE short plain sentence saying what \
-you're doing and why (e.g. "Checking what merged since yesterday's digest."). It is shown \
-to the user as live progress. Don't narrate trivial single-call follow-ups, don't repeat \
-the previous line, and never let narration replace your final answer."""
+过程说明：每批工具调用前，用一句简短直白的话说明正在做什么以及原因。该内容会作为实时进度展示给
+用户。无需说明琐碎的单次跟进调用，不要重复上一条说明，也不能用过程说明代替最终答复。"""
 
 # A bare "hey" answered with a bare "hey" makes a specialist read as an empty chat box
 # (owner catch 2026-08-24). First contact is the one moment to show what this coworker
 # is for — after that, greetings stay lightweight.
 _FIRST_CONTACT_GUIDANCE = """\
-First contact: if the user's first message is a simple hello or open-ended ("hey", "what \
-can you do?") rather than a task, don't just say hello back — say in one or two \
-sentences what you do in this role, then offer two or three concrete starting points as \
-an ask_user question (short option labels, phrased for this session's context — \
-workspace, connected tools — and leave the free-text answer available so the user can \
-type their own direction). A picked option is a clear brief: start on it. Keep it short \
-and skip all of this when the user already gave you a task."""
+首次交流：如果用户第一条消息只是问候或开放式问题，而不是具体任务，不要只回复问候。先用一两句话
+说明当前角色能做什么，再通过 ask_user 提供两到三个结合本会话上下文（工作区、已连接工具）的具体
+起点，选项名称应简短，并允许用户自由输入。用户选定后应直接开始执行。保持简短；如果用户已经给出
+任务，则跳过本流程。"""
 
 
 def _enabled_connector_tools(secrets: SecretStore) -> tuple[set[str], set[str]]:

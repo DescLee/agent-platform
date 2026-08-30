@@ -1,6 +1,6 @@
 ---
 name: iac-scan
-description: Scan Terraform/IaC with trivy config and fix what matters in code
+description: 使用 Trivy 扫描 Terraform/IaC，并在代码中修复关键问题
 ---
 Scan the repo's infrastructure-as-code and turn findings into minimal, safe Terraform
 changes.

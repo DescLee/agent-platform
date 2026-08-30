@@ -23,10 +23,10 @@ describe("TurnGroup (Transcript §33)", () => {
     const { container } = render(<Transcript items={TURN} onApprove={vi.fn()} />);
 
     // Collapsed at rest: "2 steps", NO approval count, and no step/narration content visible.
-    expect(screen.getByText("2 steps")).toBeTruthy();
+    expect(screen.getByText("2 个步骤")).toBeTruthy();
     expect(screen.queryByText(/approval/)).toBeNull();
     expect(screen.queryByTestId("turn-narration")).toBeNull();
-    expect(screen.queryByText(/Sent a Slack message/)).toBeNull();
+    expect(screen.queryByText(/已通过 Slack/)).toBeNull();
 
     // The final answer is a normal bubble OUTSIDE the disclosure, visible while collapsed.
     expect(screen.getByText("Posted to #all-openworker.")).toBeTruthy();
@@ -36,7 +36,7 @@ describe("TurnGroup (Transcript §33)", () => {
     fireEvent.click(container.querySelector("summary.stepgroup-head")!);
     expect(screen.getByTestId("turn-narration").textContent).toContain("Checking what merged");
     expect(screen.getByText("runbook.md")).toBeTruthy();
-    expect(screen.getByText(/Sent a Slack message to/)).toBeTruthy();
+    expect(screen.getByText(/已通过 Slack 向/)).toBeTruthy();
     expect(screen.getByText("✓ user-approved")).toBeTruthy();
     expect(screen.queryByText("send_message approval")).toBeNull();
 
@@ -51,7 +51,7 @@ describe("TurnGroup (Transcript §33)", () => {
       { kind: "tool", id: "t1", name: "grep", args: { pattern: "TODO" }, status: "…" },
     ];
     const { container } = render(<Transcript items={items} onApprove={vi.fn()} />);
-    expect(screen.getByText(/Running 1 step…/)).toBeTruthy();
+    expect(screen.getByText(/正在执行 1 个步骤…/)).toBeTruthy();
     expect(screen.queryByTestId("turn-narration")).toBeNull(); // collapsed by default
     expect(screen.getByTestId("turn-live-line").textContent).toContain("Looking at the repo");
     fireEvent.click(container.querySelector("summary.stepgroup-head")!);
@@ -64,12 +64,12 @@ describe("TurnGroup (Transcript §33)", () => {
       { kind: "approval", name: "run_shell", args: { command: "rm -rf build/" }, reason: "", resolved: "deny" },
     ];
     const { container } = render(<Transcript items={items} onApprove={vi.fn()} />);
-    expect(screen.getByTestId("stepgroup-declined").textContent).toBe("1 declined");
+    expect(screen.getByTestId("stepgroup-declined").textContent).toBe("已拒绝 1 项");
     fireEvent.click(container.querySelector("summary.stepgroup-head")!);
     const ask = screen.getByTestId("turn-ask");
-    expect(ask.textContent).toContain("Wanted to run");
+    expect(ask.textContent).toContain("曾申请运行");
     expect(ask.textContent).toContain("rm -rf build/");
-    expect(ask.textContent).toContain("✕ declined");
+    expect(ask.textContent).toContain("✕ 已拒绝");
   });
 
   it("assistant-only turns stay plain bubbles (no disclosure)", () => {
@@ -164,7 +164,7 @@ describe("bubble hover affordances (FB-005)", () => {
     expect(writeText).toHaveBeenCalledWith("post the digest");
     // "Copied" lands only after the clipboard write RESOLVES (a rejected write must
     // not claim success), hence the await.
-    await waitFor(() => expect(copies[0].textContent).toBe("Copied"));
+    await waitFor(() => expect(copies[0].textContent).toBe("已复制"));
     fireEvent.click(copies[1]);
     expect(writeText).toHaveBeenCalledWith("Done — posted to #all-openworker.");
   });
@@ -193,7 +193,7 @@ describe("memory save notice", () => {
       />,
     );
     const notice = screen.getByTestId("memory-notice");
-    expect(notice.textContent).toContain("I'll remember that");
+    expect(notice.textContent).toContain("我会记住");
     expect(notice.textContent).toContain("prefers short replies");
 
     fireEvent.click(screen.getByTestId("memory-notice-undo"));
@@ -218,7 +218,7 @@ describe("memory save notice", () => {
       />,
     );
     expect(screen.getByTestId("memory-notice").textContent).toContain(
-      "I've updated what I remember",
+      "我已更新记忆",
     );
     fireEvent.click(screen.getByTestId("memory-notice-undo"));
     // Undo restores the previous wording rather than deleting the whole memory.
@@ -233,7 +233,7 @@ describe("memory save notice", () => {
         onUndoMemory={vi.fn()}
       />,
     );
-    expect(screen.getByTestId("memory-notice-undone").textContent).toContain("forgotten");
+    expect(screen.getByTestId("memory-notice-undone").textContent).toContain("已忘记");
     expect(screen.queryByTestId("memory-notice-undo")).toBeNull();
   });
 });
@@ -241,20 +241,20 @@ describe("memory save notice", () => {
 describe("humanizeTool", () => {
   it("prefers run_shell's model-written description and keeps the command as the object", () => {
     const line = humanizeTool("run_shell", { command: "git log --since=yesterday", description: "List yesterday's merges" });
-    expect(line.pre).toBe("Ran ");
+    expect(line.pre).toBe("已运行 ");
     expect(line.obj).toBe("git log --since=yesterday");
     expect(line.post).toContain("list yesterday's merges");
   });
 
   it("falls back to 'Used <tool> — <short args>' for unknown tools", () => {
     const line = humanizeTool("gmail_search_messages", { query: "from:ci" });
-    expect(line.pre).toBe("Used gmail_search_messages");
+    expect(line.pre).toBe("已使用 gmail_search_messages");
     expect(line.post).toContain("query=from:ci");
   });
 
   it("summarizes todo_write by its single item and status", () => {
     const line = humanizeTool("todo_write", { todos: [{ content: "Post the digest", status: "in_progress" }] });
-    expect(line.pre).toBe("Updated the plan — ");
+    expect(line.pre).toBe("已更新计划 — ");
     expect(line.obj).toContain("Post the digest");
     expect(line.post).toBe(" → in progress");
   });
@@ -290,7 +290,7 @@ describe("reviewer deny card (§8.4)", () => {
     fireEvent.click(container.querySelector("summary.stepgroup-head")!);
 
     const card = screen.getByTestId("reviewer-deny-card");
-    expect(card.textContent).toContain("Blocked by the reviewer");
+    expect(card.textContent).toContain("已被审核器阻止");
     expect(card.textContent).toContain("This sends your .env to an unknown website.");
 
     fireEvent.click(screen.getByTestId("reviewer-allow-anyway"));

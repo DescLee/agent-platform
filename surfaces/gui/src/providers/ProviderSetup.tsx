@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
+  addModel,
   codexAuthStatus,
   codexSignin,
   codexSignout,
@@ -12,6 +13,23 @@ import {
 } from "../api";
 import { openExternal } from "../tauri";
 import { PROVIDER_LOGOS, providerRank } from "./logos";
+
+// Keep the first-party provider gallery focused on the providers supported by the
+// product's current distribution. OpenAI's optional endpoint field is the custom
+// provider path, so custom OpenAI-compatible gateways do not need a second backend
+// descriptor or a duplicate credential store.
+export const VISIBLE_PROVIDER_NAMES = new Set([
+  "openai",
+  "openai-codex",
+  "anthropic",
+  "deepseek",
+  "ollama",
+  "minimax",
+  "kimi",
+  "qwen",
+  "ark-agent-plan-cn",
+  "zai",
+]);
 
 // The provider gallery ⇄ key form, shared by Onboarding step 1 (§39) and
 // Settings ▸ Models (UX-021) so the two can never drift apart visually. The hook
@@ -87,8 +105,12 @@ export interface ProviderSetupState {
   savedState: boolean;
   secretFilled: boolean;
   openProvider: (name: string) => void;
+  openProviderBlank: (name: string) => void;
   backToGallery: () => void;
   runTestAndSave: () => Promise<boolean>;
+  testOnly: () => Promise<boolean>;
+  fetchModels: () => Promise<boolean>;
+  saveAfterTest: () => Promise<boolean>;
   removeKey: () => Promise<void>;
   cancelBackTimer: () => void;
   statusFor: (p: ProviderInfo, opts?: { lastUsed?: boolean }) => ReactNode;
@@ -97,6 +119,9 @@ export interface ProviderSetupState {
   // owner-hit 2026-07-23: the budget silently never saved).
   saveField: (key: string) => Promise<void>;
   fieldSaved: string | null; // field key flashing "✓ Saved"
+  discoveredModels: string[];
+  isBlank: boolean;
+  notice: string | null;
 }
 
 export function useProviderSetup(opts?: { onSaved?: () => void }): ProviderSetupState {
@@ -115,6 +140,10 @@ export function useProviderSetup(opts?: { onSaved?: () => void }): ProviderSetup
   const backTimer = useRef<number | null>(null);
   // Which non-secret field just blur-saved (flashes "✓ Saved" in the input).
   const [fieldSaved, setFieldSaved] = useState<string | null>(null);
+  const [discoveredModels, setDiscoveredModels] = useState<string[]>([]);
+  const [isBlank, setIsBlank] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const noticeTimer = useRef<number | null>(null);
   const fieldSavedTimer = useRef<number | null>(null);
 
   const refreshProviders = () =>
@@ -125,24 +154,29 @@ export function useProviderSetup(opts?: { onSaved?: () => void }): ProviderSetup
     refreshProviders();
     return () => {
       if (backTimer.current) window.clearTimeout(backTimer.current);
+      if (noticeTimer.current) window.clearTimeout(noticeTimer.current);
     };
   }, []);
 
   const info = providers.find((p) => p.name === sel);
   const credentialed = !!info?.configured && !!info?.needs_key;
 
-  const openProvider = (name: string) => {
+  const openProvider = (name: string, blank = false) => {
     const p = providers.find((x) => x.name === name);
     if (sel) setDrafts((d) => ({ ...d, [sel]: fields }));
-    const draft = drafts[name];
+    const draft = blank ? undefined : drafts[name];
     const next: Record<string, string> = {};
-    for (const f of p?.fields || []) next[f.key] = draft?.[f.key] || p?.values?.[f.key] || f.default || "";
+    for (const f of p?.fields || []) next[f.key] = blank ? f.default || "" : draft?.[f.key] || p?.values?.[f.key] || f.default || "";
     setSel(name);
+    setIsBlank(blank);
     setFields(next);
     setDirty(!!draft && Object.values(draft).some(Boolean));
     setVerify({ state: "idle" });
+    setDiscoveredModels([]);
     setShowEndpoint(false);
   };
+
+  const openProviderBlank = (name: string) => openProvider(name, true);
 
   const backToGallery = () => {
     // Stash only UNSAVED input. The unconditional stash used to capture the just-saved
@@ -156,27 +190,77 @@ export function useProviderSetup(opts?: { onSaved?: () => void }): ProviderSetup
 
   // Test = verify AND save AND return (§39: a passing Test auto-saves and takes
   // you back to the gallery, where the card now wears its ✓ — no extra clicks).
-  const runTestAndSave = async (): Promise<boolean> => {
+  const testOnly = async (): Promise<boolean> => {
     if (!sel) return false;
     setVerify({ state: "testing" });
-    const res = await verifyProvider(sel, fields).catch(() => ({ ok: false, error: "unreachable" }));
+    const res = await verifyProvider(sel, fields).catch(
+      () => ({ ok: false, error: "unreachable" } as { ok: boolean; error?: string; models?: string[] }),
+    );
     if (!res.ok) {
       setVerify({ state: "error", msg: res.error || "couldn't verify" });
       return false;
     }
-    if (dirty || !info?.configured) await setProvider(sel, fields).catch(() => {});
-    if (!info?.needs_key) setKeylessOk((s) => new Set(s).add(sel));
     setVerify({ state: "ok" });
+    return true;
+  };
+
+  const fetchModels = async (): Promise<boolean> => {
+    if (sel !== "custom") return false;
+    setVerify({ state: "testing" });
+    const res = await verifyProvider(sel, fields).catch(
+      () => ({ ok: false, error: "无法连接接口" } as { ok: boolean; error?: string; models?: string[] }),
+    );
+    if (!res.ok) {
+      setVerify({ state: "error", msg: res.error || "获取模型失败" });
+      return false;
+    }
+    setDiscoveredModels(res.models || []);
+    setVerify({ state: "ok" });
+    return true;
+  };
+
+  const saveAfterTest = async (): Promise<boolean> => {
+    if (!sel) return false;
+    if (sel === "custom") {
+      const missing = [
+        !fields.supplier_name?.trim() && "供应商名称",
+        !fields.base_url?.trim() && "接口地址",
+        isBlank && !fields.api_key?.trim() && "API key",
+      ].filter(Boolean) as string[];
+      if (missing.length) {
+        setNotice(`请填写：${missing.join("、")}`);
+        if (noticeTimer.current) window.clearTimeout(noticeTimer.current);
+        noticeTimer.current = window.setTimeout(() => setNotice(null), 3500);
+        return false;
+      }
+    }
+    const tested = await testOnly();
+    if (!tested) return false;
+    const saved = await setProvider(sel, fields).catch(() => ({ ok: false, error: "保存失败，请稍后重试。" }));
+    if (!saved.ok) {
+      setVerify({ state: "error", msg: saved.error || "保存失败，请稍后重试。" });
+      return false;
+    }
+    if (!info?.needs_key) setKeylessOk((s) => new Set(s).add(sel));
     setDirty(false);
     setDrafts((d) => ({ ...d, [sel]: {} }));
     await refreshProviders();
     opts?.onSaved?.();
-    // Let the in-field "✓ Tested & saved" register, then slide home. NOT backToGallery:
-    // the timeout would fire its stale closure (dirty/fields from before the save) and
-    // re-stash the just-saved key as a draft — the state-restore bug (owner catch
-    // 2026-07-19). This return path clears the draft unconditionally.
+    // A successful custom save completes the add flow and returns to the model list.
+    setSel(null);
+    setVerify({ state: "idle" });
+    return true;
+  };
+
+  const runTestAndSave = async (): Promise<boolean> => {
+    if (sel === "custom") return saveAfterTest();
+    const tested = await testOnly();
+    if (!tested) return false;
+    setDirty(false);
+    setDrafts((d) => ({ ...d, [sel!]: {} }));
+    await refreshProviders();
+    opts?.onSaved?.();
     backTimer.current = window.setTimeout(() => {
-      setDrafts((d) => ({ ...d, [sel]: {} }));
       setSel(null);
       setVerify({ state: "idle" });
     }, 900);
@@ -271,18 +355,25 @@ export function useProviderSetup(opts?: { onSaved?: () => void }): ProviderSetup
     credentialed,
     // The in-field saved state (§39): green border + pill INSIDE the key box — shown
     // for stored credentials and fresh test-passes alike; typing clears it.
-    savedState: (credentialed && !dirty) || verify.state === "ok",
+    savedState: (!isBlank && credentialed && !dirty) || verify.state === "ok",
     // Only REQUIRED secrets gate the Test button — cloud providers (Bedrock, Vertex)
     // have optional key fields whose credentials may live in ~/.aws or ADC instead.
     secretFilled: (info?.fields || []).every(
       (f) => !f.secret || !f.required || (fields[f.key] || "").trim(),
     ),
     openProvider,
+    openProviderBlank,
     backToGallery,
     runTestAndSave,
+    testOnly,
+    fetchModels,
+    saveAfterTest,
     removeKey,
     saveField,
     fieldSaved,
+    discoveredModels,
+    isBlank,
+    notice,
     cancelBackTimer: () => {
       if (backTimer.current) window.clearTimeout(backTimer.current);
     },
@@ -401,7 +492,7 @@ export function ProviderCards({
     "flex items-center gap-2.5 rounded-xl border border-line bg-panel px-3 py-2.5 text-left hover:border-lineStrong transition-colors";
   return (
     <div className={gridClass}>
-      {ps.ordered.map((p) => (
+      {ps.ordered.filter((p) => VISIBLE_PROVIDER_NAMES.has(p.name)).map((p) => (
         <button
           key={p.name}
           className={card}
@@ -484,18 +575,18 @@ export function ProviderForm({
               className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-medium text-ok bg-okSoft rounded-full px-2 py-0.5 pointer-events-none"
               data-testid={`${tp}-saved-pill`}
             >
-              {info?.needs_key ? <>✓ Tested &amp; saved</> : <>✓ Detected</>}
+              {sel === "custom" ? <>✓ 连接成功</> : info?.needs_key ? <>✓ Tested &amp; saved</> : <>✓ Detected</>}
             </span>
           )}
         </div>
         {testable && (
           <button
             className="px-4 rounded-lg border border-line text-[13px] font-medium text-ink hover:border-lineStrong shrink-0 disabled:opacity-40"
-            onClick={() => ps.runTestAndSave()}
+            onClick={() => (sel === "custom" ? ps.testOnly() : ps.runTestAndSave())}
             disabled={ps.verify.state === "testing" || (!ps.secretFilled && !ps.credentialed)}
             data-testid={`${tp}-test`}
           >
-            {ps.verify.state === "testing" ? "…" : info?.needs_key ? "Test" : "Detect"}
+            {ps.verify.state === "testing" ? "…" : sel === "custom" ? "连接测试" : info?.needs_key ? "Test" : "Detect"}
           </button>
         )}
       </div>
@@ -505,6 +596,12 @@ export function ProviderForm({
 
   return (
     <div>
+      {ps.notice && (
+        <div className="fixed left-1/2 top-6 z-50 -translate-x-1/2 rounded-lg border border-line bg-panel px-4 py-3 text-[13px] text-ink shadow-lg" role="status">
+          <span className="mr-2 inline-block h-2 w-2 rounded-full bg-accent" />
+          {ps.notice}
+        </div>
+      )}
       <button className="text-[13px] text-muted hover:text-ink" onClick={ps.backToGallery} data-testid={`${tp}-back`}>
         ‹ All providers
       </button>
@@ -512,8 +609,20 @@ export function ProviderForm({
         <ProviderMark name={info?.name || ""} title={info?.title || ""} size={36} />
         <span className="min-w-0">
           <span className="block text-[14px] font-semibold leading-tight">{info?.title}</span>
-          {info ? ps.statusFor(info) : null}
+          {!ps.isBlank && info ? ps.statusFor(info) : null}
         </span>
+        <div className="ml-auto flex items-center gap-2">
+          {sel === "custom" && (
+            <button
+              className="rounded-lg bg-accent px-4 py-1.5 text-[13px] font-medium text-white hover:brightness-105"
+              data-testid={`${tp}-custom-save`}
+              onClick={() => void ps.saveAfterTest()}
+            >
+              保存
+            </button>
+          )}
+          {!ps.isBlank && footer}
+        </div>
       </div>
       {info?.blurb && <p className="text-[12px] text-faint mt-1">{info.blurb}</p>}
 
@@ -524,7 +633,7 @@ export function ProviderForm({
           (f) =>
             !f.show_when &&
             !(f.choices && f.choices.length) &&
-            !(f.key === "base_url" && keyed),
+            !(f.key === "base_url" && keyed && sel !== "custom"),
         )
         .map((f) => fieldRow(f, !choice && f.key === testKey))}
 
@@ -583,19 +692,33 @@ export function ProviderForm({
             <div className="mt-3.5 flex items-center justify-between gap-3 border-t border-line pt-3">
               {ps.savedState ? (
                 <span className="text-[12px] font-medium text-ok" data-testid={`${tp}-saved-pill`}>
-                  ✓ Tested &amp; saved
+                  {sel === "custom" ? <>✓ 连接成功</> : <>✓ Tested &amp; saved</>}
                 </span>
               ) : (
-                <span className="text-[12px] text-faint">Runs one read-only check, then saves.</span>
+                <span className="text-[12px] text-faint">
+                  {sel === "custom" ? "仅测试接口，不会保存配置。" : "Runs one read-only check, then saves."}
+                </span>
               )}
-              <button
-                className="shrink-0 rounded-lg border border-accent bg-accent px-4 py-1.5 text-[13px] font-medium text-white hover:brightness-105 disabled:opacity-40"
-                onClick={() => ps.runTestAndSave()}
-                disabled={ps.verify.state === "testing"}
-                data-testid={`${tp}-test`}
-              >
-                {ps.verify.state === "testing" ? "…" : <>Test &amp; save</>}
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  className="rounded-lg border border-accent bg-accent px-4 py-1.5 text-[13px] font-medium text-white hover:brightness-105 disabled:opacity-40"
+                  onClick={() => (sel === "custom" ? ps.testOnly() : ps.runTestAndSave())}
+                  disabled={ps.verify.state === "testing"}
+                  data-testid={`${tp}-test`}
+                >
+                  {ps.verify.state === "testing" ? "…" : <>{sel === "custom" ? "连接测试" : "Test & save"}</>}
+                </button>
+                {sel === "custom" && (
+                  <button
+                    className="rounded-lg border border-line bg-panel px-4 py-1.5 text-[13px] font-medium text-ink hover:border-lineStrong disabled:opacity-40"
+                    onClick={() => void ps.fetchModels()}
+                    disabled={ps.verify.state === "testing"}
+                    data-testid={`${tp}-fetch-models`}
+                  >
+                    获取模型
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -629,6 +752,7 @@ export function ProviderForm({
           with enough separation to read as its own advanced row — no explainer copy
           (owner calls 2026-07-18 + 2026-07-19). */}
       {(() => {
+        if (sel === "custom") return null;
         const keyed = (info?.fields || []).some((x) => x.secret);
         const ep = keyed ? (info?.fields || []).find((f) => f.key === "base_url") : undefined;
         if (!ep) return null;
@@ -673,7 +797,23 @@ export function ProviderForm({
       <div className="mt-3 min-h-[19px] text-[13px]">
         {ps.verify.state === "error" && <span className="text-warnInk">{ps.verify.msg}</span>}
       </div>
-      {info?.auth === "oauth" ? null : footer}
+      {sel === "custom" && ps.discoveredModels.length > 0 && (
+        <div className="mt-3 rounded-lg border border-line bg-paper px-3 py-2.5" data-testid={`${tp}-discovered-models`}>
+          <div className="text-[12px] font-medium text-muted mb-2">已发现模型</div>
+          <div className="flex flex-wrap gap-1.5">
+            {ps.discoveredModels.map((model) => (
+              <button
+                key={model}
+                className="rounded-md border border-line bg-panel px-2 py-1 text-[12px] text-ink hover:border-accent"
+                onClick={() => void addModel(`custom:${model}`)}
+                title="加入模型选择器"
+              >
+                {model}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

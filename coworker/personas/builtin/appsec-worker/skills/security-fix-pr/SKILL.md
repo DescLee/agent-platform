@@ -1,6 +1,6 @@
 ---
 name: security-fix-pr
-description: Turn triaged security findings into focused, reviewable fix PRs
+description: 将已研判的安全问题转化为聚焦且可审核的修复 PR
 ---
 Package security fixes so a busy reviewer can approve them with confidence.
 

@@ -1,6 +1,6 @@
 ---
 name: safe-upgrade-pr
-description: Ship minimal, test-verified dependency upgrades as focused PRs
+description: 以聚焦 PR 提交经过测试验证的最小依赖升级
 ---
 Turn triaged advisories into upgrade PRs a reviewer can merge without fear.
 

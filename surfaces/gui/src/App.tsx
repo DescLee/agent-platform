@@ -88,9 +88,9 @@ const newId = () =>
   (crypto as any).randomUUID ? crypto.randomUUID().slice(0, 12) : Math.random().toString(36).slice(2, 14);
 
 const SUGGESTIONS = [
-  { ico: "⚙", text: "Run the test suite and summarize any failures." },
-  { ico: "✦", text: "Read the project and give me a 5-bullet overview." },
-  { ico: "↻", text: "Find and fix the failing build." },
+  { ico: "⚙", text: "运行测试套件，并总结所有失败项。" },
+  { ico: "✦", text: "阅读这个项目，并用 5 个要点概述其内容。" },
+  { ico: "↻", text: "定位并修复构建失败问题。" },
 ];
 
 // Tools whose success means a new/changed file should show up under Artifacts right away.
@@ -882,7 +882,7 @@ export function App() {
           break;
         case "turn_end":
           if (d.status === "max_iterations_exceeded")
-            setItems((p) => [...p, { kind: "notice", tone: "warn", text: "Stopped: max iterations reached." }]);
+            setItems((p) => [...p, { kind: "notice", tone: "warn", text: "已停止：达到最大迭代次数。" }]);
           break;
         case "mode_notice":
           // Server-authored + persisted (owner ruling 2026-08-24): the Auto-Approve
@@ -932,7 +932,7 @@ export function App() {
           flushPartialStream();
           setItems((p) => [
             ...p,
-            { kind: "notice", tone: "warn", text: "Error: " + (d.error || "unknown"), retriable: true },
+            { kind: "notice", tone: "warn", text: "错误：" + (d.error || "未知错误"), retriable: true },
           ]);
           break;
         case "input_rejected":
@@ -1290,7 +1290,7 @@ export function App() {
     pendingPromptRef.current = {
       ...gate,
       model,
-      notice: res.git ? "Temporary folder created · git initialized" : "Temporary folder created",
+      notice: res.git ? "已创建临时文件夹 · Git 已初始化" : "已创建临时文件夹",
     };
     setSessionId(sid);
   };
@@ -1337,7 +1337,7 @@ export function App() {
       if (msg.type !== "automation_run_started") return;
       const d = (msg.data ?? {}) as Record<string, string>;
       setRunToast({
-        title: d.task_title || "Automation",
+        title: d.task_title || "自动任务",
         sessionId: d.session_id || "",
         workspace: d.workspace || "",
         agent: d.agent || "cowork",
@@ -1562,10 +1562,10 @@ export function App() {
   // path never shows — "Temporary folder" + the Save as project… affordance instead.
   const subtitleParts = [fullPersonaName(personaOf(agent)?.name, agent), modelDisplay];
   if (isProjectScoped(personaOf(agent)) && workspace)
-    subtitleParts.push(tempWorkspace ? "Temporary folder" : baseName(workspace));
+    subtitleParts.push(tempWorkspace ? "临时文件夹" : baseName(workspace));
   const showSaveAsProject = hasHistory && tempWorkspace && isProjectScoped(personaOf(agent));
   const activeInfo = sessions.find((s) => s.session_id === sessionId);
-  const activeTitle = activeInfo?.title || "New session";
+  const activeTitle = activeInfo?.title || "新会话";
 
   const desktop = isTauri();
   // Dev-only: `?overlay=1` simulates the desktop overlay layout in the browser (adds the
@@ -1578,7 +1578,9 @@ export function App() {
   const overlay = (desktop && platformOS() === "macos") || simOverlay;
   const beginWindowDrag = (event: PointerEvent) => {
     if (!desktop || event.button !== 0) return;
-    startWindowDrag();
+    const target = event.target as HTMLElement | null;
+    if (target?.closest("button, input, textarea, select, a, [role=button]")) return;
+    void startWindowDrag();
   };
 
   if (booting || !uiReady) {
@@ -1589,7 +1591,7 @@ export function App() {
         {overlay && (
           <div className="titlebar-drag" data-tauri-drag-region>
             <span className="titlebar-brand brand-wordmark">
-              <Icon name="logo" size={13} className="mark" /> OpenWorker<span className="beta-tag">BETA</span>
+              <Icon name="logo" size={13} className="mark" /> 绿巨人<span className="beta-tag">测试版</span>
             </span>
           </div>
         )}
@@ -1604,7 +1606,7 @@ export function App() {
           <Icon name="logo" size={38} />
         </div>
         <div className="boot-text">
-          {resumedExisting ? "Restoring your session…" : "Starting OpenWorker…"}
+          {resumedExisting ? "正在恢复会话…" : "正在启动绿巨人…"}
           <span className="beta-tag">BETA</span>
         </div>
       </div>
@@ -1637,7 +1639,7 @@ export function App() {
         >
           <div className="flex items-center gap-2 text-[13px] font-semibold">
             <span className="w-[7px] h-[7px] rounded-full bg-faint toast-pulse" />
-            Automation started
+            自动任务已启动
           </div>
           <div className="text-[13px] text-muted mt-0.5 ml-[15px] truncate">
             {runToast.title} · {runToast.time} run
@@ -1766,7 +1768,7 @@ export function App() {
             prefillComposer(
               description
                 ? `Build a new skill for me: ${description}`
-                : "Build a new skill for me: (describe what the skill should do)",
+                : "帮我创建一个新技能：（请描述这个技能需要完成什么）",
             );
           }}
         />
@@ -1784,7 +1786,7 @@ export function App() {
         />
       ) : (
       <div className={"main" + (surface === "session" && agent !== "chat" && !railHidden ? " rail-open" : "")}>
-        <div className="main-topbar">
+        <div className="main-topbar" onPointerDown={beginWindowDrag} data-tauri-drag-region>
           {/* Left: the contextual cluster — [sidebar] [+ new session] [search] — rendered ONLY
               while the sidebar is collapsed (§22; the expanded sidebar already owns those
               actions). Clicks must not start a window drag. */}
@@ -1806,16 +1808,16 @@ export function App() {
                 <button
                   className="topbar-icon-btn"
                   onClick={() => startNewSession()}
-                  aria-label="New session"
-                  title="New session"
+                  aria-label="新会话"
+                  title="新会话"
                 >
                   <Icon name="plus" size={16} />
                 </button>
                 <button
                   className="topbar-icon-btn"
                   onClick={() => setSearchOpen(true)}
-                  aria-label="Search"
-                  title="Search"
+                  aria-label="搜索"
+                  title="搜索"
                 >
                   <Icon name="search" size={16} />
                 </button>
@@ -1849,7 +1851,7 @@ export function App() {
                       onMouseDown={(e) => e.stopPropagation()}
                       onClick={() => void saveAsProject()}
                     >
-                      Save as project…
+                      另存为项目…
                     </button>
                   </>
                 )}
@@ -1867,7 +1869,7 @@ export function App() {
                 title="Show files this conversation produced"
               >
                 <Icon name="file" size={14} />
-                <span>Artifacts</span>
+                <span>产出文件</span>
                 <span className="topbar-artifacts-count">{artifactCount}</span>
               </button>
             )}
@@ -1904,7 +1906,7 @@ export function App() {
               >
                 <Icon name="clock" size={14} className="text-accent shrink-0" />
                 <span className="truncate text-muted">
-                  Scheduled run
+                  定时运行
                   {runContext?.title ? (
                     <>
                       {" — "}

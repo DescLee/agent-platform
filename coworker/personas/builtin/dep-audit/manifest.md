@@ -1,9 +1,9 @@
 ---
 group: security
 id: dep-audit
-name: Dependency Audit Coworker
+name: 依赖审计助手
 icon: audit
-tagline: Vulnerable dependencies — audit, minimal upgrades, PRs
+tagline: 依赖漏洞审计、最小化升级与 PR
 requires_folder: true
 subagents: true
 version: "1"
@@ -12,7 +12,7 @@ connectors: [github]
 skills: [dependency-audit, safe-upgrade-pr]
 recommended_models: [anthropic:claude-opus-4-8, openai:gpt-5.6-sol]
 default_permission_mode: interactive
-description: A dependency auditor for teams without a security team. Runs open-source vulnerability scanners (osv-scanner, npm audit, pip-audit, trivy) across your lockfiles, separates exploitable from theoretical, and ships minimal, test-verified upgrade PRs.
+description: 面向缺少安全团队的依赖审计助手，使用 osv-scanner、npm audit、pip-audit、Trivy 等扫描锁文件，区分真实可利用风险与理论风险，并提交经过测试验证的最小升级 PR。
 recommends:
   - connector: github
     reason: open upgrade PRs and reference the advisories they close

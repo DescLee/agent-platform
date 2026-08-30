@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableExtensions
 
-rem Install the OpenWorker source workspace on Windows and verify that it can build.
+rem Install the Green Giant source workspace on Windows and verify that it can build.
 set "ROOT=%~dp0"
 set "GUI=%ROOT%surfaces\gui"
 set "TAURI_MANIFEST=%GUI%\src-tauri\Cargo.toml"
@@ -84,7 +84,7 @@ cargo build --manifest-path "%TAURI_MANIFEST%"
 if errorlevel 1 goto :failed
 
 echo.
-echo OpenWorker installation completed successfully.
+echo Green Giant installation completed successfully.
 echo Start the desktop client with: start.bat
 exit /b 0
 
@@ -101,5 +101,5 @@ echo ERROR: Rust 1.77 or newer is required: https://rustup.rs/
 exit /b 1
 
 :failed
-echo ERROR: OpenWorker installation failed. Review the command output above.
+echo ERROR: Green Giant installation failed. Review the command output above.
 exit /b 1

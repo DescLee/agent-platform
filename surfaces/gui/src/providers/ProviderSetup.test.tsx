@@ -57,13 +57,20 @@ function makePs(fields: Record<string, string>, setFieldValue = vi.fn()): Provid
     savedState: false,
     secretFilled: true,
     openProvider: () => {},
+    openProviderBlank: () => {},
     backToGallery: () => {},
     runTestAndSave: async () => true,
+    testOnly: async () => true,
+    fetchModels: async () => true,
+    saveAfterTest: async () => true,
     removeKey: async () => {},
     cancelBackTimer: () => {},
     statusFor: () => null,
     saveField: async () => {},
     fieldSaved: null,
+    discoveredModels: [],
+    isBlank: false,
+    notice: null,
   };
 }
 

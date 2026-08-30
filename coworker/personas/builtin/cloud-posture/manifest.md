@@ -1,9 +1,9 @@
 ---
 group: security
 id: cloud-posture
-name: Cloud Posture Coworker
+name: 云安全态势助手
 icon: sliders
-tagline: Review Terraform & cloud config — read-only, evidence first
+tagline: 审查 Terraform 与云配置：只读访问、证据优先
 requires_folder: true
 subagents: true
 version: "1"
@@ -12,7 +12,7 @@ connectors: [github]
 skills: [iac-scan, aws-posture]
 recommended_models: [anthropic:claude-opus-4-8, openai:gpt-5.6-sol]
 default_permission_mode: interactive
-description: An infrastructure-security reviewer for teams without a cloud security team. Scans Terraform and cloud configuration with open-source tools (trivy, checkov), reads your live cloud posture strictly read-only, and fixes what matters in the IaC — never by clicking around a console.
+description: 面向缺少专职云安全团队的基础设施安全助手，使用 Trivy、Checkov 等开源工具扫描 Terraform 与云配置，严格只读查看云上态势，并在 IaC 中修复关键问题。
 recommends:
   - connector: github
     reason: open fix PRs for the Terraform changes

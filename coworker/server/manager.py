@@ -5061,12 +5061,9 @@ class SessionManager:
 
     # -- LLM auto-titles (FB-010) -------------------------------------------------
     _AUTOTITLE_PROMPT = (
-        "You title chat sessions. Given the user's opening message(s) — and, when "
-        "present, the assistant's first reply for context — reply with ONLY a 4-5 word "
-        "title for the session, named after what the session is actually about — no "
-        "quotes or punctuation wrapping it. If there is no topic at all ("
-        '"hey", "how are you", "hi there" and a generic reply), reply with exactly: '
-        "small-talk"
+        "你负责为聊天会话生成中文标题。根据用户开场消息以及可能提供的助手首次回复，只返回一个"
+        "准确概括会话主题的 4～10 字标题，不要添加引号或首尾标点。如果完全没有主题，只是普通问候，"
+        "请严格返回：闲聊"
     )
 
     def _maybe_autotitle(self, session_id: str) -> None:

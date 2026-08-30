@@ -1,6 +1,6 @@
 ---
 name: secret-scan
-description: Hunt committed secrets with gitleaks and drive safe rotation
+description: 使用 Gitleaks 查找已提交的密钥，并推动安全轮换
 ---
 Find committed credentials and get them rotated and removed — without ever exposing them
 further yourself.

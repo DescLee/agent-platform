@@ -1,6 +1,6 @@
 ---
 name: semgrep-review
-description: Run a semgrep scan and turn findings into triaged, contextual fixes
+description: 运行 Semgrep 扫描，结合上下文研判结果并实施修复
 ---
 Run a static-analysis pass with semgrep and own the findings end to end.
 

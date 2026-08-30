@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Start the OpenWorker Tauri desktop client from this source workspace.
+# 从源码工作区启动绿巨人 Tauri 桌面客户端。
 
 set -euo pipefail
 
@@ -8,26 +8,26 @@ GUI="$ROOT/surfaces/gui"
 PID_FILE="$ROOT/.openworker-dev.pid"
 
 if [ "$(uname -s)" != "Darwin" ]; then
-  echo "ERROR: start.sh supports macOS. On Windows, run start.bat instead." >&2
+  echo "错误：start.sh 仅支持 macOS；Windows 请运行 start.bat。" >&2
   exit 1
 fi
 if [ ! -x "$ROOT/.venv/bin/openworker-server" ]; then
-  echo "ERROR: Python environment is not installed. Run ./install.sh first." >&2
+  echo "错误：Python 环境尚未安装，请先运行 ./install.sh。" >&2
   exit 1
 fi
 if [ ! -x "$GUI/node_modules/.bin/tauri" ]; then
-  echo "ERROR: Frontend dependencies are not installed. Run ./install.sh first." >&2
+  echo "错误：前端依赖尚未安装，请先运行 ./install.sh。" >&2
   exit 1
 fi
 if ! command -v cargo >/dev/null 2>&1; then
-  echo "ERROR: Rust/Cargo is unavailable. Run ./install.sh after installing Rust." >&2
+  echo "错误：Rust/Cargo 不可用，请安装 Rust 后运行 ./install.sh。" >&2
   exit 1
 fi
 
 if [ -f "$PID_FILE" ]; then
   existing_pid="$(tr -cd '0-9' < "$PID_FILE")"
   if [ -n "$existing_pid" ] && kill -0 "$existing_pid" 2>/dev/null; then
-    echo "ERROR: OpenWorker is already running (PID $existing_pid)." >&2
+    echo "错误：绿巨人已在运行（PID $existing_pid）。" >&2
     exit 1
   fi
   rm -f "$PID_FILE"

@@ -319,6 +319,7 @@ body {
 }
 .topbar-icon-btn:hover { color: var(--ink); background: var(--paper); }
 .app.tauri-overlay .main-title,
+.app.tauri-overlay .main-topbar,
 .app.tauri-overlay .main-drag-fill {
   -webkit-app-region: drag;
 }

@@ -69,13 +69,13 @@ const SET_TABS: {
   label: string;
   icon: "sliders" | "code" | "mic" | "archive" | "sparkle" | "book" | "refresh";
 }[] = [
-  { key: "appearance", label: "General", icon: "sliders" },
-  { key: "models", label: "Models", icon: "code" },
-  { key: "context", label: "Context optimization", icon: "refresh" },
-  { key: "skills", label: "Skills", icon: "book" },
-  { key: "voice", label: "Voice input", icon: "mic" },
-  { key: "memory", label: "Memory", icon: "archive" },
-  { key: "personas", label: "Coworkers", icon: "sparkle" },
+  { key: "appearance", label: "通用", icon: "sliders" },
+  { key: "models", label: "模型", icon: "code" },
+  { key: "context", label: "上下文优化", icon: "refresh" },
+  { key: "skills", label: "技能", icon: "book" },
+  { key: "voice", label: "语音输入", icon: "mic" },
+  { key: "memory", label: "记忆", icon: "archive" },
+  { key: "personas", label: "协作助手", icon: "sparkle" },
 ];
 
 export function SettingsView({
@@ -101,7 +101,7 @@ export function SettingsView({
     <main className="flex-1 min-w-0 flex bg-paper">
       <nav className="page-subnav w-[208px] shrink-0 border-r border-line bg-panel/40 px-3 py-4">
         <div className="px-2 text-[13px] font-semibold mb-3 flex items-center gap-2">
-          <Icon name="gear" size={16} /> Settings
+          <Icon name="gear" size={16} /> 设置
         </div>
         {tabs.map((t) => {
           const active = tab === t.key;
@@ -127,16 +127,16 @@ export function SettingsView({
           ) : tab === "models" ? (
             <section>
               <PanelHead
-                title="Models"
-                sub="Providers and the models offered in the composer's picker. Keys are stored only on this computer."
+                title="模型"
+                sub="管理服务商及输入框中可选的模型；密钥仅保存在本机。"
               />
               <ModelsTab />
             </section>
           ) : tab === "context" ? (
             <section>
               <PanelHead
-                title="Context optimization"
-                sub="How sessions spend tokens — attachment handling and long-history compaction."
+                title="上下文优化"
+                sub="控制会话如何使用 Token，包括附件处理与长会话压缩。"
               />
               <TokenSavingsCard />
               <CompactionCard />
@@ -158,7 +158,7 @@ export function SettingsView({
 
 // -- Voice input: deliberate model provisioning + compatibility + microphone test (§37) --------
 const voiceError = (error: unknown) =>
-  error instanceof Error ? error.message : typeof error === "string" ? error : "Voice Input could not complete that action.";
+  error instanceof Error ? error.message : typeof error === "string" ? error : "语音输入无法完成该操作。";
 
 const formatBytes = (bytes: number) => {
   if (!bytes) return "0 MiB";
@@ -283,37 +283,37 @@ function VoiceInputSection() {
   return (
     <section>
       <PanelHead
-        title="Voice input"
-        sub="Speak naturally in the composer. Recordings and transcripts stay on this device."
+        title="语音输入"
+        sub="在输入框中自然说话；录音和转写内容始终保留在本机。"
       />
 
       {!desktop ? (
-        <div className={CARD + " p-4 text-[13px] text-muted"}>Voice Input setup is available in the OpenWorker desktop app.</div>
+        <div className={CARD + " p-4 text-[13px] text-muted"}>语音输入设置仅在绿巨人桌面客户端中可用。</div>
       ) : (
         <div className="space-y-4">
           <div className="rounded-xl border border-green-200 bg-green-50/70 px-4 py-3 text-[13px] text-green-800">
-            <span className="font-medium">Private by design.</span> Audio is held in memory only while you record and is transcribed locally.
+            <span className="font-medium">隐私优先。</span>音频仅在录音期间暂存于内存，并在本地完成转写。
           </div>
 
           <div className={CARD}>
             <div className="p-4 flex items-start gap-3">
               <Icon name="code" size={18} className="text-accent mt-0.5" />
               <div className="min-w-0 flex-1">
-                <div className="text-[13px] font-medium">This device</div>
-                <div className="text-[12px] text-muted mt-1">{status?.device_summary || "Checking compatibility…"}</div>
+                <div className="text-[13px] font-medium">当前设备</div>
+                <div className="text-[12px] text-muted mt-1">{status?.device_summary || "正在检查兼容性…"}</div>
                 {status?.compatibility_reason && <div className="text-[12px] text-red-600 mt-1.5">{status.compatibility_reason}</div>}
               </div>
               {status && (
                 <span className={"text-[12px] px-2 py-1 rounded-full " + (status.supported ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600")}>
-                  {status.supported ? "● Compatible" : "Unsupported"}
+                  {status.supported ? "● 兼容" : "不支持"}
                 </span>
               )}
             </div>
             <div className="border-t border-line bg-paper/50 px-4 py-3 grid grid-cols-2 gap-3 text-[12px] text-muted">
               <div><span className="block text-ink font-medium">Mac</span>macOS 12+ · Apple Silicon M1+</div>
               <div><span className="block text-ink font-medium">Windows</span>Windows 10 22H2/11 · x64</div>
-              <div><span className="block text-ink font-medium">Memory</span>8 GB recommended</div>
-              <div><span className="block text-ink font-medium">Processor</span>4 CPU cores recommended</div>
+              <div><span className="block text-ink font-medium">内存</span>建议 8 GB</div>
+              <div><span className="block text-ink font-medium">处理器</span>建议 4 核 CPU</div>
             </div>
           </div>
 
@@ -321,23 +321,23 @@ function VoiceInputSection() {
             <div className="p-4 flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-accentSoft text-accent grid place-items-center font-semibold">W</div>
               <div className="min-w-0 flex-1">
-                <div className="text-[13px] font-medium">Whisper Base · English</div>
+                <div className="text-[13px] font-medium">Whisper Base · 英语</div>
                 <div className="text-[12px] text-muted mt-0.5">
-                  {status?.model_verified ? `Installed and verified · ${formatBytes(status.model_bytes)}` : `Local voice model · ${formatBytes(status?.model_bytes || 147_964_211)}`}
+                  {status?.model_verified ? `已安装并验证 · ${formatBytes(status.model_bytes)}` : `本地语音模型 · ${formatBytes(status?.model_bytes || 147_964_211)}`}
                 </div>
               </div>
               {status?.model_verified ? (
                 <>
-                  <span className="text-[12px] px-2 py-1 rounded-full bg-green-50 text-green-700">Verified</span>
-                  <button className={BTN_BORDERED} onClick={() => void repair()}>Repair</button>
-                  <button className="text-[12px] text-red-600 px-2 py-2" onClick={() => void remove()}>Delete</button>
+                  <span className="text-[12px] px-2 py-1 rounded-full bg-green-50 text-green-700">已验证</span>
+                  <button className={BTN_BORDERED} onClick={() => void repair()}>修复</button>
+                  <button className="text-[12px] text-red-600 px-2 py-2" onClick={() => void remove()}>删除</button>
                 </>
               ) : downloading ? (
-                <button className={BTN_BORDERED} onClick={() => void cancelDownload()}>Cancel</button>
+                <button className={BTN_BORDERED} onClick={() => void cancelDownload()}>取消</button>
               ) : phase === "verifying" ? (
-                <span className="text-[12px] text-muted">Verifying…</span>
+                <span className="text-[12px] text-muted">正在验证…</span>
               ) : (
-                <button className={BTN_ACCENT} disabled={!status?.supported} onClick={() => void download()}>Download model</button>
+                <button className={BTN_ACCENT} disabled={!status?.supported} onClick={() => void download()}>下载模型</button>
               )}
             </div>
             {downloading && (
@@ -352,17 +352,17 @@ function VoiceInputSection() {
             <div className="p-4 flex items-center gap-3">
               <Icon name="mic" size={18} className={ready ? "text-green-600" : "text-muted"} />
               <div className="min-w-0 flex-1">
-                <div className="text-[13px] font-medium">Microphone test</div>
+                <div className="text-[13px] font-medium">麦克风测试</div>
                 <div className="text-[12px] text-muted mt-0.5">
-                  {ready ? "Your microphone and local transcription engine are working." : "Record a short phrase to enable the composer microphone."}
+                  {ready ? "麦克风和本地转写引擎工作正常。" : "录制一小段语音以启用输入框中的麦克风。"}
                 </div>
               </div>
-              {ready && <span className="text-[12px] px-2 py-1 rounded-full bg-green-50 text-green-700">● Ready</span>}
+              {ready && <span className="text-[12px] px-2 py-1 rounded-full bg-green-50 text-green-700">● 已就绪</span>}
               <button className={BTN_BORDERED} disabled={!status?.supported || !status?.model_verified || phase === "transcribing"} onClick={() => void toggleTest()}>
-                {status?.recording ? "Stop and check" : phase === "transcribing" ? "Transcribing…" : ready ? "Test again" : "Test microphone"}
+                {status?.recording ? "停止并检查" : phase === "transcribing" ? "正在转写…" : ready ? "重新测试" : "测试麦克风"}
               </button>
             </div>
-            {status?.recording && <div className="border-t border-line px-4 py-3 text-[12px] text-accent" role="status">● Listening… speak a short phrase, then stop.</div>}
+            {status?.recording && <div className="border-t border-line px-4 py-3 text-[12px] text-accent" role="status">● 正在聆听，请说一小段话后停止。</div>}
             {testTranscript && <div className="border-t border-line bg-paper/50 px-4 py-3 text-[13px]">“{testTranscript}”</div>}
           </div>
 
@@ -382,11 +382,10 @@ function VoiceInputSection() {
 function PersonasSection({ onOpenPersona }: { onOpenPersona?: (id: string) => void }) {
   return (
     <section>
-      <PanelHead title="Coworkers" sub="Manage your coworkers and add new ones." />
+      <PanelHead title="协作助手" sub="管理现有协作助手或添加新的助手。" />
       <p className="text-[13px] text-muted leading-relaxed max-w-[560px] mt-5 mb-1">
-        Coworkers are agents specialized for a particular role or task. They come equipped
-        with the tools and skills to be successful in that role. Enabling a coworker lets
-        you pick it when starting a conversation.
+        协作助手是针对特定角色或任务设计的智能体，自带完成该职责所需的工具和技能。
+        启用后，新建会话时即可选择对应助手。
       </p>
       <PersonasTab onOpenPersona={onOpenPersona} />
     </section>
@@ -416,18 +415,18 @@ function AppearanceSection() {
 
   return (
     <section>
-      <PanelHead title="General" sub="How OpenWorker looks and behaves on this machine." />
+      <PanelHead title="通用" sub="设置绿巨人在本机的外观和运行方式。" />
 
       <div className={CARD + " p-4 mb-4"}>
-        <div className={FIELD_LABEL}>Theme</div>
-        <div className="seg mt-2.5" role="radiogroup" aria-label="Appearance">
+        <div className={FIELD_LABEL}>主题</div>
+        <div className="seg mt-2.5" role="radiogroup" aria-label="外观">
           {(["light", "dark", "auto"] as const).map((p) => (
             <button key={p} className={p === theme ? "active" : ""} onClick={() => setTheme(p)}>
-              {p === "light" ? "Light" : p === "dark" ? "Dark" : "Auto"}
+              {p === "light" ? "浅色" : p === "dark" ? "深色" : "自动"}
             </button>
           ))}
         </div>
-        <div className={FIELD_HELP}>Auto follows your Mac&rsquo;s appearance.</div>
+        <div className={FIELD_HELP}>自动模式会跟随系统外观。</div>
       </div>
 
       <SidebarCard />
@@ -442,19 +441,19 @@ function AppearanceSection() {
 
       {desktop && (
         <div className={CARD + " p-4"}>
-          <div className={FIELD_LABEL + " mb-2.5"}>Always-on</div>
+          <div className={FIELD_LABEL + " mb-2.5"}>常驻运行</div>
           <label className="flex items-start gap-3 py-2">
             <input type="checkbox" className="mt-0.5" checked={autostart} onChange={(e) => toggleAuto(e.target.checked)} />
             <span>
-              <span className="block text-[13px] text-ink">Open at login</span>
-              <span className="block text-[12px] text-muted">Launch OpenWorker automatically when you sign in.</span>
+              <span className="block text-[13px] text-ink">登录时启动</span>
+              <span className="block text-[12px] text-muted">登录系统后自动启动绿巨人。</span>
             </span>
           </label>
           <label className="flex items-start gap-3 py-2">
             <input type="checkbox" className="mt-0.5" checked={keepAwake} onChange={(e) => toggleKeep(e.target.checked)} />
             <span>
-              <span className="block text-[13px] text-ink">Keep this system awake</span>
-              <span className="block text-[12px] text-muted">Prevent idle sleep so scheduled tasks fire on time.</span>
+              <span className="block text-[13px] text-ink">保持系统唤醒</span>
+              <span className="block text-[12px] text-muted">防止系统空闲休眠，确保定时任务按时执行。</span>
             </span>
           </label>
         </div>
@@ -464,14 +463,14 @@ function AppearanceSection() {
           every build, the browser dev shell runs the same first-run flow) and, on
           desktop, the manual update check (launch also checks automatically). */}
       <div className={CARD + " p-4 mt-4"}>
-        <div className={FIELD_LABEL + " mb-2"}>Setup &amp; updates</div>
+        <div className={FIELD_LABEL + " mb-2"}>设置与更新</div>
         <div className="flex items-center gap-2">
           <button className={BTN_BORDERED} onClick={runSetupAgain}>
-            Run setup again
+            重新运行设置向导
           </button>
           {desktop && <UpdateInline />}
         </div>
-        <div className={FIELD_HELP}>Replays the first-run setup: model, first automation, tips.</div>
+        <div className={FIELD_HELP}>重新完成首次运行流程：模型、首个自动任务和使用提示。</div>
       </div>
     </section>
   );
@@ -490,21 +489,21 @@ function TrustedWorkspacesCard() {
   }, []);
 
   const revoke = async (path: string) => {
-    if (!window.confirm(`Revoke command trust for ${path}?`)) return;
+    if (!window.confirm(`确定撤销对 ${path} 的命令信任吗？`)) return;
     await setWorkspaceTrusted(path, false);
     refresh();
   };
 
   return (
     <div className={CARD + " p-4 mb-4"} data-testid="trusted-workspaces-card">
-      <div className={FIELD_LABEL}>Trusted workspaces</div>
+      <div className={FIELD_LABEL}>受信任工作区</div>
       <div className={FIELD_HELP}>
-        Trusted projects may manage their command allowances in .coworker/config.toml.
+        受信任项目可以在 .coworker/config.toml 中管理允许执行的命令。
       </div>
       {workspaces === null ? (
-        <div className="text-[12px] text-muted mt-3">Loading…</div>
+        <div className="text-[12px] text-muted mt-3">正在加载…</div>
       ) : workspaces.length === 0 ? (
-        <div className="text-[12px] text-muted mt-3">No workspaces are trusted.</div>
+        <div className="text-[12px] text-muted mt-3">暂无受信任工作区。</div>
       ) : (
         <div className="mt-3 divide-y divide-line">
           {workspaces.map((workspace) => (
@@ -513,16 +512,16 @@ function TrustedWorkspacesCard() {
                 <div className="text-[13px] text-ink break-all">{workspace.workspace}</div>
                 <div className="text-[12px] text-muted mt-0.5">
                   {workspace.requested_commands.length
-                    ? `${workspace.requested_commands.length} project command allowance${workspace.requested_commands.length === 1 ? "" : "s"}`
-                    : "No project command allowances currently declared"}
-                  {!workspace.exists ? " · Folder unavailable" : ""}
+                    ? `${workspace.requested_commands.length} 条项目命令权限`
+                    : "当前未声明项目命令权限"}
+                  {!workspace.exists ? " · 文件夹不可用" : ""}
                 </div>
               </div>
               <button
                 className="text-[12px] text-red-600 px-2 py-1"
                 onClick={() => void revoke(workspace.workspace)}
               >
-                Revoke
+                撤销
               </button>
             </div>
           ))}
@@ -564,7 +563,7 @@ function UpdateInline() {
     <span className="inline-flex items-center gap-2.5">
       {state === "found" ? (
         <button className={BTN_BORDERED} onClick={install} data-testid="settings-update-install">
-          Update to v{version} and restart
+          更新至 v{version} 并重启
         </button>
       ) : (
         <button
@@ -573,16 +572,16 @@ function UpdateInline() {
           disabled={state === "checking" || state === "installing"}
           data-testid="settings-update-check"
         >
-          {state === "checking" ? "Checking…" : "Check for updates"}
+          {state === "checking" ? "正在检查…" : "检查更新"}
         </button>
       )}
       {(state === "none" || state === "error" || state === "installing") && (
         <span className="text-[12px] text-muted">
           {state === "none"
-            ? "You're on the latest version."
+            ? "当前已是最新版本。"
             : state === "error"
-              ? "Couldn't check right now — try again later."
-              : "Downloading — OpenWorker restarts by itself when it's ready."}
+              ? "暂时无法检查更新，请稍后重试。"
+              : "正在下载，完成后绿巨人将自动重启。"}
         </span>
       )}
     </span>
@@ -621,36 +620,34 @@ function TokenSavingsCard() {
   if (!pdf) return null;
   return (
     <div className={CARD + " p-4 mb-4"} data-testid="token-savings-card">
-      <div className={FIELD_LABEL}>Token savings</div>
+      <div className={FIELD_LABEL}>Token 节省</div>
       <div className={FIELD_HELP}>
-        PDF attachments travel with every turn of a conversation, so large documents multiply
-        what you spend on tokens.
+        PDF 附件会随每轮对话传递，因此大文档会成倍增加 Token 消耗。
       </div>
 
-      <div className="mt-3 text-[13px] text-ink">PDFs on models without native PDF support</div>
-      <div className="seg mt-2" role="radiogroup" aria-label="PDF fallback" data-testid="pdf-fallback">
+      <div className="mt-3 text-[13px] text-ink">不原生支持 PDF 的模型</div>
+      <div className="seg mt-2" role="radiogroup" aria-label="PDF 备用处理方式" data-testid="pdf-fallback">
         <button
           className={pdf.pdf_fallback === "text" ? "active" : ""}
           onClick={() => save({ pdf_fallback: "text" })}
         >
-          Extract text
+          提取文本
         </button>
         <button
           className={pdf.pdf_fallback === "images" ? "active" : ""}
           onClick={() => save({ pdf_fallback: "images" })}
         >
-          Send page images
+          发送页面图片
         </button>
       </div>
       <div className={FIELD_HELP}>
-        Claude, GPT and Gemini read PDFs natively — this only applies to models that
-        don&rsquo;t (GLM, Kimi, DeepSeek, local models…). Text extraction is cheapest; page
-        images cost more tokens and need a vision-capable model.
+        Claude、GPT 和 Gemini 可原生读取 PDF；此设置仅适用于 GLM、Kimi、DeepSeek、
+        本地模型等不支持的模型。提取文本成本最低；页面图片消耗更多 Token，且要求模型支持视觉能力。
       </div>
 
       <div className="mt-3 flex items-center gap-5">
         <label className="flex items-center gap-2.5">
-          <span className="text-[13px] text-ink">Max pages</span>
+          <span className="text-[13px] text-ink">最大页数</span>
           <input
             type="number"
             min={1}
@@ -662,7 +659,7 @@ function TokenSavingsCard() {
           />
         </label>
         <label className="flex items-center gap-2.5">
-          <span className="text-[13px] text-ink">Max size</span>
+          <span className="text-[13px] text-ink">最大大小</span>
           <input
             type="number"
             min={1}
@@ -676,8 +673,7 @@ function TokenSavingsCard() {
         </label>
       </div>
       <div className={FIELD_HELP}>
-        PDFs over these limits are not attached — you&rsquo;ll see a notice in the composer
-        instead.
+        超过限制的 PDF 不会被添加，输入框上方会显示相应提示。
       </div>
     </div>
   );
@@ -721,16 +717,15 @@ function CompactionCard() {
   const modelLabel = (id: string) => labels[id]?.split(" · ")[0] || id;
   return (
     <div className={CARD + " p-4 mb-4"} data-testid="compaction-card">
-      <div className={FIELD_LABEL}>Context compaction</div>
+      <div className={FIELD_LABEL}>上下文压缩</div>
       <div className={FIELD_HELP}>
-        Long sessions are compacted automatically: older turns are summarized so the
-        coworker keeps working instead of running out of context. Your visible transcript
-        is never changed — a small marker shows where compaction happened.
+        长会话会自动压缩：系统总结较早的对话，避免上下文耗尽并继续工作。
+        可见的对话记录不会被修改，压缩位置会有标记。
       </div>
 
       <div className="mt-3 flex items-center gap-5 flex-wrap">
         <label className="flex items-center gap-2.5">
-          <span className="text-[13px] text-ink">Compact at</span>
+          <span className="text-[13px] text-ink">压缩阈值</span>
           <input
             type="number"
             min={10}
@@ -745,10 +740,10 @@ function CompactionCard() {
               })
             }
           />
-          <span className="text-[13px] text-muted">% of the context window</span>
+          <span className="text-[13px] text-muted">% 上下文窗口</span>
         </label>
         <label className="flex items-center gap-2.5">
-          <span className="text-[13px] text-ink">or at</span>
+          <span className="text-[13px] text-ink">或达到</span>
           <input
             type="number"
             min={10_000}
@@ -766,23 +761,22 @@ function CompactionCard() {
               })
             }
           />
-          <span className="text-[13px] text-muted">tokens, whichever is smaller</span>
+          <span className="text-[13px] text-muted">Token，以较小值为准</span>
         </label>
       </div>
       <div className={FIELD_HELP}>
-        The cap makes very-large-context models compact early — quality and speed degrade
-        well before their nominal limit.
+        上限可让超大上下文模型提前压缩，避免在达到标称限制前出现质量和速度下降。
       </div>
 
       <div className="mt-3 flex items-center gap-2.5">
-        <span className="text-[13px] text-ink">Summarizer model</span>
+        <span className="text-[13px] text-ink">总结模型</span>
         <select
           value={cfg.compaction_model}
           data-testid="compaction-model"
           className="px-2 py-1.5 rounded-lg border border-line bg-paper text-[13px] text-ink outline-none focus:border-accent"
           onChange={(e) => save({ compaction_model: e.target.value })}
         >
-          <option value="">Session&rsquo;s own model (default)</option>
+          <option value="">使用会话模型（默认）</option>
           {models.map((m) => (
             <option key={m} value={m}>
               {modelLabel(m)}
@@ -791,8 +785,7 @@ function CompactionCard() {
         </select>
       </div>
       <div className={FIELD_HELP}>
-        The summary is written by this model. The default follows whatever model the
-        session is using.
+        该模型负责生成摘要；默认跟随当前会话使用的模型。
       </div>
     </div>
   );
@@ -818,7 +811,7 @@ function ContextBarCard() {
   if (shown === null) return null;
   return (
     <div className={CARD + " p-4 mb-4"} data-testid="context-bar-card">
-      <div className={FIELD_LABEL}>Composer</div>
+      <div className={FIELD_LABEL}>输入框</div>
       <label className="flex items-start gap-3 py-2">
         <input
           type="checkbox"
@@ -828,10 +821,9 @@ function ContextBarCard() {
           onChange={(e) => save(e.target.checked)}
         />
         <span>
-          <span className="block text-[13px] text-ink">Show the context window bar</span>
+          <span className="block text-[13px] text-ink">显示上下文窗口进度条</span>
           <span className="block text-[12px] text-muted">
-            A small meter showing how full the model&rsquo;s context window is. Turn it off
-            to show the same thing as a number instead.
+            使用小型进度条显示模型上下文窗口占用情况；关闭后改为显示数字。
           </span>
         </span>
       </label>
@@ -868,7 +860,7 @@ function AutoApproveCard() {
   if (on === null) return null;
   return (
     <div className={CARD + " p-4 mb-4"} data-testid="auto-approve-card">
-      <div className={FIELD_LABEL}>Auto-approve (experimental)</div>
+      <div className={FIELD_LABEL}>智能审批（实验性功能）</div>
       <label className="flex items-start gap-3 py-2">
         <input
           type="checkbox"
@@ -878,12 +870,10 @@ function AutoApproveCard() {
           onChange={(e) => saveOn(e.target.checked)}
         />
         <span>
-          <span className="block text-[13px] text-ink">Enable Auto-approve mode</span>
+          <span className="block text-[13px] text-ink">启用智能审批模式</span>
           <span className="block text-[12px] text-muted">
-            Adds an <em>Auto-approve</em> option to the mode picker. In that mode, your session
-            model reviews each action that would normally need approval and clears the routine
-            ones; anything doubtful still asks you. It can never allow something the rules
-            block. One extra model call per check, billed to your usage.
+            在权限模式中增加“智能审批”。会话模型会审核原本需要批准的操作，常规操作自动放行，
+            不确定事项仍会询问你；规则禁止的操作不会被放行。每次检查会额外调用一次模型。
           </span>
         </span>
       </label>
@@ -897,12 +887,11 @@ function AutoApproveCard() {
         />
         <span>
           <span className="block text-[13px] text-ink">
-            Shadow evaluation <span className="text-faint">(for measuring)</span>
+            影子评估 <span className="text-faint">（用于评测）</span>
           </span>
           <span className="block text-[12px] text-muted">
-            On any mode, the reviewer records what it <em>would</em> have decided next to your
-            own choice — without changing anything. Lets you see how it would behave before
-            trusting it. Also costs one model call per approval.
+            在任意模式下记录审核器原本会作出的决定，并与你的选择对照，但不会改变实际行为。
+            可在正式启用前观察效果；每次审批同样会额外调用一次模型。
           </span>
         </span>
       </label>
@@ -928,9 +917,9 @@ function SidebarCard() {
   if (peek === null) return null;
   return (
     <div className={CARD + " p-4 mb-4"}>
-      <div className={FIELD_LABEL}>Sidebar</div>
+      <div className={FIELD_LABEL}>侧边栏</div>
       <label className="flex items-center gap-3 mt-2.5">
-        <span className="text-[13px] text-ink">Conversations shown per coworker</span>
+        <span className="text-[13px] text-ink">每个协作助手显示的会话数</span>
         <input
           type="number"
           min={1}
@@ -941,7 +930,7 @@ function SidebarCard() {
         />
       </label>
       <div className={FIELD_HELP}>
-        Longer lists collapse behind &ldquo;Show more&rdquo;. Applies per coworker and per project.
+        超出部分会收起到“显示更多”中，此设置分别应用于每个协作助手和项目。
       </div>
     </div>
   );
@@ -970,10 +959,10 @@ function FilesCard() {
     setScratchMsg(null);
     const res = await setScratchBase(scratchDraft.trim());
     if (res.ok) {
-      setScratchMsg("Saved. New conversations will use this location.");
+      setScratchMsg("已保存，新会话将使用此位置。");
       refresh();
     } else {
-      setScratchMsg(res.error || "Could not use that location.");
+      setScratchMsg(res.error || "无法使用该位置。");
     }
   };
   const browseScratch = async () => {
@@ -985,7 +974,7 @@ function FilesCard() {
 
   return (
     <div className={CARD + " p-4 mb-4"}>
-      <div className={FIELD_LABEL}>Files</div>
+      <div className={FIELD_LABEL}>文件</div>
         <div className="flex items-center gap-2 mt-2.5">
           <input
             className={INPUT}
@@ -998,17 +987,16 @@ function FilesCard() {
             onKeyDown={(e) => e.key === "Enter" && saveScratch()}
           />
           {desktop && (
-            <button className={BTN_BORDERED} onClick={browseScratch} title="Pick a folder">
-              Browse
+            <button className={BTN_BORDERED} onClick={browseScratch} title="选择文件夹">
+              浏览
             </button>
           )}
           <button className={BTN_ACCENT} onClick={saveScratch} disabled={!scratchDraft.trim()}>
-            Save
+            保存
           </button>
         </div>
       <div className={FIELD_HELP}>
-        Each conversation gets its own folder under this location. Existing conversations keep their current
-        folder; you can grant access to more folders inside any conversation.
+        每个会话会在此位置下创建独立文件夹。现有会话继续使用原位置；也可在会话中授权访问更多文件夹。
       </div>
       {scratchMsg && <div className="text-[13px] text-muted mt-2.5">{scratchMsg}</div>}
     </div>

@@ -16,13 +16,13 @@ export function shortArgs(args: any): string {
 
 // Human verbs kept for the §25 grant lines (the card title now comes from humanize.ts).
 const TOOL_VERBS: Record<string, string> = {
-  write_file: "Write a file",
-  replace_in_file: "Edit a file",
-  apply_patch: "Apply a patch",
-  apply_unified_diff: "Apply a patch",
-  run_shell: "Run a command",
-  send_message: "Send a message",
-  send_file: "Send a file",
+  write_file: "写入文件",
+  replace_in_file: "编辑文件",
+  apply_patch: "应用补丁",
+  apply_unified_diff: "应用补丁",
+  run_shell: "运行命令",
+  send_message: "发送消息",
+  send_file: "发送文件",
 };
 
 // §35: routine workspace writes render as a compact ROW; everything else is a full card.
@@ -36,8 +36,8 @@ type ApprovalItem = Extract<Item, { kind: "approval" }>;
 // parked Inbox card so both dialects match.
 export function approvalActionLabels(name?: string): { allow: string; deny: string } {
   return name === "save_skill"
-    ? { allow: "Add to my skills", deny: "Not now" }
-    : { allow: "Allow once", deny: "Deny" };
+    ? { allow: "添加到我的技能", deny: "暂不添加" }
+    : { allow: "仅允许一次", deny: "拒绝" };
 }
 
 // save_skill's review surface (SKILLS-SPEC §5.2): description, the full instructions
@@ -62,8 +62,7 @@ export function SaveSkillPreview({ args }: { args: any }) {
         </div>
       )}
       <div className="approval-with">
-        Approving adds it to your skills on this computer — usable in every conversation from
-        then on.
+        批准后会将它添加到本机技能库，之后所有会话均可使用。
       </div>
     </>
   );
@@ -116,20 +115,20 @@ export function scopeNote(
 ): { text: string; external: boolean } {
   // save_skill's corner answers WHERE (SKILLS-SPEC §5.2): the exact place to find, edit,
   // or turn off the skill afterwards.
-  if (name === "save_skill") return { text: "saves to Settings ▸ Skills", external: false };
-  if (category === "connector") return { text: "acts on a connected service", external: true };
+  if (name === "save_skill") return { text: "保存至“设置 ▸ 技能”", external: false };
+  if (category === "connector") return { text: "将在已连接的服务中操作", external: true };
   // Egress (§1.9): the request itself reaches the network — never "stays on this computer".
   if (name === "web_fetch")
-    return { text: `leaves this computer → ${grantHost(args?.url) || "the web"}`, external: true };
+    return { text: `数据将离开本机 → ${grantHost(args?.url) || "网页"}`, external: true };
   if (name === "web_search")
-    return { text: "leaves this computer → your search provider", external: true };
+    return { text: "数据将离开本机 → 搜索服务商", external: true };
   if (EXTERNAL.has(name)) {
     const platform = String(args?.target ?? "").split(":")[0];
     const names: Record<string, string> = { slack: "Slack", telegram: "Telegram" };
-    return { text: `leaves this computer → ${names[platform] || platform || "a connected chat"}`, external: true };
+    return { text: `数据将离开本机 → ${names[platform] || platform || "已连接的聊天服务"}`, external: true };
   }
   const overwrite = name === "write_file" && args?.overwrite;
-  return { text: "stays on this computer" + (overwrite ? " · overwrites the existing file" : ""), external: false };
+  return { text: "操作仅在本机进行" + (overwrite ? " · 将覆盖现有文件" : ""), external: false };
 }
 
 // The proposed content/command, straight from the tool call's ARGS — the file/action
@@ -154,10 +153,10 @@ export function PreviewBlock({ text, mono = true }: { text: string; mono?: boole
       {clipped && (
         <button className="approval-prev-more" onClick={() => setAll((v) => !v)}>
           {all
-            ? "show less"
+            ? "收起"
             : lines.length > PREVIEW_LINES
-              ? `show all ${lines.length} lines`
-              : "show the full message"}
+              ? `显示全部 ${lines.length} 行`
+              : "显示完整消息"}
         </button>
       )}
     </div>
@@ -182,7 +181,7 @@ function Buttons({
   onApprove,
   runTask,
   primaryLabel,
-  denyLabel = "Deny",
+  denyLabel = "拒绝",
   autoApprove = false,
 }: {
   item: ApprovalItem;
@@ -221,7 +220,7 @@ function Buttons({
           title={`Always allow ${item.name} → ${item.standingTarget} for “${runTask?.title || "this automation"}” — revoke any time on its Automations page`}
           onClick={() => onApprove("always_task")}
         >
-          Allow every time
+          每次都允许
         </button>
       )}
       {/* In a run context the task-persistent grant replaces the session-scoped one —
@@ -237,7 +236,7 @@ function Buttons({
           title={`Always allow ${TOOL_VERBS[item.name]?.toLowerCase() || item.name} for this session`}
           onClick={() => onApprove("always_tool")}
         >
-          Always allow
+          本会话始终允许
         </button>
       )}
       {!autoApprove && !offerStanding && item.name === "web_fetch" && fetchHost && (
@@ -246,7 +245,7 @@ function Buttons({
           title={`Every fetch to ${fetchHost} (and its subdomains) runs without asking for the rest of this session`}
           onClick={() => onApprove("always_domain")}
         >
-          Always allow {fetchHost} this session
+          本会话始终允许访问 {fetchHost}
         </button>
       )}
       {!autoApprove && !offerStanding && item.name === "web_search" && (
@@ -255,12 +254,12 @@ function Buttons({
           title="Every web search runs without asking for the rest of this session — the grant ends if you change the search provider"
           onClick={() => onApprove("always_tool")}
         >
-          Always allow searches this session
+          本会话始终允许搜索
         </button>
       )}
       {!autoApprove && item.name === "run_shell" && (
         <button className="btn" onClick={() => onApprove("always_command")}>
-          Always allow this command
+          始终允许此命令
         </button>
       )}
       {/* Session-wide read-only grant (owner ask 2026-08-11): offered only when the
@@ -274,7 +273,7 @@ function Buttons({
           title="Auto-allow read-only commands (local reads and pipelines only — no network, writes, or interpreters) for the rest of this session"
           onClick={() => onApprove("readonly_session")}
         >
-          Allow read-only commands
+          允许只读命令
         </button>
       )}
       <span className="spacer" />
@@ -320,7 +319,7 @@ export function ApprovalCard({
   // Quiet, not a warning: the reviewer hesitating is context, not danger.
   const reviewerUnsure = item.reviewerUnsure ? (
     <div className="text-[12px] text-muted mt-1" data-testid="approval-reviewer-unsure">
-      reviewer wasn&rsquo;t sure: {item.reviewerUnsure}
+      审核器无法确定：{item.reviewerUnsure}
     </div>
   ) : null;
 
@@ -334,7 +333,7 @@ export function ApprovalCard({
           <TitleText line={title} />
           {content && (
             <button className="approval-peek" onClick={() => setPeek((v) => !v)}>
-              preview {peek ? "▴" : "▾"}
+              预览 {peek ? "▴" : "▾"}
             </button>
           )}
           <span className="spacer" />
@@ -342,7 +341,7 @@ export function ApprovalCard({
             item={item}
             onApprove={onApprove}
             runTask={runTask}
-            primaryLabel="Allow"
+            primaryLabel="允许"
             autoApprove={autoApprove}
           />
         </div>
@@ -377,11 +376,11 @@ export function ApprovalCard({
             <span className="ico">
               <Icon name="file" size={13} />
             </span>
-            {String(item.args?.path ?? "").split("/").pop() || "file"}
-            {item.args?.as_screenshot ? " · as a PNG screenshot" : ""}
+            {String(item.args?.path ?? "").split("/").pop() || "文件"}
+            {item.args?.as_screenshot ? " · 作为 PNG 截图" : ""}
           </span>
           {item.args?.comment && (
-            <MessagePreview text={String(item.args.comment)} label="With the message" />
+            <MessagePreview text={String(item.args.comment)} label="附带消息" />
           )}
         </>
       )}
@@ -394,8 +393,8 @@ export function ApprovalCard({
           because the card must show the setting as it stands right now. */}
       {item.name === "web_search" && (
         <div className="approval-with">
-          Queries go to your configured search provider
-          {item.searchProvider ? ` (currently: ${item.searchProvider})` : ""}.
+          查询将发送到已配置的搜索服务商
+          {item.searchProvider ? `（当前：${item.searchProvider}）` : ""}。
         </div>
       )}
 
@@ -409,7 +408,7 @@ export function ApprovalCard({
               <span className="grant-line">
                 {TOOL_VERBS[g.tool] || g.tool} <code className="approval-tool">{g.target}</code>
                 <span className="grant-note">
-                  {g.access === "write" ? " — always allowed once you approve" : " — read-only"}
+                  {g.access === "write" ? " — 批准后将持续允许" : " — 只读"}
                 </span>
               </span>
             </div>
@@ -426,7 +425,7 @@ export function ApprovalCard({
       {reason && <div className="approval-reason">{reason}</div>}
 
       {item.resolved ? (
-        <div className="resolved">Approved: {item.resolved.replace("_", " ")}</div>
+        <div className="resolved">已批准：{item.resolved.replace("_", " ")}</div>
       ) : (
         <Buttons
           item={item}

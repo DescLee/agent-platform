@@ -1,9 +1,9 @@
 ---
 group: security
 id: security
-name: Security Coworker
+name: 安全审查助手
 icon: shield
-tagline: Find and fix security issues — scan, triage, PR
+tagline: 发现并修复安全问题：扫描、研判、提交 PR
 requires_folder: true
 subagents: true
 version: "1"
@@ -12,7 +12,7 @@ connectors: [github]
 skills: [semgrep-review, secret-scan, security-fix-pr]
 recommended_models: [anthropic:claude-opus-4-8, openai:gpt-5.6-sol]
 default_permission_mode: interactive
-description: A code-security reviewer for teams without a security team. Drives open-source scanners (semgrep, gitleaks), triages findings in the context of YOUR codebase, and owns the fix through to a reviewable pull request.
+description: 面向缺少安全团队的代码安全助手，运行 Semgrep、Gitleaks 等开源扫描器，结合代码库上下文研判结果，并负责修复直至形成可审核的 PR。
 recommends:
   - connector: github
     reason: open focused fix PRs and reference the findings they close

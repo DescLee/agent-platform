@@ -154,6 +154,17 @@ def _build_anthropic(profile: dict[str, Any], secrets: Any) -> ProviderClient:
     )
 
 
+def _build_custom(profile: dict[str, Any], secrets: Any) -> ProviderClient:
+    """Build a user-defined endpoint using the selected API wire format."""
+    p = profile or {}
+    api_key = str(p.get("api_key") or "").strip() or None
+    base_url = str(p.get("base_url") or "").strip().rstrip("/")
+    protocol = str(p.get("protocol") or "openai").strip().lower()
+    if protocol == "anthropic":
+        return AnthropicProvider(api_key=api_key, base_url=base_url, secrets=secrets)
+    return OpenAIProvider(api_key=api_key, base_url=base_url or None, secrets=secrets)
+
+
 def _build_gemini(profile: dict[str, Any], secrets: Any) -> ProviderClient:
     # Same deferred-key contract as anthropic (GeminiProvider/resolve_api_key).
     api_key = ((profile or {}).get("api_key") or "").strip() or None
@@ -270,6 +281,8 @@ def _compat(
         title=title,
         needs_key=True,
         fields=[
+            ProviderField("supplier_name", "供应商名称", secret=False, placeholder="例如：公司模型网关", required=False),
+            ProviderField("note", "备注", secret=False, placeholder="可选备注", required=False),
             ProviderField(
                 "api_key",
                 f"{vendor} API key",
@@ -370,6 +383,41 @@ DESCRIPTORS: list[ProviderDescriptor] = [
         blurb="Sign in with your ChatGPT plan and run OpenAI models through your "
         "subscription — no API key. Tokens stay on this machine.",
         auth="oauth",
+    ),
+    ProviderDescriptor(
+        name="custom",
+        title="自定义",
+        needs_key=True,
+        fields=[
+            ProviderField(
+                "supplier_name",
+                "供应商名称",
+                secret=False,
+                required=True,
+                placeholder="例如：公司模型网关",
+            ),
+            ProviderField(
+                "note",
+                "备注",
+                secret=False,
+                required=False,
+                placeholder="可选备注",
+            ),
+            ProviderField(
+                "protocol",
+                "接口格式",
+                choices=(
+                    {"value": "openai", "label": "OpenAI 格式", "desc": "兼容 /chat/completions 和 /models 接口。"},
+                    {"value": "anthropic", "label": "Claude Code 格式", "desc": "兼容 Anthropic Messages API 和 /models 接口。"},
+                    {"value": "openai_compat", "label": "兼容模式", "tag": "OpenAI 兼容", "desc": "适用于大多数 OpenAI-compatible 网关。"},
+                ),
+                default="openai",
+            ),
+            ProviderField("base_url", "接口地址", secret=False, placeholder="https://example.com/v1"),
+            ProviderField("api_key", "API key", secret=True, placeholder="sk-…"),
+        ],
+        build=_build_custom,
+        blurb="连接任意兼容 OpenAI 或 Claude Code 接口的模型服务。",
     ),
     ProviderDescriptor(
         name="anthropic",
@@ -574,7 +622,7 @@ DESCRIPTORS: list[ProviderDescriptor] = [
     ),
     _responses_compat(
         "ark-agent-plan-cn",
-        "Volcengine Ark Agent Plan",
+        "火山引擎",
         base_url="https://ark.cn-beijing.volces.com/api/plan/v3",
         recommended_model="doubao-seed-evolving",
         env_key="ARK_AGENT_PLAN_CN_API_KEY",
@@ -955,6 +1003,25 @@ def verify_provider_key(
     if name == "vertex":
         return _verify_vertex(fields or {}, timeout)
     try:
+        if name == "custom":
+            protocol = str((fields or {}).get("protocol") or "openai").lower()
+            base = (base_url or "").strip().rstrip("/")
+            if not base:
+                return {"ok": False, "error": "Enter an endpoint URL."}
+            headers = (
+                {"x-api-key": key, "anthropic-version": "2023-06-01"}
+                if protocol == "anthropic"
+                else {"Authorization": f"Bearer {key}"}
+            )
+            resp = httpx.get(base + "/models", headers=headers, timeout=timeout)
+            if resp.status_code < 300:
+                payload = resp.json()
+                models = payload.get("data", []) if isinstance(payload, dict) else []
+                names = [str(x.get("id")) for x in models if isinstance(x, dict) and x.get("id")]
+                return {"ok": True, "models": names}
+            if resp.status_code in (401, 403):
+                return {"ok": False, "error": "Invalid API key or endpoint rejected the request."}
+            return {"ok": False, "error": f"Custom endpoint returned HTTP {resp.status_code}."}
         if name == "anthropic":
             resp = httpx.get(
                 "https://api.anthropic.com/v1/models",

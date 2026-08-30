@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install the OpenWorker source workspace on macOS and verify that it can build.
+# 在 macOS 上安装绿巨人源码工作区并验证构建。
 
 set -euo pipefail
 
@@ -69,5 +69,5 @@ npm run build --prefix "$GUI"
 cargo build --manifest-path "$TAURI_MANIFEST"
 
 echo
-echo "OpenWorker installation completed successfully."
-echo "Start the desktop client with: ./start.sh"
+echo "绿巨人安装完成。"
+echo "运行 ./start.sh 启动桌面客户端。"

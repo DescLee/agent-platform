@@ -498,7 +498,7 @@ function ProgressSummary({ running, toolNames, todo }: { running: boolean; toolN
   }
   return (
     <div className="rail-muted">
-      For longer multi-step tasks, progress will appear here while OpenWorker plans, uses tools, waits for approval, and produces artifacts.
+      对于耗时较长的多步骤任务，绿巨人会在这里展示规划、工具调用、等待审批和生成产出文件的进度。
     </div>
   );
 }

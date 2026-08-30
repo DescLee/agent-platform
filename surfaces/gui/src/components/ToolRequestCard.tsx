@@ -38,7 +38,7 @@ export function ToolRequestCard({
             {item.summary && <span className="toolreq-fact">{item.summary}</span>}
           </div>
           <div className="toolreq-explain">
-            OpenWorker installs its own verified copy
+            绿巨人将安装经过验证的版本
             {item.source ? ` from ${item.source}` : ""} — or install it yourself and
             continue.
           </div>
@@ -46,7 +46,7 @@ export function ToolRequestCard({
       ) : (
         <div className="toolreq-facts">
           <div className="toolreq-explain">
-            OpenWorker has no verified build for this machine — install it yourself if you
+            绿巨人没有适用于此设备的已验证版本，如需使用请自行安装
             want this check, or continue and the coworker will note the gap.
           </div>
         </div>

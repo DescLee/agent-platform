@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableExtensions
 
-rem Start the OpenWorker Tauri desktop client from this source workspace.
+rem Start the Green Giant Tauri desktop client from this source workspace.
 set "ROOT=%~dp0"
 set "GUI=%ROOT%surfaces\gui"
 

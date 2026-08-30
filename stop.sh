@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stop the OpenWorker Tauri development client started from this workspace.
+# 关闭从当前工作区启动的绿巨人 Tauri 开发客户端。
 
 set -euo pipefail
 
@@ -38,7 +38,7 @@ if [ -z "$root_pid" ]; then
 fi
 
 if [ -z "$root_pid" ] || ! process_running "$root_pid"; then
-  echo "OpenWorker is not running from this workspace."
+  echo "当前工作区未运行绿巨人。"
   exit 0
 fi
 
@@ -75,4 +75,4 @@ for pid in "${pids[@]}"; do
 done
 rm -f "$PID_FILE"
 
-echo "OpenWorker stopped."
+echo "绿巨人已停止。"

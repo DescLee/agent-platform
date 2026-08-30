@@ -151,7 +151,11 @@ fn sidecar_env() -> std::collections::HashMap<String, String> {
         .cloned()
         .or_else(|| std::env::var("PATH").ok())
         .unwrap_or_default();
-    let mut parts: Vec<String> = base.split(':').filter(|s| !s.is_empty()).map(String::from).collect();
+    let mut parts: Vec<String> = base
+        .split(':')
+        .filter(|s| !s.is_empty())
+        .map(String::from)
+        .collect();
     for dir in KNOWN_TOOL_DIRS {
         if !parts.iter().any(|p| p == dir) && std::path::Path::new(dir).is_dir() {
             parts.push((*dir).to_string());
@@ -454,9 +458,9 @@ fn voice_input_compatibility() -> (bool, String, Option<String>) {
     };
     let summary = format!("macOS {version} · {architecture}");
     let reason = if !apple_silicon {
-        Some("Voice Input currently requires an Apple Silicon Mac (M1 or newer).".to_owned())
+        Some("语音输入目前需要 Apple Silicon Mac（M1 或更新机型）。".to_owned())
     } else if major < 12 {
-        Some("Voice Input requires macOS 12 or newer.".to_owned())
+        Some("语音输入需要 macOS 12 或更新版本。".to_owned())
     } else {
         None
     };
@@ -480,9 +484,9 @@ fn voice_input_compatibility() -> (bool, String, Option<String>) {
     let x64 = std::env::consts::ARCH == "x86_64";
     let supported = x64 && build >= 19_045;
     let reason = if !x64 {
-        Some("Voice Input currently requires a 64-bit x64 Windows PC.".to_owned())
+        Some("语音输入目前需要 64 位 x64 Windows 电脑。".to_owned())
     } else if build < 19_045 {
-        Some("Voice Input requires Windows 10 22H2 or Windows 11.".to_owned())
+        Some("语音输入需要 Windows 10 22H2 或 Windows 11。".to_owned())
     } else {
         None
     };
@@ -494,7 +498,7 @@ fn voice_input_compatibility() -> (bool, String, Option<String>) {
     (
         false,
         format!("{} · {}", std::env::consts::OS, std::env::consts::ARCH),
-        Some("Voice Input is currently supported on macOS and Windows.".to_owned()),
+        Some("语音输入目前仅支持 macOS 和 Windows。".to_owned()),
     )
 }
 
@@ -512,9 +516,7 @@ async fn start_dictation(
     // behind the system prompt.
     let (supported, _, reason) = voice_input_compatibility();
     if !supported {
-        return Err(
-            reason.unwrap_or_else(|| "Voice Input is not supported on this device.".to_owned())
-        );
+        return Err(reason.unwrap_or_else(|| "此设备不支持语音输入。".to_owned()));
     }
     let dictation = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
@@ -522,7 +524,7 @@ async fn start_dictation(
         Ok::<VoiceInputStatus, String>(voice_input_status(&dictation))
     })
     .await
-    .map_err(|e| format!("Dictation failed to start: {e}"))?
+    .map_err(|e| format!("语音输入启动失败：{e}"))?
 }
 
 #[tauri::command]
@@ -530,7 +532,7 @@ async fn stop_dictation(state: tauri::State<'_, Arc<Dictation>>) -> Result<Strin
     let dictation = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || dictation.stop_and_transcribe())
         .await
-        .map_err(|e| format!("Dictation stopped unexpectedly: {e}"))?
+        .map_err(|e| format!("语音输入意外停止：{e}"))?
 }
 
 #[tauri::command]
@@ -551,7 +553,7 @@ async fn download_dictation_model(
         Ok::<VoiceInputStatus, String>(voice_input_status(&dictation))
     })
     .await
-    .map_err(|e| format!("Voice model download stopped unexpectedly: {e}"))?
+    .map_err(|e| format!("语音模型下载意外停止：{e}"))?
 }
 
 #[tauri::command]
@@ -645,7 +647,11 @@ async fn download_update(
     // (Guard scope stays sync: a std MutexGuard must not live across an await.)
     {
         let slot = pending.0.lock().unwrap();
-        if slot.as_ref().map(|(v, _)| v == &update.version).unwrap_or(false) {
+        if slot
+            .as_ref()
+            .map(|(v, _)| v == &update.version)
+            .unwrap_or(false)
+        {
             return Ok(());
         }
     }
@@ -814,7 +820,7 @@ pub fn run() {
             //    Overlay title bar (macOS): traffic lights float over the edge-to-edge UI.
             let mut builder =
                 WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
-                    .title("OpenWorker")
+                    .title("绿巨人")
                     .inner_size(1360.0, 900.0)
                     .min_inner_size(980.0, 640.0)
                     // Let the WEBVIEW receive OS file drags: Tauri's own drag-drop handler
@@ -846,16 +852,16 @@ pub fn run() {
             });
 
             // 3. System tray: Open / Settings / Quit.
-            let open_i = MenuItem::with_id(app, "open", "Open OpenWorker", true, None::<&str>)?;
-            let settings_i = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
-            let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+            let open_i = MenuItem::with_id(app, "open", "打开绿巨人", true, None::<&str>)?;
+            let settings_i = MenuItem::with_id(app, "settings", "设置", true, None::<&str>)?;
+            let quit_i = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open_i, &settings_i, &quit_i])?;
 
             // A monochrome template icon (black + alpha, raw RGBA 44×44) so the menu bar tints
             // it for light/dark automatically — not the full-color app icon.
             let tray_icon = tauri::image::Image::new(include_bytes!("../icons/tray.rgba"), 44, 44);
             TrayIconBuilder::new()
-                .tooltip("OpenWorker")
+                .tooltip("绿巨人")
                 .icon(tray_icon)
                 .icon_as_template(true)
                 .menu(&menu)
@@ -877,7 +883,7 @@ pub fn run() {
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("error while building the OpenWorker desktop app")
+        .expect("绿巨人桌面客户端构建失败")
         .run(|app, event| {
             // Also on Exit: belt-and-suspenders in case a quit path reaches teardown without
             // a preceding ExitRequested (observed with macOS Cmd+Q under the tray setup).

@@ -309,28 +309,27 @@ def _cap_user_messages(
 
 # -- summarizer ---------------------------------------------------------------
 
-SUMMARY_SYSTEM_PROMPT = """You are compacting an AI coworker's session history so the coworker can continue working in a smaller context. Write a structured summary of the conversation below. It is the coworker's ONLY memory of these turns, so preserve everything load-bearing.
+SUMMARY_SYSTEM_PROMPT = """你正在压缩 AI 协作助手的会话历史，以便它在更小的上下文中继续工作。请为下方对话编写结构化摘要。这是助手对这些轮次的唯一记忆，必须保留所有关键内容。
 
-Produce ALL of the following sections, in this order, each as a markdown heading:
+按以下顺序输出全部章节，每章使用 Markdown 标题：
 
-1. **Primary request and intent** — what the user is trying to get done, in their terms, including standing constraints stated at any point (e.g. "never send without my approval"). Constraints outlive the turns they were stated in.
-2. **Key concepts and decisions** — domain facts, technical choices, and rationale established so far. Include the WHY, not just the what — a decision without its reason gets relitigated.
-3. **Artifacts and files** — every file/deliverable created, modified, or read that still matters: path, its role, and a short excerpt of load-bearing content only.
-4. **Errors and fixes** — problems hit and how they were resolved, including user corrections ("no, do it this way") — those are feedback with lasting force.
-5. **All user messages** — a chronological list of every user message (trimmed of pasted bulk). This is the intent audit-trail.
-6. **Pending tasks** — explicitly incomplete items, promised follow-ups, things the user said "later" about.
-7. **Current work** — precisely what was in progress at this point: which step, which file, what state.
-8. **Next step** — the immediate next action, justified by the user's request.
+1. **主要请求与意图** — 用用户自己的表述说明目标，并包含任何时候提出的长期约束。约束在原轮次结束后仍然有效。
+2. **关键概念与决策** — 已确立的领域事实、技术选择和理由。必须保留原因，避免失去理由后重复争论。
+3. **产物与文件** — 仍然重要的所有已创建、修改或读取的文件与交付物：路径、用途及必要的关键摘录。
+4. **错误与修复** — 遇到的问题和解决方式，包括用户纠正；这些属于持续有效的反馈。
+5. **全部用户消息** — 按时间列出每条用户消息，大段粘贴内容可精简。这是意图审计记录。
+6. **待办任务** — 明确未完成的事项、已承诺的跟进以及用户表示稍后处理的内容。
+7. **当前工作** — 精确说明压缩时正在进行的步骤、文件和状态。
+8. **下一步** — 根据用户请求说明紧接着要执行的动作及理由。
 
-Rules:
-- Do NOT carry full file contents as truth. Note THAT a file was read/edited; the coworker re-reads if it needs the content again. Stale memory of a file is worse than no memory.
-- Be concrete: paths, names, commands, ids — not vague references.
-- Output only the summary sections, no preamble."""
+规则：
+- 不要把完整文件内容当成长期事实。只记录文件曾被读取或编辑；需要时应重新读取。过时的文件记忆比没有记忆更糟。
+- 内容必须具体，写明路径、名称、命令和 ID，不使用含糊指代。
+- 只输出上述摘要章节，不要前言。"""
 
 CONTINUATION_CONTRACT = (
-    "Continue where you left off: pick up the current work and next step exactly as "
-    "described. Do not re-ask answered questions, do not recap, do not mention that the "
-    "context was compacted. If you need the contents of a file noted above, re-read it."
+    "从中断处继续，严格接续摘要中的当前工作和下一步。不要重复询问已回答的问题，不要回顾，也不要提及"
+    "上下文已被压缩。若需要上述文件的内容，请重新读取。"
 )
 
 

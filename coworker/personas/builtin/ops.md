@@ -1,15 +1,15 @@
 ---
 ships: false
 id: ops
-name: Ops Coworker
+name: 运维助手
 icon: wrench
-tagline: Operate and investigate — runbooks, logs, infrastructure
+tagline: 运维与排障：运行手册、日志、基础设施
 tools: [files, search, shell, todo]
 messaging: true
 connectors: true
 recommended_models: [anthropic:claude-opus-4-8, openai:gpt-5.5]
 default_permission_mode: interactive
-description: An operations-focused coworker for investigating incidents, running runbooks, and producing operational deliverables.
+description: 面向运维工作的协作助手，用于调查故障、执行运行手册并产出运维交付物。
 recommends:
   - connector: github
     reason: confirm deploys and inspect the PRs behind a change

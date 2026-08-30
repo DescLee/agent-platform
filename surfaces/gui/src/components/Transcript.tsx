@@ -23,7 +23,7 @@ function ClampedUserText({ text }: { text: string }) {
         onClick={() => setOpen((o) => !o)}
         className="block ml-auto mt-1.5 text-[13px] font-medium opacity-75 hover:opacity-100"
       >
-        {open ? "less…" : "more…"}
+        {open ? "收起…" : "更多…"}
       </button>
     </>
   );
@@ -58,10 +58,10 @@ function BubbleMeta({ text, ts, align }: { text: string; ts?: number; align: "le
         <button
           className="flex items-center cursor-pointer hover:text-muted"
           data-testid="bubble-copy"
-          title="Copy message"
+          title="复制消息"
           onClick={copy}
         >
-          {copied ? "Copied" : <Icon name="copy" size={11} />}
+          {copied ? "已复制" : <Icon name="copy" size={11} />}
         </button>
         {when && (
           <span data-testid="bubble-ts" title={when.toLocaleString()}>
@@ -87,7 +87,7 @@ export function ThinkingBlock({ text, live }: { text: string; live?: boolean }) 
       >
         <Icon name="chevronDown" size={12} className={"thinking-caret" + (open ? " open" : "")} />
         <span className={live ? "thinking-live" : undefined}>
-          {live ? "Thinking…" : "Thought process"}
+          {live ? "正在思考…" : "思考过程"}
         </span>
       </button>
       {open && (
@@ -159,7 +159,7 @@ function originChip(origin: string | undefined, note: string | undefined, grant?
   // Replayed user resolutions reuse the card-chip look (live sessions pair the card itself).
   if (origin === "user") {
     if (grant === "deny")
-      return <span className="text-[11px] px-1.5 rounded-full bg-dangerSoft text-danger shrink-0">✕ declined</span>;
+      return <span className="text-[11px] px-1.5 rounded-full bg-dangerSoft text-danger shrink-0">✕ 已拒绝</span>;
     return (
       <span
         className="text-[11px] px-1.5 rounded-full bg-okSoft text-ok shrink-0"
@@ -177,20 +177,20 @@ function originChip(origin: string | undefined, note: string | undefined, grant?
     <span
       className="text-[11px] text-faint shrink-0"
       data-testid="tool-approval-origin"
-      title={origin === "reviewer" ? note || "allowed by the auto-approve reviewer" : "ran without approval — bypass-approvals mode"}
+      title={origin === "reviewer" ? note || "已由智能审批审核器允许" : "跳过审批模式下直接运行"}
     >
-      {origin === "reviewer" ? "auto-approved" : "approval bypassed"}
+      {origin === "reviewer" ? "智能审批通过" : "已跳过审批"}
     </span>
   );
 }
 
 function approvalChip(resolved: ApprovalDecision | undefined) {
   if (resolved === "deny")
-    return <span className="text-[11px] px-1.5 rounded-full bg-dangerSoft text-danger shrink-0">✕ declined</span>;
+    return <span className="text-[11px] px-1.5 rounded-full bg-dangerSoft text-danger shrink-0">✕ 已拒绝</span>;
   return (
     <span
       className="text-[11px] px-1.5 rounded-full bg-okSoft text-ok shrink-0"
-      title={resolved ? `approved by you · ${resolved.replace(/_/g, " ")}` : "approved by you"}
+      title={resolved ? `由你批准 · ${resolved.replace(/_/g, " ")}` : "由你批准"}
     >
       ✓ user-approved
     </span>
@@ -233,7 +233,7 @@ function StepRow({
             // A refused load must not read as a success — "Used skill:" is the trust line
             // (SKILLS-SPEC §4.1 #4), so a blocked attempt gets honest wording instead.
             tool.name === "load_skill" && tool.preview?.includes('"error"')
-              ? { pre: "Tried skill: ", obj: String(tool.args?.name ?? ""), post: " — not available" }
+              ? { pre: "尝试使用技能：", obj: String(tool.args?.name ?? ""), post: " — 不可用" }
               : humanizeTool(tool.name, tool.args)
           }
         />
@@ -252,7 +252,7 @@ function StepRow({
           <span
             className="text-[11px] text-warnInk shrink-0"
             data-testid="tool-hidden-count"
-            title="Removed by your privacy filters before the agent saw the results — agents get no trace of these."
+            title="结果在智能体看到前已被隐私过滤器移除，智能体不会获得任何痕迹。"
           >
             {tool.hidden} hidden
           </span>
@@ -278,11 +278,11 @@ function StepRow({
           className="ml-8 mr-2 my-1 px-3 py-2 rounded-lg border border-line bg-dangerSoft/40"
           data-testid="reviewer-deny-card"
         >
-          <div className="text-[11px] font-medium text-danger">Blocked by the reviewer</div>
+          <div className="text-[11px] font-medium text-danger">已被审核器阻止</div>
           <div className="text-[12px] text-ink mt-0.5">{tool.reviewerReason}</div>
           <div className="text-[11px] text-faint mt-1">
-            The agent was told only that it was blocked — not why — so it can&rsquo;t argue
-            its way past this. If the action is actually fine, you can run it as proposed:
+            智能体只会得知操作被阻止，不会获得原因，因此无法据此绕过审核。如果你确认操作没有问题，
+            可以按原方案继续执行：
           </div>
           {tool.allowAnyway && onAllowAnyway && !overrideSent && (
             <button
@@ -293,12 +293,12 @@ function StepRow({
                 onAllowAnyway(tool.name, tool.args);
               }}
             >
-              Allow anyway
+              仍然允许
             </button>
           )}
           {overrideSent && (
             <div className="mt-1.5 text-[11px] text-ok" data-testid="reviewer-override-sent">
-              Approved — the agent will retry this exact action.
+              已批准，智能体将重试这项操作。
             </div>
           )}
         </div>
@@ -333,7 +333,7 @@ function TurnGroup({
   const nSteps = rows.filter((r) => r.type !== "narr").length;
   const declined = items.filter((it) => it.kind === "approval" && it.resolved === "deny").length;
   const hiddenTotal = tools.reduce((n, t) => n + (t.hidden || 0), 0);
-  const stepsLabel = `${nSteps} step${nSteps === 1 ? "" : "s"}`;
+  const stepsLabel = `${nSteps} 个步骤`;
 
   return (
     <details className="stepgroup" open={open}>
@@ -346,12 +346,12 @@ function TurnGroup({
       >
         <span className={"chev inline-block transition-transform" + (open ? " rotate-90" : "")}>›</span>
         <span>
-          <span>{running ? `Running ${stepsLabel}…` : stepsLabel}</span>
+          <span>{running ? `正在执行 ${stepsLabel}…` : stepsLabel}</span>
           {declined > 0 && (
             <>
               {" · "}
               <span className="text-danger" data-testid="stepgroup-declined">
-                {declined} declined
+                已拒绝 {declined} 项
               </span>
             </>
           )}
@@ -359,7 +359,7 @@ function TurnGroup({
             <>
               {" · "}
               <span className="text-warnInk" data-testid="stepgroup-hidden">
-                {hiddenTotal} hidden by your filters
+                过滤器已隐藏 {hiddenTotal} 项
               </span>
             </>
           )}
@@ -574,7 +574,7 @@ export function Transcript({ items, running, streamingText, onRetry, onOpenConne
               );
             return (
               <div className="group bubble-assistant" key={bi}>
-                <div className="who">assistant</div>
+                <div className="who">绿巨人</div>
                 {item.reasoning && <ThinkingBlock text={item.reasoning} />}
                 <Markdown text={item.text} />
                 <BubbleMeta text={item.text} ts={item.ts} align="left" />
@@ -587,7 +587,7 @@ export function Transcript({ items, running, streamingText, onRetry, onOpenConne
                 <span className={"status " + (item.resolved === "granted" ? "ok" : "denied")}>
                   {item.resolved === "granted" ? "✓" : "✕"}
                 </span>
-                <span>{item.resolved === "granted" ? "Granted folder access" : "Declined folder access"}</span>
+                <span>{item.resolved === "granted" ? "已授予文件夹访问权限" : "已拒绝文件夹访问权限"}</span>
                 {item.path && <span className="dim">{item.path}</span>}
               </div>
             );
@@ -595,13 +595,13 @@ export function Transcript({ items, running, streamingText, onRetry, onOpenConne
             if (!item.resolved) return null; // pending plan renders in the composer head
             return (
               <div className="bubble-assistant" key={bi}>
-                <div className="who">proposed plan</div>
+                <div className="who">建议计划</div>
                 <Markdown text={item.plan} />
                 <div className="approval-inline">
                   <span className={"status " + (item.resolved === "approved" ? "ok" : "denied")}>
                     {item.resolved === "approved" ? "✓" : "✕"}
                   </span>
-                  <span>{item.resolved === "approved" ? "Plan approved" : "Sent back with feedback"}</span>
+                  <span>{item.resolved === "approved" ? "计划已批准" : "已退回并附带反馈"}</span>
                 </div>
               </div>
             );
@@ -646,13 +646,13 @@ export function Transcript({ items, running, streamingText, onRetry, onOpenConne
               >
                 {item.undone ? (
                   <span data-testid="memory-notice-undone">
-                    {item.previous ? "Okay — put back the way it was." : "Okay — forgotten."}
+                    {item.previous ? "好的，已恢复原内容。" : "好的，已忘记。"}
                   </span>
                 ) : (
                   <>
                     <span className="min-w-0">
                       <span className="font-medium">
-                        {item.previous ? "I've updated what I remember" : "I'll remember that"}
+                        {item.previous ? "我已更新记忆" : "我会记住"}
                       </span>
                       {item.text ? <span className="text-muted"> — {item.text}</span> : null}
                     </span>

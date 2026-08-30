@@ -482,7 +482,16 @@ export function Composer(props: Props) {
     new Set([props.model, ...(props.models || [])]),
   ).map((m) => ({
     value: m,
-    label: props.modelLabels?.[m] || shortModel(m),
+    label: (() => {
+      const configured = props.modelLabels?.[m];
+      if (configured) return configured;
+      if (!m.includes(":")) return shortModel(m);
+      const [provider] = m.split(":", 1);
+      const providerLabel = provider.startsWith("custom-")
+        ? provider.slice("custom-".length).replace(/-/g, " ").toUpperCase()
+        : provider;
+      return `${providerLabel} · ${shortModel(m)}`;
+    })(),
   }));
 
   const iconBtn =

@@ -2601,10 +2601,10 @@ class SessionManager:
         legacy = self.secrets.get("provider:custom") or {}
         index = self.secrets.get("provider:custom_index") or {}
         ids = index.get("ids", []) if isinstance(index, dict) else []
-        if legacy and not ids:
+        if legacy and "custom-legacy" not in ids:
             legacy_id = "custom-legacy"
             self.secrets.put(f"provider:{legacy_id}", {**legacy, "id": legacy_id})
-            self.secrets.put("provider:custom_index", {"ids": [legacy_id]})
+            self.secrets.put("provider:custom_index", {"ids": [legacy_id, *ids]})
             self.secrets.delete("provider:custom")
             models = self._prefs.get("models") or []
             self._prefs["models"] = [f"{legacy_id}:{m.split(':', 1)[1]}" if m.startswith("custom:") else m for m in models]

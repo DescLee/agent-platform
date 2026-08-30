@@ -658,7 +658,7 @@ export function ProviderForm({
           <div className="flex gap-2 shrink-0">
             <button
               className="px-4 rounded-lg border border-line text-[13px] font-medium text-ink hover:border-lineStrong disabled:opacity-40"
-              onClick={() => (isCustomProvider(sel) ? ps.testOnly() : ps.runTestAndSave())}
+              onClick={() => void ps.testOnly()}
               disabled={ps.verify.state === "testing" || (!ps.secretFilled && !ps.credentialed)}
               data-testid={`${tp}-test`}
             >
@@ -797,7 +797,7 @@ export function ProviderForm({
               <div className="flex shrink-0 items-center gap-2">
                 <button
                   className="rounded-lg border border-accent bg-accent px-4 py-1.5 text-[13px] font-medium text-white hover:brightness-105 disabled:opacity-40"
-                  onClick={() => (isCustomProvider(sel) ? ps.testOnly() : ps.runTestAndSave())}
+                  onClick={() => void ps.testOnly()}
                   disabled={ps.verify.state === "testing"}
                   data-testid={`${tp}-test`}
                 >

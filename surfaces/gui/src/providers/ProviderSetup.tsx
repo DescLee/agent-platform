@@ -232,13 +232,16 @@ export function useProviderSetup(opts?: { onSaved?: () => void }): ProviderSetup
   };
 
   const fetchModels = async (): Promise<boolean> => {
-    if (!isCustomProvider(sel)) return false;
+    if (!sel) return false;
     setVerify({ state: "testing" });
     const res = await verifyProvider(sel!, fields).catch(
       () => ({ ok: false, error: "无法连接接口" } as { ok: boolean; error?: string; models?: string[] }),
     );
     if (!res.ok) {
       setVerify({ state: "error", msg: res.error || "获取模型失败" });
+      setNotice(res.error || "获取模型失败");
+      if (noticeTimer.current) window.clearTimeout(noticeTimer.current);
+      noticeTimer.current = window.setTimeout(() => setNotice(null), 3500);
       return false;
     }
     setDiscoveredModels(res.models || []);
@@ -652,14 +655,24 @@ export function ProviderForm({
           )}
         </div>
         {testable && (
-          <button
-            className="px-4 rounded-lg border border-line text-[13px] font-medium text-ink hover:border-lineStrong shrink-0 disabled:opacity-40"
-            onClick={() => (isCustomProvider(sel) ? ps.testOnly() : ps.runTestAndSave())}
-            disabled={ps.verify.state === "testing" || (!ps.secretFilled && !ps.credentialed)}
-            data-testid={`${tp}-test`}
-          >
-            {ps.verify.state === "testing" ? "…" : isCustomProvider(sel) ? "连接测试" : info?.needs_key ? "测试" : "检测"}
-          </button>
+          <div className="flex gap-2 shrink-0">
+            <button
+              className="px-4 rounded-lg border border-line text-[13px] font-medium text-ink hover:border-lineStrong disabled:opacity-40"
+              onClick={() => (isCustomProvider(sel) ? ps.testOnly() : ps.runTestAndSave())}
+              disabled={ps.verify.state === "testing" || (!ps.secretFilled && !ps.credentialed)}
+              data-testid={`${tp}-test`}
+            >
+              连通测试
+            </button>
+            <button
+              className="px-4 rounded-lg border border-line text-[13px] font-medium text-ink hover:border-lineStrong disabled:opacity-40"
+              onClick={() => void ps.fetchModels()}
+              disabled={ps.verify.state === "testing"}
+              data-testid={`${tp}-fetch-models`}
+            >
+              获取模型
+            </button>
+          </div>
         )}
       </div>
       {f.help && <p className="text-[12px] text-faint mt-1">{localizeHelp(f.help)}</p>}
@@ -788,18 +801,16 @@ export function ProviderForm({
                   disabled={ps.verify.state === "testing"}
                   data-testid={`${tp}-test`}
                 >
-                  {ps.verify.state === "testing" ? "…" : <>{isCustomProvider(sel) ? "连接测试" : "测试并保存"}</>}
+                  {ps.verify.state === "testing" ? "…" : "连通测试"}
                 </button>
-                {isCustomProvider(sel) && (
-                  <button
-                    className="rounded-lg border border-line bg-panel px-4 py-1.5 text-[13px] font-medium text-ink hover:border-lineStrong disabled:opacity-40"
-                    onClick={() => void ps.fetchModels()}
-                    disabled={ps.verify.state === "testing"}
-                    data-testid={`${tp}-fetch-models`}
-                  >
-                    获取模型
-                  </button>
-                )}
+                <button
+                  className="rounded-lg border border-line bg-panel px-4 py-1.5 text-[13px] font-medium text-ink hover:border-lineStrong disabled:opacity-40"
+                  onClick={() => void ps.fetchModels()}
+                  disabled={ps.verify.state === "testing"}
+                  data-testid={`${tp}-fetch-models`}
+                >
+                  获取模型
+                </button>
               </div>
             </div>
           </div>
@@ -879,7 +890,7 @@ export function ProviderForm({
       <div className="mt-3 min-h-[19px] text-[13px]">
         {ps.verify.state === "error" && <span className="text-warnInk">{ps.verify.msg}</span>}
       </div>
-      {isCustomProvider(sel) && ps.discoveredModels.length > 0 && (
+      {ps.discoveredModels.length > 0 && (
         <div className="mt-3 rounded-lg border border-line bg-paper px-3 py-2.5" data-testid={`${tp}-discovered-models`}>
           <div className="text-[12px] font-medium text-muted mb-2">已发现模型</div>
           <div className="flex flex-wrap gap-1.5">

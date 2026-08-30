@@ -2597,6 +2597,18 @@ class SessionManager:
         if root is None or not root.is_dir():
             return []
         out: list[dict[str, Any]] = []
+        # Migrate the pre-profile singleton once so its credentials/models remain independent.
+        legacy = self.secrets.get("provider:custom") or {}
+        index = self.secrets.get("provider:custom_index") or {}
+        ids = index.get("ids", []) if isinstance(index, dict) else []
+        if legacy and not ids:
+            legacy_id = "custom-legacy"
+            self.secrets.put(f"provider:{legacy_id}", {**legacy, "id": legacy_id})
+            self.secrets.put("provider:custom_index", {"ids": [legacy_id]})
+            self.secrets.delete("provider:custom")
+            models = self._prefs.get("models") or []
+            self._prefs["models"] = [f"{legacy_id}:{m.split(':', 1)[1]}" if m.startswith("custom:") else m for m in models]
+            self._save_prefs()
         suffixes = {
             ".md",
             ".markdown",

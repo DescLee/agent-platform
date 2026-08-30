@@ -1019,6 +1019,21 @@ def verify_provider_key(
         return _verify_bedrock(fields or {}, timeout)
     if name == "vertex":
         return _verify_vertex(fields or {}, timeout)
+
+    def get_models(base: str, headers: Optional[dict[str, str]] = None, **kwargs: Any) -> Any:
+        """Probe both common OpenAI-compatible layouts without duplicating /v1."""
+        root = base.rstrip("/")
+        if root.endswith("/v1"):
+            urls = [root + "/models"]
+        else:
+            urls = [root + "/v1/models", root + "/models"] if name == "deepseek" else [root + "/models", root + "/v1/models"]
+        last = None
+        for url in urls:
+            last = httpx.get(url, headers=headers, timeout=timeout, **kwargs)
+            if last.status_code != 404:
+                break
+        return last
+
     try:
         if name == "custom" or name.startswith("custom-"):
             protocol = str((fields or {}).get("protocol") or "openai").lower()
@@ -1030,7 +1045,7 @@ def verify_provider_key(
                 if protocol == "anthropic"
                 else {"Authorization": f"Bearer {key}"}
             )
-            resp = httpx.get(base + "/models", headers=headers, timeout=timeout)
+            resp = get_models(base, headers)
             if resp.status_code < 300:
                 payload = resp.json()
                 models = payload.get("data", []) if isinstance(payload, dict) else []
@@ -1079,15 +1094,7 @@ def verify_provider_key(
                 or default_base.rstrip("/")
                 or "https://api.openai.com/v1"
             )
-            # DeepSeek advertises its host root but exposes the OpenAI-compatible
-            # model resource under /v1/models.
-            if name == "deepseek" and not base.endswith("/v1"):
-                base += "/v1"
-            resp = httpx.get(
-                base + "/models",
-                headers={"Authorization": f"Bearer {key}"},
-                timeout=timeout,
-            )
+            resp = get_models(base, {"Authorization": f"Bearer {key}"})
     except Exception as exc:  # DNS/connection/timeout — never let it bubble to a 500
         return {
             "ok": False,

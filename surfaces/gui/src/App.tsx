@@ -896,7 +896,7 @@ export function App() {
           // Mid-session switch (server-applied): update the header fact and drop the
           // persisted marker into the live transcript (replay renders it from history).
           if (d.model) setModel(d.model);
-          setItems((p) => [...p, { kind: "notice", tone: "info", text: d.text || "Model switched" }]);
+          setItems((p) => [...p, { kind: "notice", tone: "info", text: (d.text || "Model switched").replace(/custom-[a-z0-9]+:/gi, "") }]);
           break;
         case "memory_saved":
           // §5.1 save notice — inline in the transcript, where the user is already

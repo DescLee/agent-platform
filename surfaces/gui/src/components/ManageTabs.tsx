@@ -55,6 +55,7 @@ function initials(name: string): string {
 // per-provider ModelChecklist / read-only model preview (form view).
 export function ModelsTab() {
   const [settings, setSettings] = useState<ModelSettings | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const refreshSettings = () => getSettings().then(setSettings).catch(() => setSettings(null));
   const ps = useProviderSetup({ onSaved: refreshSettings });
   useEffect(() => {
@@ -80,22 +81,22 @@ export function ModelsTab() {
         </div>
         <div className="grid grid-cols-2 xl:grid-cols-3 gap-2.5">
           <ProviderCards ps={ps} tp="set" gridClass="contents" lastUsed />
-          {ps.providers.find((p) => p.name === "custom" && p.configured) && (
-            <button
+          {ps.providers.filter((p) => (p.name === "custom" || p.name.startsWith("custom-")) && p.configured).map((custom) => (
+            <button key={custom.name}
             className="flex items-center gap-2.5 rounded-xl border border-line bg-panel px-3 py-2.5 text-left hover:border-lineStrong"
-            onClick={() => ps.openProvider("custom")}
-            data-testid="set-custom-provider-card"
+            onClick={() => ps.openProvider(custom.name)}
+            data-testid={`set-${custom.name}-provider-card`}
             >
               <ProviderMark name="custom" title="自定义" />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[13px] font-semibold">
-                  {ps.providers.find((p) => p.name === "custom")?.values?.supplier_name || "自定义"}
+                  {custom.values?.supplier_name || "自定义"}
                 </span>
                 <span className="block truncate text-[12px] text-ok">✓ 已连接</span>
               </span>
               <span className="text-faint text-[14px]">›</span>
             </button>
-          )}
+          ))}
         </div>
       </div>
     );
@@ -111,15 +112,41 @@ export function ModelsTab() {
             <button
               className="rounded-lg border border-danger/30 px-3 py-1.5 text-[13px] text-danger hover:border-danger hover:bg-danger/5 hover:underline underline-offset-2"
               data-testid="set-remove-key"
-              onClick={() => {
-                if (window.confirm(`确定要删除 ${info?.title || "该供应商"} 的配置吗？`)) ps.removeKey();
-              }}
+              onClick={() => setConfirmDelete(true)}
             >
               删除
             </button>
           ) : null
         }
       />
+
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/30 px-4" role="dialog" aria-modal="true">
+          <div className="w-full max-w-sm rounded-xl border border-line bg-panel p-5 shadow-xl">
+            <h2 className="text-[15px] font-semibold text-ink">确认删除</h2>
+            <p className="mt-2 text-[13px] text-muted">确定要删除 {info?.title || "该供应商"} 的配置吗？</p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                className="rounded-lg border border-line px-3 py-1.5 text-[13px] text-muted hover:border-lineStrong"
+                onClick={() => setConfirmDelete(false)}
+                data-testid="set-remove-cancel"
+              >
+                取消
+              </button>
+              <button
+                className="rounded-lg bg-danger px-3 py-1.5 text-[13px] text-white hover:brightness-105"
+                onClick={() => {
+                  setConfirmDelete(false);
+                  void ps.removeKey();
+                }}
+                data-testid="set-remove-confirm"
+              >
+                确认删除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {ps.sel === "openai" && settings.source === "env" && (
         <p className="text-[12px] text-muted mt-3 leading-relaxed">
@@ -128,7 +155,7 @@ export function ModelsTab() {
         </p>
       )}
 
-      {info?.configured && !ps.isBlank && ps.sel !== "custom" ? (
+      {info?.configured && !ps.isBlank && !ps.sel.startsWith("custom-") && ps.sel !== "custom" ? (
         <div className="mt-6">
           <div className={SEC_H + " mb-1.5"}>Models</div>
           <p className="text-[12px] text-muted mb-2.5 leading-relaxed">

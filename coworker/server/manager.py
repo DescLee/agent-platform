@@ -2856,27 +2856,29 @@ class SessionManager:
         non-secret field values (e.g. the Ollama base URL) ARE returned so the form can prefill.
         """
         out: list[dict[str, Any]] = []
-        for d in provider_descriptors():
-            profile = self.secrets.get(f"provider:{d.name}") or {}
+        def provider_row(d: Any, name: str, profile: dict[str, Any]) -> dict[str, Any]:
             configured = descriptor_configured(d, profile)
             values = {
                 f.key: profile.get(f.key)
                 for f in d.fields
                 if not f.secret and profile.get(f.key)
             }
-            row = {
+            row: dict[str, Any] = {
                 **d.to_dict(),
+                "name": name,
                 "configured": configured,
                 "values": values,
-                "suggested_models": self._suggested_models(d.name),
+                "suggested_models": self._suggested_models(name),
                 # Key hygiene for the Settings pane: when the key was saved (date, stamped
                 # by set_provider) and when the provider last served a completion (epoch,
                 # stamped by the router's on_use hook). Absent for env-only config.
                 "key_set_at": profile.get("key_set_at"),
                 "last_used_at": (self._prefs.get("provider_last_used") or {}).get(
-                    d.name
+                    name
                 ),
             }
+            if name.startswith("custom-"):
+                row["title"] = profile.get("supplier_name") or "自定义"
             if d.auth == "oauth":
                 # Sign-in state instead of key state; the token values themselves
                 # never leave the SecretStore.
@@ -2887,7 +2889,18 @@ class SessionManager:
                 if d.name == "openai-codex":
                     row["authorizing"] = self._codex_authorizing
                     row["last_error"] = self._codex_error
-            out.append(row)
+            return row
+
+        for d in provider_descriptors():
+            profile = self.secrets.get(f"provider:{d.name}") or {}
+            out.append(provider_row(d, d.name, profile))
+            if d.name == "custom":
+                custom_ids = self.secrets.get("provider:custom_index") or {}
+                ids = custom_ids.get("ids", []) if isinstance(custom_ids, dict) else []
+                for custom_id in ids:
+                    custom_profile = self.secrets.get(f"provider:{custom_id}") or {}
+                    if custom_profile:
+                        out.append(provider_row(d, custom_id, custom_profile))
         return out
 
     def pick_native_folder(self) -> dict[str, Any]:
@@ -2976,6 +2989,11 @@ class SessionManager:
     ) -> dict[str, Any]:
         """Store a provider's config in its `provider:<name>` SecretStore profile and rebuild
         its cached client. Merges provided fields into any existing profile."""
+        creating_custom = name == "custom-new"
+        if creating_custom:
+            import uuid
+
+            name = f"custom-{uuid.uuid4().hex[:10]}"
         d = get_descriptor(name)
         if d is None:
             return {"ok": False, "error": f"unknown provider: {name}"}
@@ -3001,6 +3019,11 @@ class SessionManager:
 
             profile["key_set_at"] = date.today().isoformat()
         self.secrets.put(f"provider:{name}", profile)
+        if name.startswith("custom-"):
+            index = self.secrets.get("provider:custom_index") or {}
+            ids = index.get("ids", []) if isinstance(index, dict) else []
+            if name not in ids:
+                self.secrets.put("provider:custom_index", {"ids": [*ids, name]})
         self._refresh_provider(name)
         # Convenience: if the provider recommends a model and it's actually available, add it to
         # the curated list so it shows up in the composer right after configuring the provider.
@@ -3025,6 +3048,16 @@ class SessionManager:
         if d is None:
             return {"ok": False, "error": f"unknown provider: {name}"}
         self.secrets.delete(f"provider:{name}")
+        if name.startswith("custom-"):
+            index = self.secrets.get("provider:custom_index") or {}
+            ids = index.get("ids", []) if isinstance(index, dict) else []
+            self.secrets.put("provider:custom_index", {"ids": [x for x in ids if x != name]})
+            models = self._prefs.get("models") or []
+            self._prefs["models"] = [m for m in models if not m.startswith(f"{name}:")]
+            if self.model.startswith(f"{name}:"):
+                self.model = "gpt-5.6-sol"
+                self._prefs["default_model"] = self.model
+            self._save_prefs()
         self._refresh_provider(name)
         return {"ok": True, "provider": name}
 

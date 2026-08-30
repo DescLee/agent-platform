@@ -749,14 +749,14 @@ def provider_names() -> list[str]:
 
 
 def get_descriptor(name: str) -> Optional[ProviderDescriptor]:
-    return _BY_NAME.get(name)
+    return _BY_NAME.get(name) or (_BY_NAME.get("custom") if name == "custom-new" or name.startswith("custom-") else None)
 
 
 def build_provider_client(
     name: str, profile: dict[str, Any], secrets: Any
 ) -> ProviderClient:
     """Build a `ProviderClient` for `name` from its stored profile. Unknown → OpenAI default."""
-    descriptor = _BY_NAME.get(name) or _BY_NAME["openai"]
+    descriptor = get_descriptor(name) or _BY_NAME["openai"]
     return descriptor.build(profile or {}, secrets)
 
 
@@ -992,7 +992,7 @@ def verify_provider_key(
     """
     import httpx
 
-    d = _BY_NAME.get(name) or _BY_NAME["openai"]
+    d = get_descriptor(name) or _BY_NAME["openai"]
     key = (api_key or "").strip()
     if d.auth == "oauth":
         # OAuth providers verify from their stored tokens (needs the SecretStore),
@@ -1003,7 +1003,7 @@ def verify_provider_key(
     if name == "vertex":
         return _verify_vertex(fields or {}, timeout)
     try:
-        if name == "custom":
+        if name == "custom" or name.startswith("custom-"):
             protocol = str((fields or {}).get("protocol") or "openai").lower()
             base = (base_url or "").strip().rstrip("/")
             if not base:

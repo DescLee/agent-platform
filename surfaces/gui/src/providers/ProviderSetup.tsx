@@ -58,6 +58,8 @@ export const KEY_HELP: Record<string, { url: string; label: string }> = {
 };
 
 export type Verify = { state: "idle" | "testing" | "ok" | "error"; msg?: string };
+const isCustomProvider = (name: string | null | undefined) =>
+  name === "custom" || !!name?.startsWith("custom-");
 
 /** Brand chip: always a light plate so multicolor marks read on any theme. */
 export function ProviderMark({ name, title, size = 32 }: { name: string; title: string; size?: number }) {
@@ -193,7 +195,7 @@ export function useProviderSetup(opts?: { onSaved?: () => void }): ProviderSetup
   const testOnly = async (): Promise<boolean> => {
     if (!sel) return false;
     setVerify({ state: "testing" });
-    const res = await verifyProvider(sel, fields).catch(
+    const res = await verifyProvider(sel!, fields).catch(
       () => ({ ok: false, error: "unreachable" } as { ok: boolean; error?: string; models?: string[] }),
     );
     if (!res.ok) {
@@ -205,9 +207,9 @@ export function useProviderSetup(opts?: { onSaved?: () => void }): ProviderSetup
   };
 
   const fetchModels = async (): Promise<boolean> => {
-    if (sel !== "custom") return false;
+    if (!isCustomProvider(sel)) return false;
     setVerify({ state: "testing" });
-    const res = await verifyProvider(sel, fields).catch(
+    const res = await verifyProvider(sel!, fields).catch(
       () => ({ ok: false, error: "无法连接接口" } as { ok: boolean; error?: string; models?: string[] }),
     );
     if (!res.ok) {
@@ -221,7 +223,7 @@ export function useProviderSetup(opts?: { onSaved?: () => void }): ProviderSetup
 
   const saveAfterTest = async (): Promise<boolean> => {
     if (!sel) return false;
-    if (sel === "custom") {
+    if (isCustomProvider(sel)) {
       const missing = [
         !fields.supplier_name?.trim() && "供应商名称",
         !fields.base_url?.trim() && "接口地址",
@@ -236,10 +238,14 @@ export function useProviderSetup(opts?: { onSaved?: () => void }): ProviderSetup
     }
     const tested = await testOnly();
     if (!tested) return false;
-    const saved = await setProvider(sel, fields).catch(() => ({ ok: false, error: "保存失败，请稍后重试。" }));
+    const saveName = isBlank && sel === "custom" ? "custom-new" : sel;
+    const saved = await setProvider(saveName!, fields).catch(() => ({ ok: false, error: "保存失败，请稍后重试。", provider: undefined }));
     if (!saved.ok) {
       setVerify({ state: "error", msg: saved.error || "保存失败，请稍后重试。" });
       return false;
+    }
+    if (isCustomProvider(sel) && saved.provider && discoveredModels.length) {
+      await Promise.all(discoveredModels.map((model) => addModel(`${saved.provider}:${model}`)));
     }
     if (!info?.needs_key) setKeylessOk((s) => new Set(s).add(sel));
     setDirty(false);
@@ -253,7 +259,7 @@ export function useProviderSetup(opts?: { onSaved?: () => void }): ProviderSetup
   };
 
   const runTestAndSave = async (): Promise<boolean> => {
-    if (sel === "custom") return saveAfterTest();
+    if (isCustomProvider(sel)) return saveAfterTest();
     const tested = await testOnly();
     if (!tested) return false;
     setDirty(false);
@@ -575,18 +581,18 @@ export function ProviderForm({
               className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-medium text-ok bg-okSoft rounded-full px-2 py-0.5 pointer-events-none"
               data-testid={`${tp}-saved-pill`}
             >
-              {sel === "custom" ? <>✓ 连接成功</> : info?.needs_key ? <>✓ Tested &amp; saved</> : <>✓ Detected</>}
+              {isCustomProvider(sel) ? <>✓ 连接成功</> : info?.needs_key ? <>✓ Tested &amp; saved</> : <>✓ Detected</>}
             </span>
           )}
         </div>
         {testable && (
           <button
             className="px-4 rounded-lg border border-line text-[13px] font-medium text-ink hover:border-lineStrong shrink-0 disabled:opacity-40"
-            onClick={() => (sel === "custom" ? ps.testOnly() : ps.runTestAndSave())}
+            onClick={() => (isCustomProvider(sel) ? ps.testOnly() : ps.runTestAndSave())}
             disabled={ps.verify.state === "testing" || (!ps.secretFilled && !ps.credentialed)}
             data-testid={`${tp}-test`}
           >
-            {ps.verify.state === "testing" ? "…" : sel === "custom" ? "连接测试" : info?.needs_key ? "Test" : "Detect"}
+            {ps.verify.state === "testing" ? "…" : isCustomProvider(sel) ? "连接测试" : info?.needs_key ? "Test" : "Detect"}
           </button>
         )}
       </div>
@@ -612,7 +618,7 @@ export function ProviderForm({
           {!ps.isBlank && info ? ps.statusFor(info) : null}
         </span>
         <div className="ml-auto flex items-center gap-2">
-          {sel === "custom" && (
+          {isCustomProvider(sel) && (
             <button
               className="rounded-lg bg-accent px-4 py-1.5 text-[13px] font-medium text-white hover:brightness-105"
               data-testid={`${tp}-custom-save`}
@@ -633,7 +639,7 @@ export function ProviderForm({
           (f) =>
             !f.show_when &&
             !(f.choices && f.choices.length) &&
-            !(f.key === "base_url" && keyed && sel !== "custom"),
+            !(f.key === "base_url" && keyed && !isCustomProvider(sel)),
         )
         .map((f) => fieldRow(f, !choice && f.key === testKey))}
 
@@ -692,23 +698,23 @@ export function ProviderForm({
             <div className="mt-3.5 flex items-center justify-between gap-3 border-t border-line pt-3">
               {ps.savedState ? (
                 <span className="text-[12px] font-medium text-ok" data-testid={`${tp}-saved-pill`}>
-                  {sel === "custom" ? <>✓ 连接成功</> : <>✓ Tested &amp; saved</>}
+                  {isCustomProvider(sel) ? <>✓ 连接成功</> : <>✓ Tested &amp; saved</>}
                 </span>
               ) : (
                 <span className="text-[12px] text-faint">
-                  {sel === "custom" ? "仅测试接口，不会保存配置。" : "Runs one read-only check, then saves."}
+                  {isCustomProvider(sel) ? "仅测试接口，不会保存配置。" : "Runs one read-only check, then saves."}
                 </span>
               )}
               <div className="flex shrink-0 items-center gap-2">
                 <button
                   className="rounded-lg border border-accent bg-accent px-4 py-1.5 text-[13px] font-medium text-white hover:brightness-105 disabled:opacity-40"
-                  onClick={() => (sel === "custom" ? ps.testOnly() : ps.runTestAndSave())}
+                  onClick={() => (isCustomProvider(sel) ? ps.testOnly() : ps.runTestAndSave())}
                   disabled={ps.verify.state === "testing"}
                   data-testid={`${tp}-test`}
                 >
-                  {ps.verify.state === "testing" ? "…" : <>{sel === "custom" ? "连接测试" : "Test & save"}</>}
+                  {ps.verify.state === "testing" ? "…" : <>{isCustomProvider(sel) ? "连接测试" : "Test & save"}</>}
                 </button>
-                {sel === "custom" && (
+                {isCustomProvider(sel) && (
                   <button
                     className="rounded-lg border border-line bg-panel px-4 py-1.5 text-[13px] font-medium text-ink hover:border-lineStrong disabled:opacity-40"
                     onClick={() => void ps.fetchModels()}
@@ -752,7 +758,7 @@ export function ProviderForm({
           with enough separation to read as its own advanced row — no explainer copy
           (owner calls 2026-07-18 + 2026-07-19). */}
       {(() => {
-        if (sel === "custom") return null;
+        if (isCustomProvider(sel)) return null;
         const keyed = (info?.fields || []).some((x) => x.secret);
         const ep = keyed ? (info?.fields || []).find((f) => f.key === "base_url") : undefined;
         if (!ep) return null;
@@ -797,19 +803,17 @@ export function ProviderForm({
       <div className="mt-3 min-h-[19px] text-[13px]">
         {ps.verify.state === "error" && <span className="text-warnInk">{ps.verify.msg}</span>}
       </div>
-      {sel === "custom" && ps.discoveredModels.length > 0 && (
+      {isCustomProvider(sel) && ps.discoveredModels.length > 0 && (
         <div className="mt-3 rounded-lg border border-line bg-paper px-3 py-2.5" data-testid={`${tp}-discovered-models`}>
           <div className="text-[12px] font-medium text-muted mb-2">已发现模型</div>
           <div className="flex flex-wrap gap-1.5">
             {ps.discoveredModels.map((model) => (
-              <button
+              <span
                 key={model}
-                className="rounded-md border border-line bg-panel px-2 py-1 text-[12px] text-ink hover:border-accent"
-                onClick={() => void addModel(`custom:${model}`)}
-                title="加入模型选择器"
+                className="rounded-md border border-line bg-panel px-2 py-1 text-[12px] text-ink"
               >
                 {model}
-              </button>
+              </span>
             ))}
           </div>
         </div>

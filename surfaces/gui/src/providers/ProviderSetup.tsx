@@ -113,6 +113,7 @@ export interface ProviderSetupState {
   testOnly: () => Promise<boolean>;
   fetchModels: () => Promise<boolean>;
   saveAfterTest: () => Promise<boolean>;
+  saveConfig?: () => Promise<boolean>;
   removeKey: () => Promise<void>;
   cancelBackTimer: () => void;
   statusFor: (p: ProviderInfo, opts?: { lastUsed?: boolean }) => ReactNode;
@@ -258,6 +259,46 @@ export function useProviderSetup(opts?: { onSaved?: () => void }): ProviderSetup
     return true;
   };
 
+  // Explicit save action for first-party providers. A provider must have a
+  // credential (unless one is already stored) and a successful test before it
+  // can be persisted from the top-right Save button.
+  const saveConfig = async (): Promise<boolean> => {
+    if (!sel) return false;
+    const hasRequiredSecret =
+      (info?.fields || []).every((f) => !f.secret || !f.required || (fields[f.key] || "").trim()) ||
+      credentialed ||
+      !info?.needs_key;
+    if (!hasRequiredSecret) {
+      setNotice("请先填写 API key");
+      if (noticeTimer.current) window.clearTimeout(noticeTimer.current);
+      noticeTimer.current = window.setTimeout(() => setNotice(null), 3500);
+      return false;
+    }
+    if (verify.state !== "ok") {
+      setNotice("请先通过测试后再保存");
+      if (noticeTimer.current) window.clearTimeout(noticeTimer.current);
+      noticeTimer.current = window.setTimeout(() => setNotice(null), 3500);
+      return false;
+    }
+    const saved = await setProvider(sel, fields).catch(() => ({ ok: false, error: "保存失败，请稍后重试。" }));
+    if (!saved.ok) {
+      setVerify({ state: "error", msg: saved.error || "保存失败，请稍后重试。" });
+      return false;
+    }
+    setDirty(false);
+    setDrafts((d) => ({ ...d, [sel]: {} }));
+    await refreshProviders();
+    opts?.onSaved?.();
+    setNotice("创建成功");
+    if (backTimer.current) window.clearTimeout(backTimer.current);
+    backTimer.current = window.setTimeout(() => {
+      setSel(null);
+      setVerify({ state: "idle" });
+      setNotice(null);
+    }, 900);
+    return true;
+  };
+
   const runTestAndSave = async (): Promise<boolean> => {
     if (isCustomProvider(sel)) return saveAfterTest();
     const tested = await testOnly();
@@ -374,6 +415,7 @@ export function useProviderSetup(opts?: { onSaved?: () => void }): ProviderSetup
     testOnly,
     fetchModels,
     saveAfterTest,
+    saveConfig,
     removeKey,
     saveField,
     fieldSaved,
@@ -623,6 +665,16 @@ export function ProviderForm({
               className="rounded-lg bg-accent px-4 py-1.5 text-[13px] font-medium text-white hover:brightness-105"
               data-testid={`${tp}-custom-save`}
               onClick={() => void ps.saveAfterTest()}
+            >
+              保存
+            </button>
+          )}
+          {!isCustomProvider(sel) && info?.auth !== "oauth" && (
+            <button
+              className="rounded-lg bg-accent px-4 py-1.5 text-[13px] font-medium text-white hover:brightness-105 disabled:opacity-40"
+              data-testid={`${tp}-save`}
+              onClick={() => void ps.saveConfig?.()}
+              disabled={ps.verify.state === "testing"}
             >
               保存
             </button>

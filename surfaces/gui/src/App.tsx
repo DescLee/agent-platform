@@ -73,7 +73,6 @@ import { IntegrationsView } from "./components/IntegrationsView";
 import { SettingsView } from "./components/SettingsView";
 import { PersonaView } from "./components/PersonaView";
 import { AuditView } from "./components/AuditView";
-import { InboxView } from "./components/InboxView";
 import { ApprovalCard } from "./components/ApprovalCard";
 import { ToolRequestCard } from "./components/ToolRequestCard";
 import { DirectoryRequestCard } from "./components/DirectoryRequestCard";
@@ -1365,7 +1364,6 @@ export function App() {
     );
   };
 
-  const openSessionFromInbox = (sid: string, ws: string, ag: string) => selectSession(sid, ws, ag);
   const selectSession = async (id: string, ws: string, ag: string) => {
     setSurface("session"); // selecting a conversation always returns to the conversation view
     setTodo([]);
@@ -1774,8 +1772,6 @@ export function App() {
         />
       ) : surface === "audit" ? (
         <AuditView />
-      ) : surface === "inbox" ? (
-        <InboxView onOpenSession={openSessionFromInbox} />
       ) : surface === "persona" ? (
         <PersonaView
           personaId={personaViewId || agent}

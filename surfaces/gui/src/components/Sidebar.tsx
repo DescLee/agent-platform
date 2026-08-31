@@ -1189,13 +1189,6 @@ export function Sidebar(props: Props) {
                     </button>
                   </>
                 )}
-                {appMenuItem(
-                  "inbox",
-                  "收件箱",
-                  props.onOpenInbox,
-                  props.inboxActive,
-                  <AttnBadge n={totalAttention} />,
-                )}
                 {appMenuItem("plug", "连接器", props.onOpenIntegrations, props.integrationsActive)}
                 <div className="h-px bg-line my-1 mx-2" />
                 {appMenuItem(
@@ -1256,31 +1249,6 @@ export function Sidebar(props: Props) {
               />
             )}
             <span className="flex-1" />
-            {inboxUnlocked && (
-              <span
-                className={
-                  "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px] shrink-0 cursor-pointer " +
-                  (totalAttention > 0
-                    ? "bg-accentSoft text-accent font-semibold"
-                    : "text-faint hover:text-ink")
-                }
-                data-testid="inbox-chip"
-                role="button"
-                aria-label={
-                  totalAttention > 0 ? `收件箱：${totalAttention} 项等待处理` : "收件箱"
-                }
-                title={totalAttention > 0 ? `收件箱：${totalAttention} 项等待处理` : "收件箱"}
-                onClick={(e) => {
-                  // The chip goes STRAIGHT to Inbox — the menu is the row's target, not the chip's.
-                  e.stopPropagation();
-                  setAppMenuOpen(false);
-                  props.onOpenInbox();
-                }}
-              >
-                <Icon name="inbox" size={13} />
-                {totalAttention > 0 ? totalAttention : null}
-              </span>
-            )}
             <Icon
               name="chevronDown"
               size={14}

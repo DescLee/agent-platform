@@ -75,7 +75,7 @@ export function PersonaView({
         urls = loaded.filter(Boolean) as string[];
         if (live) setMediaUrls(urls);
       })
-      .catch(() => live && setError("Could not load this coworker."));
+      .catch(() => live && setError("无法加载此专家。"));
     getConnectors()
       .then((list) => live && setByName(indexConnectors(list)))
       .catch(() => {});
@@ -109,7 +109,7 @@ export function PersonaView({
     const dir = await chooseFolder();
     if (!dir) return;
     const r = await exportPersona(personaId, dir);
-    setMsg(r.ok ? `Exported to ${r.path}` : r.error || "export failed");
+    setMsg(r.ok ? `已导出至 ${r.path}` : r.error || "导出失败");
   };
 
   const header = (
@@ -120,7 +120,7 @@ export function PersonaView({
             className="inline-flex items-center gap-1 text-[13px] text-muted hover:text-ink"
             onClick={onBack}
           >
-            <Icon name="arrowLeft" size={15} /> Back
+            <Icon name="arrowLeft" size={15} /> 返回
           </button>
           <span className="text-faint">·</span>
         </>
@@ -133,7 +133,7 @@ export function PersonaView({
     return (
       <main className="flex-1 min-w-0 flex flex-col bg-paper">
         {header}
-        <div className="p-12 text-center text-faint text-[13px]">{error || "Loading…"}</div>
+        <div className="p-12 text-center text-faint text-[13px]">{error || "加载中…"}</div>
       </main>
     );
   }
@@ -186,15 +186,15 @@ export function PersonaView({
               <p className="text-[13px] text-muted mt-0.5">{detail.tagline}</p>
             </div>
             <div className="ml-auto flex items-center gap-2">
-              <span className="text-[12px] text-muted">{detail.enabled ? "Enabled" : "Disabled"}</span>
-              <Toggle checked={detail.enabled} onChange={toggleEnabled} title="Enable this coworker" />
+              <span className="text-[12px] text-muted">{detail.enabled ? "已启用" : "未启用"}</span>
+              <Toggle checked={detail.enabled} onChange={toggleEnabled} title="启用此专家" />
             </div>
           </header>
 
           {/* about: bundle markdown + screenshot carousel */}
           {(detail.description || mediaUrls.length > 0) && (
             <section>
-              <div className={`${SEC_H} mb-1.5`}>About</div>
+              <div className={`${SEC_H} mb-1.5`}>关于</div>
               {detail.description && (
                 <div className="text-[14px] leading-relaxed text-ink/90">
                   <Markdown text={detail.description} />
@@ -253,8 +253,8 @@ export function PersonaView({
               <div className={`${SEC_H} mb-1.5 flex items-baseline`}>
                 <span>Connectors</span>
                 <span className="ml-auto flex font-semibold text-[11px] text-faint normal-case tracking-normal">
-                  <span className={COL_STATUS}>Status</span>
-                  <span className={COL_ENABLE}>Enable</span>
+                  <span className={COL_STATUS}>状态</span>
+                  <span className={COL_ENABLE}>启用</span>
                 </span>
               </div>
               <div className={GRP}>
@@ -315,7 +315,7 @@ export function PersonaView({
           {/* advanced: tool calls, collapsed by default (everyday users don't need these) */}
           {detail.tools.length > 0 && (
             <section>
-              <div className={`${SEC_H} mb-1.5`}>Advanced</div>
+              <div className={`${SEC_H} mb-1.5`}>高级设置</div>
               <div className="rounded-xl2 border border-line bg-panel">
                 <button
                   className="w-full flex items-center gap-2 px-4 py-2.5 text-left"
@@ -327,7 +327,7 @@ export function PersonaView({
                     size={12}
                     className={"text-faint transition-transform" + (showTools ? " rotate-90" : "")}
                   />
-                  <span className="text-[13px]">Tool calls</span>
+                  <span className="text-[13px]">工具调用</span>
                   <span className="ml-auto text-[12px] text-faint">{detail.tools.length}</span>
                 </button>
                 {showTools && (
@@ -354,11 +354,11 @@ export function PersonaView({
             )}
             {detail.default_permission_mode && (
               <div>
-                <span className="text-faint">Default mode</span> · {detail.default_permission_mode}
+                <span className="text-faint">默认模式</span> · {detail.default_permission_mode}
               </div>
             )}
             <div>
-              <span className="text-faint">Workspace</span> ·{" "}
+              <span className="text-faint">工作区</span> ·{" "}
               {detail.requires_folder ? "picked folder" : "scratch"}
             </div>
           </section>
@@ -373,7 +373,7 @@ export function PersonaView({
                 data-testid="persona-surfaced"
                 onChange={(e) => patch({ surfaced: e.target.checked })}
               />
-              Show in picker
+              在选择器中显示
             </label>
             <button
               className={BTN_BORDERED}
@@ -381,11 +381,11 @@ export function PersonaView({
               data-testid="persona-make-default"
               onClick={() => patch({ default: true })}
             >
-              {detail.default ? "Default for new sessions" : "Make default"}
+              {detail.default ? "新会话默认专家" : "设为默认"}
             </button>
             {!detail.builtin && (
               <button className={BTN_BORDERED} data-testid="persona-export" onClick={exportBundle}>
-                Export…
+                    导出…
               </button>
             )}
             {!detail.builtin &&
@@ -400,7 +400,7 @@ export function PersonaView({
                       else setMsg(r.error || "delete failed");
                     }}
                   >
-                    Delete
+                    删除
                   </button>
                   <button className={BTN_BORDERED} onClick={() => setConfirmDel(false)}>
                     Keep
@@ -412,7 +412,7 @@ export function PersonaView({
                   data-testid="persona-delete"
                   onClick={() => setConfirmDel(true)}
                 >
-                  Delete…
+                    删除…
                 </button>
               ))}
             {msg && <span className="text-muted">{msg}</span>}

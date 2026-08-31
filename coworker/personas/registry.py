@@ -218,6 +218,18 @@ class PersonaRegistry:
             if sub.is_dir():
                 self._restore_avatar_bundle(sub)
                 self._load_dir(sub, builtin=False)
+                entry = self._entries.get(sub.name)
+                plugin_file = sub / "attribution" / "original-plugin.json"
+                if entry and entry.manifest and plugin_file.is_file():
+                    try:
+                        plugin = json.loads(plugin_file.read_text(encoding="utf-8"))
+                        from .workbuddy import localized, string_list
+                        entry.manifest.tagline = localized(plugin.get("displayName"))
+                        entry.manifest.description = localized(plugin.get("displayDescription")) or localized(plugin.get("description"))
+                        entry.manifest.tags = string_list(plugin.get("tags"), "tags")
+                        entry.tagline = entry.manifest.tagline
+                    except (OSError, ValueError):
+                        pass
 
     def _restore_avatar_bundle(self, snapshot: Path) -> None:
         """Backfill avatars for snapshots created before avatar preservation shipped."""

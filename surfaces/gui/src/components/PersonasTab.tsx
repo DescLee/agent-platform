@@ -228,15 +228,6 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
               </p>
               <div className="mt-auto flex items-center gap-2 text-[12px]">
                 {(p.tags || []).slice(0, 4).map((tag) => <span key={tag} className="rounded-md bg-paper px-2.5 py-1 text-muted">{tag}</span>)}
-                <span className="rounded-md bg-paper px-2.5 py-1 text-muted">
-                  {p.requires_folder ? "项目任务" : "通用任务"}
-                </span>
-                <span className="rounded-md bg-paper px-2.5 py-1 text-muted">
-                  {p.builtin ? "内置专家" : "导入专家"}
-                </span>
-                <span className="rounded-md bg-paper px-2.5 py-1 text-muted">
-                  {p.default ? "默认专家" : p.enabled ? "已启用" : "未启用"}
-                </span>
               </div>
               {confirmOff === p.id && (
                 <div

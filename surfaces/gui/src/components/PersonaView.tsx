@@ -178,6 +178,7 @@ export function PersonaView({
                 {fullPersonaName(detail.name, personaId)}
               </h1>
               <p className="text-[13px] text-muted mt-0.5">{detail.tagline}</p>
+              {!!detail.tags?.length && <div className="flex flex-wrap gap-2 mt-2">{detail.tags.map((tag) => <span key={tag} className="text-[12px] px-2 py-1 rounded-md bg-paper text-muted whitespace-nowrap">{tag}</span>)}</div>}
             </div>
           </header>
 

@@ -1071,6 +1071,7 @@ export interface Persona {
   icon: string;
   avatar?: string | null;
   tagline: string;
+  tags?: string[];
   description?: string;
   tags?: string[];
   requires_folder: boolean; // folder gate — drives project-scoping

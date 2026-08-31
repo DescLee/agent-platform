@@ -286,22 +286,10 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
         </>
       )}
 
-      <button
-        ref={addRef as any}
-        className={QUIET_ROW}
-        data-testid="install-disclosure"
-        onClick={() => setShowInstall((v) => !v)}
-      >
-        <Icon
-          name="chevronRight"
-          size={12}
-          className={"transition-transform" + (showInstall ? " rotate-90" : "")}
-        />
-        <span>导入专家</span>
-        <span className="ml-auto text-faint text-[12px]">GitHub · 文件夹 · ZIP · WorkBuddy 专家</span>
-      </button>
       {showInstall && (
-        <div className={CARD + " mt-1.5 p-4"}>
+        <div ref={addRef as any} className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4" onClick={() => setShowInstall(false)}>
+        <div className={CARD + " w-full max-w-[620px] p-5 shadow-xl"} onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between mb-4"><div><h2 className="text-[18px] font-semibold">导入专家</h2><p className="text-[12px] text-muted mt-1">从 GitHub、文件夹或 ZIP 添加专家能力</p></div><button className={BTN_BORDERED} onClick={() => setShowInstall(false)}>关闭</button></div>
           <div className="flex items-center gap-2">
             <select
               className={SELECT}
@@ -365,7 +353,7 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
               第三方技能的依赖不会自动安装，执行操作仍受应用审批控制。
             </span>
           </div>
-        </div>
+        </div></div>
       )}
       {msg && <div className="text-[13px] text-muted mt-2.5">{msg}</div>}
 

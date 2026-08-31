@@ -376,11 +376,10 @@ function VoiceInputSection() {
 export function PersonasSection({ onOpenPersona }: { onOpenPersona?: (id: string) => void }) {
   return (
     <section>
-      <PanelHead title="专家" sub="管理和添加专家，为不同任务选择合适的专业能力。" />
-      <p className="text-[13px] text-muted leading-relaxed max-w-[900px] mt-5 mb-6">
-        每位专家都具备特定领域的知识、工具和技能，可协助你完成写作、分析、代码审查等任务。
-        启用后，可在输入框中选择专家；未选择时由默认 coworker 处理。
-      </p>
+      <div className="flex items-center justify-between mb-6">
+        <PanelHead title="专家" sub="" />
+        <button className="text-[13px] px-3 py-2 rounded-lg border border-line bg-paper hover:border-lineStrong" onClick={() => window.dispatchEvent(new Event("ocw-focus-import"))}>导入专家</button>
+      </div>
       <PersonasTab onOpenPersona={onOpenPersona} />
     </section>
   );

@@ -1931,7 +1931,6 @@ export function App() {
                 agent === "cowork" ? (
                   <SessionIntro
                     sessionId={sessionId}
-                    onOpenSessionSettings={openAccess}
                     onPrefill={prefillComposer}
                   />
                 ) : (

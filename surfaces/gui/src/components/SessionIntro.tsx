@@ -1,60 +1,28 @@
-import { useEffect, useState } from "react";
-import { getConnectors, getSessionConnections } from "../api";
+import { useState } from "react";
 import type { Attachment } from "../types";
-import { ConnectorIcon } from "../connectors/ConnectorIcon";
-import { indexConnectors, visualFor, type ConnectorMap } from "../connectors/visuals";
 import { useRoots } from "../useRoots";
 import { AddFolderForm } from "./AddFolderForm";
 
-// Empty-state for a fresh Cowork session (§27): a greeting, exactly three concrete template
-// tasks, and the composer — nothing else. Each task carries its own setup: no icon tiles (the
-// title is the row), connector dots on the sub-line (brand color = connected and enabled for
-// this session, grayscale = not — §23's vocabulary), and sub-line copy that is always the task's
-// OUTCOME, never connection state. Sources ready → "Start →" on hover, click prefills the
-// composer. Not ready → "Configure ›" always visible (for a gated row the setup action IS the
-// row's meaning), opening the §23 Session settings drawer — no second setup surface here.
+// Starter tasks prefill the composer for review before sending. Only folder analysis
+// needs setup; research and meeting notes work without third-party connections.
 
 const FOLDER_PROMPT = "分析这个文件夹中的文件，并总结其中的重要内容。";
-const HUBSPOT_PROMPT =
-  "根据我近期的 HubSpot 线索生成一份报告：包含来源、阶段以及需要跟进的对象。";
-const GH_SLACK_PROMPT =
-  "创建每周进展报告：汇总我的 GitHub 仓库动态，并在每周五上午发布到 Slack。";
+const RESEARCH_PROMPT =
+  "请围绕以下主题搜索公开资料，生成一份中文调研简报，包含核心结论、关键事实、不同观点和参考来源链接，并保存为 Markdown 文件。请区分已核实事实与推测；如果我还未填写主题，请先询问。\n\n调研主题：";
+const MEETING_PROMPT =
+  "请将以下会议记录整理成会议纪要和行动清单，包含关键结论、已确认的决策、待办事项、负责人、截止时间和待确认问题，并保存为 Markdown 文件。未提及的负责人或时间请标注“待确认”，不要编造；如果我还未提供记录，请先让我粘贴或上传。\n\n会议记录：";
 
 export function SessionIntro({
   sessionId,
-  onOpenSessionSettings,
   onPrefill,
 }: {
   sessionId: string;
-  // Opens the §23 Session settings drawer (sources section) — the gated rows' Configure target.
-  onOpenSessionSettings: () => void;
   onPrefill: (text: string, attachments?: Attachment[]) => void;
 }) {
   const { roots, busy, error, addRoot } = useRoots(sessionId);
-  const [live, setLive] = useState<Set<string>>(new Set());
-  const [byName, setByName] = useState<ConnectorMap>({});
   const [addingFolder, setAddingFolder] = useState(false);
 
-  useEffect(() => {
-    // Live = what this session can touch right now (connected AND not muted here) — the same
-    // truth the §23 glance renders, so the dots here can never disagree with the row above.
-    getSessionConnections(sessionId)
-      .then((c) => setLive(new Set(c.connected.filter((x) => x.enabled).map((x) => x.connector))))
-      .catch(() => {});
-    getConnectors()
-      .then((list) => setByName(indexConnectors(list)))
-      .catch(() => {});
-  }, [sessionId]);
-
   const shared = roots.filter((r) => !r.primary);
-  const hubspotReady = live.has("hubspot");
-  const ghSlackReady = live.has("github") && live.has("slack");
-
-  const dot = (name: string, on: boolean) => (
-    <span className={"task-dot" + (on ? "" : " off")} key={name}>
-      <ConnectorIcon connector={visualFor(name, "connector", byName)} size={12} />
-    </span>
-  );
 
   const pickFolder = () => {
     // A shared folder already exists → straight to the prompt; otherwise share one first.
@@ -96,34 +64,31 @@ export function SessionIntro({
         )}
 
         <button
-          className={"task-card" + (hubspotReady ? "" : " gated")}
-          data-testid="intro-task-hubspot"
-          onClick={() => (hubspotReady ? onPrefill(HUBSPOT_PROMPT) : onOpenSessionSettings())}
+          className="task-card"
+          data-testid="intro-task-research"
+          onClick={() => onPrefill(RESEARCH_PROMPT)}
         >
           <span className="task-card-body">
-            <span className="task-card-title">根据 HubSpot 线索生成报告</span>
+            <span className="task-card-title">调研一个主题，生成简报</span>
             <span className="task-card-sub">
-              {dot("hubspot", hubspotReady)}
-              汇总线索来源、阶段与待跟进对象
+              搜索公开资料，整理关键结论与来源
             </span>
           </span>
-          <span className="task-card-act">{hubspotReady ? "开始 →" : "去配置 ›"}</span>
+          <span className="task-card-act">填写主题 →</span>
         </button>
 
         <button
-          className={"task-card" + (ghSlackReady ? "" : " gated")}
-          data-testid="intro-task-github-slack"
-          onClick={() => (ghSlackReady ? onPrefill(GH_SLACK_PROMPT) : onOpenSessionSettings())}
+          className="task-card"
+          data-testid="intro-task-meeting"
+          onClick={() => onPrefill(MEETING_PROMPT)}
         >
           <span className="task-card-body">
-            <span className="task-card-title">自动生成 GitHub 周报并发送到 Slack</span>
+            <span className="task-card-title">把会议记录整理成行动清单</span>
             <span className="task-card-sub">
-              {dot("github", live.has("github"))}
-              {dot("slack", live.has("slack"))}
-              汇总仓库动态，并在每周五自动发布
+              提炼决策、待办事项、负责人和截止时间
             </span>
           </span>
-          <span className="task-card-act">{ghSlackReady ? "开始 →" : "去配置 ›"}</span>
+          <span className="task-card-act">添加记录 →</span>
         </button>
       </div>
     </div>

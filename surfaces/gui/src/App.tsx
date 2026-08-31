@@ -62,7 +62,6 @@ import { Markdown } from "./components/Markdown";
 import { SearchModal } from "./components/SearchModal";
 import { SessionIntro } from "./components/SessionIntro";
 import { FolderGate } from "./components/FolderGate";
-import { ExpertPicker } from "./components/ExpertPicker";
 import { SessionSetupRow } from "./components/SessionSetupRow";
 import { SendFolderDialog } from "./components/SendFolderDialog";
 import { Onboarding } from "./components/Onboarding";
@@ -2114,22 +2113,7 @@ export function App() {
               </p>
             )}
             <Composer
-              expertSlot={idle && !sessionId.startsWith("__run__") ? (
-                <ExpertPicker
-                  personas={personas}
-                  agent={agent}
-                  onPickCoworker={pickCoworker}
-                  onManage={() => setSurface("coworkers")}
-                  onImport={() => {
-                    setSurface("coworkers");
-                    // Let coworker management mount, then spotlight the Add section.
-                    window.setTimeout(
-                      () => window.dispatchEvent(new CustomEvent("ocw-focus-import")),
-                      250,
-                    );
-                  }}
-                />
-              ) : undefined}
+              expertSlot={undefined}
               mode={mode}
               model={model}
               models={models}

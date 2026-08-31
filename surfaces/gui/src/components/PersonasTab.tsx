@@ -206,7 +206,7 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
                 {p.description || "暂无介绍，可在配置中查看此专家的能力。"}
               </p>
               <div className="mt-auto flex items-center gap-2 text-[12px]">
-                {(p.tags || []).slice(0, 4).map((tag) => <span key={tag} className="rounded-md bg-paper px-2.5 py-1 text-muted">{tag}</span>)}
+                {(p.tags || []).slice(0, 4).map((tag) => <span key={tag} className="rounded-md bg-paper px-2.5 py-1 text-muted whitespace-nowrap">{tag}</span>)}
               </div>
               {confirmOff === p.id && (
                 <div

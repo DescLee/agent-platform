@@ -1,6 +1,6 @@
 // The Automations quickstart (UX-DECISIONS §29): ONE template system — the former onboarding
 // recipe (role templates, connect rows, lazy cloud sign-in, §25 consent) merged into the page's
-// "Start from a template" grid. Cards carry §27's connector-dot vocabulary; picking one expands
+// "从模板开始" grid. Cards carry §27's connector-dot vocabulary; picking one expands
 // the configure card. The `ob-*` testids moved here with the machinery.
 import { expect } from "@playwright/test";
 import { test } from "./fixtures";
@@ -8,16 +8,16 @@ import { test } from "./fixtures";
 async function openAutomations(page) {
   await page.goto("/");
   await page.getByTestId("nav-automations").click();
-  await expect(page.getByText("Recurring tasks OpenWorker runs on a schedule.")).toBeVisible();
+  await expect(page.getByText("由绿巨人按计划重复执行的任务。")).toBeVisible();
 }
 
 // The fixtures seed one task, so the quickstart isn't on the bare list — surface it via the
-// "+ New automation" toggle (empty state shows it without the toggle; covered indirectly by
+// "+ 新建自动任务" toggle (empty state shows it without the toggle; covered indirectly by
 // the delete test in automations-manage.spec.ts).
 async function openQuickstart(page) {
   await openAutomations(page);
-  await page.getByRole("button", { name: "+ New automation" }).click();
-  await expect(page.getByText("Start from a template")).toBeVisible();
+  await page.getByRole("button", { name: "+ 新建自动任务" }).click();
+  await expect(page.getByText("从模板开始")).toBeVisible();
 }
 
 test("role recipe: connect rows, lazy single sign-in, channel by name, consent mints the grant", async ({
@@ -25,19 +25,19 @@ test("role recipe: connect rows, lazy single sign-in, channel by name, consent m
 }) => {
   await openQuickstart(page);
 
-  // Pipeline digest: Slack is connected in fixtures, HubSpot isn't. No recipe form yet.
+  // 销售进展摘要: Slack is connected in fixtures, HubSpot isn't. No recipe form yet.
   await page.getByTestId("qs-template-pipeline").click();
   const cfg = page.getByTestId("qs-configure");
-  // §30: the card names its template — "SET UP · Pipeline digest" — instead of starting
+  // §30: the card names its template — "SET UP · 销售进展摘要" — instead of starting
   // abruptly after the grid.
-  await expect(cfg).toContainText("Set up");
-  await expect(cfg).toContainText("Pipeline digest");
-  await expect(cfg.getByText("✓ Connected").first()).toBeVisible();
+  await expect(cfg).toContainText("配置模板");
+  await expect(cfg).toContainText("销售进展摘要");
+  await expect(cfg.getByText("✓ 已连接").first()).toBeVisible();
   await expect(page.getByTestId("ob-recipe")).toHaveCount(0);
   await expect(page.getByTestId("ob-create")).toBeDisabled();
-  await expect(page.getByTestId("ob-create-hint")).toContainText("Connect HubSpot");
+  await expect(page.getByTestId("ob-create-hint")).toContainText("请先连接 HubSpot");
 
-  // Connect HubSpot while signed out → the ONE cloud pane appears; signing in finishes the
+  // 请先连接 HubSpot while signed out → the ONE cloud pane appears; signing in finishes the
   // pending connect without another click.
   await page.getByTestId("ob-connect-hubspot").click();
   await expect(page.getByTestId("ob-cloudpane")).toBeVisible();
@@ -45,7 +45,7 @@ test("role recipe: connect rows, lazy single sign-in, channel by name, consent m
   await expect(page.getByTestId("ob-recipe")).toBeVisible({ timeout: 15_000 });
 
   // Connected but no channel → the gate names the missing piece (tester catch 2026-07-12).
-  await expect(page.getByTestId("ob-create-hint")).toContainText("Pick a channel");
+  await expect(page.getByTestId("ob-create-hint")).toContainText("请先选择接收摘要的频道");
 
   // Channel picked BY NAME; §25 consent pre-checked; create lands on the task's detail with
   // the standing grant listed.
@@ -56,8 +56,8 @@ test("role recipe: connect rows, lazy single sign-in, channel by name, consent m
   await expect(page.getByTestId("ob-consent")).toBeChecked();
   await page.getByTestId("ob-create").click();
 
-  await expect(page.getByRole("button", { name: /Run now/ })).toBeVisible();
-  await expect(page.getByText("Pipeline digest").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: /立即运行/ })).toBeVisible();
+  await expect(page.getByText("销售进展摘要").first()).toBeVisible();
   await expect(page.getByTestId("task-grants")).toContainText("send_message");
 });
 
@@ -82,12 +82,12 @@ test("connect narrates itself: Opening browser → waiting strip → Cancel rest
   // click would open the sign-in pane instead of the broker flow.
   await page.waitForResponse(/\/v1\/cloud\/status/);
   await page.getByTestId("ob-connect-hubspot").click();
-  await expect(page.getByText("Opening browser…")).toBeVisible();
+  await expect(page.getByText("正在打开浏览器…")).toBeVisible();
 
   release!();
-  await expect(page.getByText("Waiting for HubSpot…")).toBeVisible();
+  await expect(page.getByText("正在等待 HubSpot 完成连接…")).toBeVisible();
   await expect(page.getByTestId("ob-connect-wait")).toContainText(
-    "Finish connecting HubSpot in your browser",
+    "请在浏览器中完成 HubSpot 的连接",
   );
 
   // Cancel clears only the LOCAL waiting state — the Connect button returns.
@@ -101,25 +101,25 @@ test("read-only recipe (Morning brief) carries disclosure, not a grant", async (
   await page.getByTestId("qs-template-brief").click();
 
   // Calendar + Gmail rows; no consent checkbox anywhere — reads never gate.
-  await expect(page.getByText("Today's meetings and gaps")).toBeVisible();
-  await expect(page.getByText("What arrived overnight")).toBeVisible();
+  await expect(page.getByText("今天的会议与空闲时间")).toBeVisible();
+  await expect(page.getByText("昨晚以来收到的邮件")).toBeVisible();
   await expect(page.getByTestId("ob-consent")).toHaveCount(0);
 });
 
 test("no-connection template: When is editable and create opens the detail", async ({ page }) => {
   await openQuickstart(page);
   // The card says so on its face.
-  await expect(page.getByTestId("qs-template-news")).toContainText("No connections needed");
+  await expect(page.getByTestId("qs-template-news")).toContainText("无需连接应用");
   await page.getByTestId("qs-template-news").click();
 
   // No connect rows, no consent — just When (day × time) and an enabled Create.
   await expect(page.getByTestId("ob-consent")).toHaveCount(0);
   await expect(
-    page.getByTestId("ob-recipe").getByRole("button", { name: "Day" }),
-  ).toContainText("Every day");
+    page.getByTestId("ob-recipe").getByRole("button", { name: "执行日期" }),
+  ).toContainText("每天");
   await expect(page.getByTestId("ob-create")).toBeEnabled();
   await page.getByTestId("ob-create").click();
 
-  await expect(page.getByRole("button", { name: /Run now/ })).toBeVisible();
-  await expect(page.getByText("Morning news briefing").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: /立即运行/ })).toBeVisible();
+  await expect(page.getByText("每日新闻简报").first()).toBeVisible();
 });

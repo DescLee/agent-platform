@@ -6,7 +6,6 @@ import { getSettings, inspectPdf, sessionSkills, setAutoApprove, type SessionSki
 import { formatTokens, totalTokens } from "../usage";
 import { Dropdown, type Option } from "./Dropdown";
 import { Icon } from "./Icon";
-import { Toggle } from "./Toggle";
 import {
   cancelDictation,
   getDictationLevel,
@@ -95,10 +94,8 @@ interface Props {
   // When set (Code/Cowork), the Mode menu is shown. The folder/roots + branch controls left the
   // composer for the Session settings drawer (§22) — folder access is standing session config.
   workspace?: string;
-  // Unattended / send-approvals-to-Inbox — folded into the Mode menu (§22): "who approves, and
-  // when" is one mental model. Absent handler = no toggle (e.g. Chat).
+  // Preserve the active session’s Inbox routing status in the mode tooltip.
   unattended?: boolean;
-  onUnattendedChange?: (on: boolean) => void;
   // The pending-approval card rendered above the input (plan / work-items / team / tool /
   // folder requests). Attended sessions only — Unattended parks the prompt in the Inbox.
   approvalSlot?: ReactNode;
@@ -688,7 +685,6 @@ export function Composer(props: Props) {
               mode={props.mode}
               onModeChange={props.onModeChange}
               unattended={props.unattended}
-              onUnattendedChange={props.onUnattendedChange}
             />
           ) : null}
 
@@ -938,22 +934,18 @@ function UsageChip({
   );
 }
 
-// The composer's Mode menu (§22): a quiet "Mode ⌄" chip opening the five permission options with
-// the current one marked, plus — when the session supports it — the "Send approvals to Inbox"
-// toggle at the bottom (the old standalone InboxControl, folded in).
+// The composer’s Mode menu shows permission options with the current one marked.
 function ModeMenu({
   sessionId,
   mode,
   onModeChange,
   unattended,
-  onUnattendedChange,
   reviewerPaused,
 }: {
   sessionId?: string;
   mode: string;
   onModeChange: (mode: string) => void;
   unattended?: boolean;
-  onUnattendedChange?: (on: boolean) => void;
   reviewerPaused?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -1043,24 +1035,7 @@ function ModeMenu({
             ))}
             {saving && <p role="status" className="px-2.5 py-1 text-[11px] text-muted">正在启用…</p>}
             {error && <p role="alert" className="px-2.5 py-1 text-[11px] text-warnInk">{error}</p>}
-            {onUnattendedChange && (
-              <>
-                <div className="my-1 border-t border-line" />
-                <div className="flex items-center gap-2 px-2.5 py-1.5">
-                  <span className="flex-1 min-w-0">
-                    <span className="block text-[13px] text-ink">将审批发送到收件箱</span>
-                    <span className="block text-[11px] text-faint leading-snug">
-                      审批和问题会进入收件箱，智能体可继续处理其他工作。
-                    </span>
-                  </span>
-                  <Toggle
-                    checked={!!unattended}
-                    onChange={onUnattendedChange}
-                    title="将审批发送到收件箱"
-                  />
-                </div>
-              </>
-            )}
+
           </div>
         </>
       )}

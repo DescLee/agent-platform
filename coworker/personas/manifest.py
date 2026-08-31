@@ -54,6 +54,7 @@ class PersonaManifest:
     icon: str = ""
     tagline: str = ""
     description: str = ""
+    tags: list[str] = field(default_factory=list)
     tools: list[str] = field(default_factory=list)
     # Workspace/toolset traits (workspace-scratch-design.md — replaces the old
     # family/workspace pair). requires_folder: the composer/engine gate on a
@@ -324,6 +325,7 @@ def parse_manifest(
         icon=str(meta.get("icon", "")).strip(),
         tagline=str(meta.get("tagline", "")).strip(),
         description=str(meta.get("description", "")).strip(),
+        tags=_strlist(meta, "tags"),
         tools=tools,
         requires_folder=requires_folder,
         subagents=subagents,

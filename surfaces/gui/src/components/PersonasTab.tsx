@@ -222,10 +222,12 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
                 )}
                 </div>
               </div>
-              <p className="text-[13px] text-muted leading-[22px] line-clamp-2 break-words mt-3 mb-3" title={p.tagline}>
-                {p.tagline || "暂无介绍，可在配置中查看此专家的能力。"}
+              {p.tagline && <p className="text-[13px] text-muted leading-[20px] truncate mt-2" title={p.tagline}>{p.tagline}</p>}
+              <p className="text-[13px] text-muted leading-[22px] line-clamp-2 break-words mt-1 mb-3" title={p.description || p.tagline}>
+                {p.description || "暂无介绍，可在配置中查看此专家的能力。"}
               </p>
               <div className="mt-auto flex items-center gap-2 text-[12px]">
+                {(p.tags || []).slice(0, 4).map((tag) => <span key={tag} className="rounded-md bg-paper px-2.5 py-1 text-muted">{tag}</span>)}
                 <span className="rounded-md bg-paper px-2.5 py-1 text-muted">
                   {p.requires_folder ? "项目任务" : "通用任务"}
                 </span>

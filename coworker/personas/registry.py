@@ -368,6 +368,8 @@ class PersonaRegistry:
                 "icon": e.icon,
                 "avatar": self.avatar_name(e.id),
                 "tagline": e.tagline,
+                "description": e.manifest.description if e.manifest else "",
+                "tags": e.manifest.tags if e.manifest else [],
                 "requires_folder": e.requires_folder,
                 "builtin": e.builtin,
                 "tools": e.tools,

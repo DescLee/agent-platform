@@ -183,9 +183,9 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
                     <PersonaGlyph icon={p.icon} folderScoped={p.requires_folder} size={22} />
                   )}
                 </div>
-                <div className="min-w-0 flex-1 pt-1">
-                  <h3 className="text-[16px] font-semibold leading-snug truncate" title={p.name}>{p.name}</h3>
-                  {p.tagline && <p className="text-[13px] text-muted leading-[20px] truncate mt-1" title={p.tagline}>{p.tagline}</p>}
+                <div className="min-w-0 flex-1 h-10 flex flex-col justify-center">
+                  <h3 className="text-[16px] font-semibold leading-[20px] truncate" title={p.name}>{p.name}</h3>
+                  {p.tagline && <p className="text-[13px] text-muted leading-[18px] truncate" title={p.tagline}>{p.tagline}</p>}
                 </div>
                 <div className="expert-card-actions">
                 {p.default ? (

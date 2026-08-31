@@ -160,7 +160,7 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
         )}
         <div className="expert-grid" data-testid="expert-grid">
           {list.map((p) => (
-            <article key={p.id} className={CARD + " expert-card cursor-pointer"} data-testid={`expert-card-${p.id}`} onClick={() => onOpenPersona?.(p.id)}>
+            <article key={p.id} className={CARD + " expert-card cursor-pointer group"} data-testid={`expert-card-${p.id}`} onClick={() => onOpenPersona?.(p.id)}>
               <div className="flex items-start gap-3.5">
                 <div className="w-10 h-10 rounded-full bg-accentSoft text-accent flex items-center justify-center shrink-0 overflow-hidden" aria-hidden="true">
                   {avatars[p.id] ? (
@@ -174,6 +174,7 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
                   {p.tagline && <p className="text-[13px] text-muted leading-[18px] truncate" title={p.tagline}>{p.tagline}</p>}
                 </div>
                 <div className="expert-card-actions">
+                <button className="hidden group-hover:inline-flex text-[12px] px-2 py-1 rounded-md bg-accent text-white" onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent("ocw-summon-persona", { detail: p.id })); }}>召唤</button>
                 {p.default ? (
                   /* The default coworker cannot be disabled or hidden — no toggle, no
                      configure; a quiet tag says why (owner 2026-08-21). It regains its

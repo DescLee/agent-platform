@@ -287,6 +287,11 @@ export function App() {
   // active session's persona. Phase 5 wires the grouped-nav gear + "Manage personas…" entry points.
   const [personaViewId, setPersonaViewId] = useState<string>("");
   const [personaModalOpen, setPersonaModalOpen] = useState(false);
+  useEffect(() => {
+    const handler = (e: Event) => { const id = (e as CustomEvent<string>).detail; if (id) { setAgent(id); setSurface("session"); } };
+    window.addEventListener("ocw-summon-persona", handler);
+    return () => window.removeEventListener("ocw-summon-persona", handler);
+  }, []);
   // Persona details return to the session or the standalone coworker management page.
   const [personaViewReturn, setPersonaViewReturn] = useState<"session" | "coworkers">("session");
   const openPersona = (id: string, from: "session" | "coworkers" = "session") => {

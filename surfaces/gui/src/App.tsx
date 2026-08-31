@@ -2113,7 +2113,7 @@ export function App() {
               </p>
             )}
             <Composer
-              expertSlot={undefined}
+              expertSlot={agent !== "cowork" ? <button className="text-[13px] text-muted hover:text-ink" title="移除已召唤专家" onClick={() => pickCoworker()}>{fullPersonaName(personas.find((p) => p.id === agent)?.name || agent, agent)} ×</button> : undefined}
               mode={mode}
               model={model}
               models={models}

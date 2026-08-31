@@ -26,6 +26,7 @@ import { ConnectorBadge } from "../connectors/ConnectorIcon";
 import { fullPersonaName } from "../personaScope";
 import { Icon } from "./Icon";
 import { Markdown } from "./Markdown";
+import { Toggle } from "./Toggle";
 import { indexConnectors, labelFor, visualFor, type ConnectorMap } from "../connectors/visuals";
 
 const SEC_H = "text-[11px] uppercase tracking-[0.05em] text-faint font-semibold";

@@ -846,6 +846,9 @@ button.btn.danger { color: var(--accent); }
   padding: 13px 6px;
   background: none; border: none; border-top: 1px solid var(--line);
   font: inherit; color: var(--ink);
+}
+/* Expert prompts share the starter tasks' staggered entrance. */
+.task-card, .suggest {
   opacity: 0; transform: translateY(4px);
   animation: task-rise 0.35s ease forwards;
 }
@@ -854,7 +857,7 @@ button.btn.danger { color: var(--accent); }
 .task-card:nth-of-type(3) { animation-delay: 0.34s; }
 @keyframes task-rise { to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
-  .task-card { animation: none; opacity: 1; transform: none; }
+  .task-card, .suggest { animation: none; opacity: 1; transform: none; }
 }
 .task-card:first-child { border-top: none; }
 .task-card-body { flex: 1; min-width: 0; }

@@ -72,6 +72,7 @@ import { RightRail } from "./components/RightRail";
 import { IntegrationsView } from "./components/IntegrationsView";
 import { PersonasSection, SettingsView } from "./components/SettingsView";
 import { PersonaView } from "./components/PersonaView";
+import { PersonaGlyph } from "./components/personaIcon";
 import { AuditView } from "./components/AuditView";
 import { ApprovalCard } from "./components/ApprovalCard";
 import { ToolRequestCard } from "./components/ToolRequestCard";
@@ -288,11 +289,6 @@ export function App() {
   const [personaViewId, setPersonaViewId] = useState<string>("");
   const [personaModalOpen, setPersonaModalOpen] = useState(false);
   const [summonedAvatar, setSummonedAvatar] = useState<string | null>(null);
-  useEffect(() => {
-    const handler = (e: Event) => { const id = (e as CustomEvent<string>).detail; if (id) { setAgent(id); setSurface("session"); } };
-    window.addEventListener("ocw-summon-persona", handler);
-    return () => window.removeEventListener("ocw-summon-persona", handler);
-  }, []);
   // Persona details return to the session or the standalone coworker management page.
   const [personaViewReturn, setPersonaViewReturn] = useState<"session" | "coworkers">("session");
   const openPersona = (id: string, from: "session" | "coworkers" = "session") => {
@@ -1268,6 +1264,10 @@ export function App() {
     setTempWorkspace(false);
     setSessionId(newId());
   };
+  const summonPersona = (id: string) => {
+    setPersonaModalOpen(false);
+    void startNewSession(id);
+  };
   // UX-029: re-target the DRAFT session (no messages yet) to another coworker. Unlike
   // switchAgent this never resumes that coworker's last conversation — the user is
   // composing a new one. A fresh id keeps knowledge families' per-conversation scratch
@@ -1800,9 +1800,9 @@ export function App() {
       {surface === "coworkers" ? (
         <main className="flex-1 min-w-0 min-h-0 overflow-auto bg-paper hairline-scroll">
           <div className="experts-content mx-auto px-7 py-6">
-            <PersonasSection onOpenPersona={(id) => openPersona(id, "coworkers")} />
+            <PersonasSection onOpenPersona={(id) => openPersona(id, "coworkers")} onSummonPersona={summonPersona} />
           </div>
-          {personaModalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-6" onClick={() => setPersonaModalOpen(false)}><div className="relative w-full max-w-[580px] max-h-[85vh] overflow-hidden rounded-2xl shadow-2xl" onClick={(e) => e.stopPropagation()}><button className="absolute right-14 top-3 z-10 rounded-lg bg-accent px-3 py-1.5 text-[13px] text-white" onClick={() => { setAgent(personaViewId); setPersonaModalOpen(false); setSurface("session"); }}>召唤</button><button className="absolute right-4 top-3 z-10 text-xl text-muted" onClick={() => setPersonaModalOpen(false)}>×</button><PersonaView personaId={personaViewId} onBack={() => setPersonaModalOpen(false)} /></div></div>}
+          {personaModalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-6" onClick={() => setPersonaModalOpen(false)}><div className="relative w-full max-w-[580px] max-h-[85vh] overflow-hidden rounded-2xl shadow-2xl" onClick={(e) => e.stopPropagation()}><button className="absolute right-14 top-3 z-10 rounded-lg bg-accent px-3 py-1.5 text-[13px] text-white" onClick={() => summonPersona(personaViewId || agent)}>召唤</button><button className="absolute right-4 top-3 z-10 text-xl text-muted" onClick={() => setPersonaModalOpen(false)}>×</button><PersonaView personaId={personaViewId} onBack={() => setPersonaModalOpen(false)} /></div></div>}
         </main>
       ) : surface === "scheduled" ? (
         <ScheduledView
@@ -1833,7 +1833,7 @@ export function App() {
       ) : surface === "persona" ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-6" onClick={() => setSurface(personaViewReturn)}>
           <div className="relative w-full max-w-[580px] max-h-[85vh] overflow-hidden rounded-2xl shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <button className="absolute right-14 top-3 z-10 rounded-lg bg-accent px-3 py-1.5 text-[13px] text-white" onClick={() => { setAgent(personaViewId); setSurface("session"); }}>召唤</button>
+            <button className="absolute right-14 top-3 z-10 rounded-lg bg-accent px-3 py-1.5 text-[13px] text-white" onClick={() => summonPersona(personaViewId || agent)}>召唤</button>
             <button className="absolute right-4 top-3 z-10 text-xl text-muted hover:text-ink" aria-label="关闭" onClick={() => setSurface(personaViewReturn)}>×</button>
             <PersonaView
               personaId={personaViewId || agent}
@@ -1988,6 +1988,7 @@ export function App() {
               {idle ? (
                 agent === "cowork" ? (
                   <SessionIntro
+                    key={sessionId}
                     sessionId={sessionId}
                     onPrefill={prefillComposer}
                   />
@@ -1998,12 +1999,12 @@ export function App() {
                       {agent === "chat" ? "我能帮你做什么？" : "一起完成一些事情吧。"}
                     </h1>
                     {(
-                      <div className="suggestions">
+                      <div className="suggestions" key={sessionId}>
                         <div className="suggest-head">试试这些任务</div>
                         {(personaOf(agent)?.quick_prompts?.length
                           ? personaOf(agent)!.quick_prompts!.map((text) => ({ text, ico: "✦" }))
                           : SUGGESTIONS).map((s, i) => (
-                          <div className="suggest" key={i} onClick={() => personaOf(agent)?.quick_prompts?.length ? prefillComposer(s.text) : workspace && send(s.text)}>
+                          <div className="suggest" key={`${i}:${s.text}`} style={{ animationDelay: `${0.1 + i * 0.12}s` }} onClick={() => personaOf(agent)?.quick_prompts?.length ? prefillComposer(s.text) : workspace && send(s.text)}>
                             <span className="ico">{s.ico}</span>
                             {s.text}
                           </div>
@@ -2116,7 +2117,24 @@ export function App() {
               </p>
             )}
             <Composer
-              expertSlot={agent !== "cowork" ? (() => { const p = personas.find((x) => x.id === agent); return <button className="group text-[13px] text-muted hover:text-ink inline-flex items-center gap-2 rounded-md bg-paper px-2 py-1" onClick={() => pickCoworker()}><span className="mr-1 w-5 h-5 rounded-full overflow-hidden inline-flex items-center justify-center">{summonedAvatar ? <img src={summonedAvatar} alt="" className="w-full h-full object-cover group-hover:hidden" /> : null}<span className="hidden group-hover:inline">×</span></span>{fullPersonaName(p?.name || agent, agent)}</button>; })() : undefined}
+              expertSlot={agent !== "cowork" ? (() => {
+                const p = personas?.find((x) => x.id === agent);
+                return (
+                  <button className="group text-[13px] text-muted hover:text-ink inline-flex items-center gap-2 rounded-md bg-paper px-2 py-1" onClick={() => pickCoworker("cowork")}>
+                    <span className="mr-1 w-5 h-5 rounded-full bg-accentSoft text-accent overflow-hidden inline-flex items-center justify-center">
+                      <span className="w-full h-full inline-flex items-center justify-center group-hover:hidden">
+                        {summonedAvatar ? (
+                          <img src={summonedAvatar} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <PersonaGlyph icon={p?.icon} folderScoped={p?.requires_folder} size={14} />
+                        )}
+                      </span>
+                      <span className="hidden group-hover:inline">×</span>
+                    </span>
+                    {fullPersonaName(p?.name || agent, agent)}
+                  </button>
+                );
+              })() : undefined}
               mode={mode}
               model={model}
               models={models}

@@ -26,7 +26,7 @@ const BTN_BORDERED =
 const QUIET_ROW =
   "w-full flex items-center gap-2 px-4 pt-2 mt-6 text-[13px] text-muted select-none";
 
-export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) => void }) {
+export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?: (id: string) => void; onSummonPersona?: (id: string) => void }) {
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [internal, setInternal] = useState(false);
   const [mode, setMode] = useState<"git" | "dir" | "zip">("git");
@@ -174,7 +174,7 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
                   {p.tagline && <p className="text-[13px] text-muted leading-[18px] truncate" title={p.tagline}>{p.tagline}</p>}
                 </div>
                 <div className="expert-card-actions">
-                <button className="hidden group-hover:inline-flex text-[12px] px-2 py-1 rounded-md bg-accent text-white" onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent("ocw-summon-persona", { detail: p.id })); }}>召唤</button>
+                <button className="hidden group-hover:inline-flex text-[12px] px-2 py-1 rounded-md bg-accent text-white" onClick={(e) => { e.stopPropagation(); onSummonPersona?.(p.id); }}>召唤</button>
                 {p.default ? (
                   /* The default coworker cannot be disabled or hidden — no toggle, no
                      configure; a quiet tag says why (owner 2026-08-21). It regains its
@@ -204,7 +204,7 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
                   data-testid={`persona-disable-warning-${p.id}`}
                 >
                   <span className="min-w-0">
-                    停用后将归档该专家的 {liveCount(p.id)} 个会话，仍可在“已归档”中查看。
+                    停用后将归档该专家的会话，仍可在“已归档”中查看。
                   </span>
                   <button
                     className="text-[12px] px-2.5 py-1.5 rounded-lg bg-accent text-white shrink-0"

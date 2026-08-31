@@ -37,6 +37,7 @@ import {
   type RecentWorkspace,
   type SurfaceVisibility,
   type WorkspaceCommandTrust,
+  getPersonaAvatarUrl,
 } from "./api";
 import type {
   ApprovalDecision,
@@ -286,6 +287,8 @@ export function App() {
   // active session's persona. Phase 5 wires the grouped-nav gear + "Manage personas…" entry points.
   const [personaViewId, setPersonaViewId] = useState<string>("");
   const [personaModalOpen, setPersonaModalOpen] = useState(false);
+  const [summonedAvatar, setSummonedAvatar] = useState<string | null>(null);
+  useEffect(() => { const p = personas.find((x) => x.id === agent); setSummonedAvatar(null); if (p?.avatar) getPersonaAvatarUrl(agent, p.avatar).then(setSummonedAvatar).catch(() => {}); }, [agent, personas]);
   useEffect(() => {
     const handler = (e: Event) => { const id = (e as CustomEvent<string>).detail; if (id) { setAgent(id); setSurface("session"); } };
     window.addEventListener("ocw-summon-persona", handler);
@@ -2113,7 +2116,7 @@ export function App() {
               </p>
             )}
             <Composer
-              expertSlot={agent !== "cowork" ? (() => { const p = personas.find((x) => x.id === agent); return <button className="group text-[13px] text-muted hover:text-ink inline-flex items-center gap-2 rounded-md bg-paper px-2 py-1" onClick={() => pickCoworker()}><span className="mr-1 w-10 h-10 rounded-full overflow-hidden inline-flex items-center justify-center group-hover:bg-transparent">{p?.avatar ? <img src={`/v1/personas/${agent}/avatar/${p.avatar}`} alt="" className="w-full h-full object-cover group-hover:hidden" /> : null}<span className="hidden group-hover:inline">×</span></span>{fullPersonaName(p?.name || agent, agent)}</button>; })() : undefined}
+              expertSlot={agent !== "cowork" ? (() => { const p = personas.find((x) => x.id === agent); return <button className="group text-[13px] text-muted hover:text-ink inline-flex items-center gap-2 rounded-md bg-paper px-2 py-1" onClick={() => pickCoworker()}><span className="mr-1 w-5 h-5 rounded-full overflow-hidden inline-flex items-center justify-center">{summonedAvatar ? <img src={summonedAvatar} alt="" className="w-full h-full object-cover group-hover:hidden" /> : null}<span className="hidden group-hover:inline">×</span></span>{fullPersonaName(p?.name || agent, agent)}</button>; })() : undefined}
               mode={mode}
               model={model}
               models={models}

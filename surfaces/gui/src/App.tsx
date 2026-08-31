@@ -1821,7 +1821,7 @@ export function App() {
       ) : surface === "audit" ? (
         <AuditView />
       ) : surface === "persona" ? (
-        <><div className="absolute inset-0 z-0 flex-1 min-w-0 min-h-0 overflow-auto bg-paper hairline-scroll"><div className="experts-content mx-auto px-7 py-6"><PersonasSection onOpenPersona={(id) => openPersona(id, "coworkers")} /></div></div><div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-6" onClick={() => setSurface(personaViewReturn)}>
+        <><div className="absolute inset-0 z-0 flex-1 min-w-0 min-h-0 overflow-auto bg-paper hairline-scroll"><div className="experts-content mx-auto px-7 py-6"><PersonasSection onOpenPersona={(id) => openPersona(id, "coworkers")} /></div></div><div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-6" onClick={() => setSurface(personaViewReturn)}>
           <div className="relative w-full max-w-[580px] max-h-[85vh] overflow-hidden rounded-2xl shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <button className="absolute right-4 top-3 z-10 text-xl text-muted hover:text-ink" aria-label="关闭" onClick={() => setSurface(personaViewReturn)}>×</button>
             <PersonaView

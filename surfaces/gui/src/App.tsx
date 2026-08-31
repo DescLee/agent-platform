@@ -1795,7 +1795,7 @@ export function App() {
           <div className="experts-content mx-auto px-7 py-6">
             <PersonasSection onOpenPersona={(id) => openPersona(id, "coworkers")} />
           </div>
-          {personaModalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-6" onClick={() => setPersonaModalOpen(false)}><div className="relative w-full max-w-[580px] max-h-[85vh] overflow-hidden rounded-2xl shadow-2xl" onClick={(e) => e.stopPropagation()}><button className="absolute right-4 top-3 z-10 text-xl text-muted" onClick={() => setPersonaModalOpen(false)}>×</button><PersonaView personaId={personaViewId} onBack={() => setPersonaModalOpen(false)} /></div></div>}
+          {personaModalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-6" onClick={() => setPersonaModalOpen(false)}><div className="relative w-full max-w-[580px] max-h-[85vh] overflow-hidden rounded-2xl shadow-2xl" onClick={(e) => e.stopPropagation()}><button className="absolute right-14 top-3 z-10 rounded-lg bg-accent px-3 py-1.5 text-[13px] text-white" onClick={() => { setAgent(personaViewId); setPersonaModalOpen(false); setSurface("session"); }}>召唤</button><button className="absolute right-4 top-3 z-10 text-xl text-muted" onClick={() => setPersonaModalOpen(false)}>×</button><PersonaView personaId={personaViewId} onBack={() => setPersonaModalOpen(false)} /></div></div>}
         </main>
       ) : surface === "scheduled" ? (
         <ScheduledView
@@ -1826,6 +1826,7 @@ export function App() {
       ) : surface === "persona" ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-6" onClick={() => setSurface(personaViewReturn)}>
           <div className="relative w-full max-w-[580px] max-h-[85vh] overflow-hidden rounded-2xl shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <button className="absolute right-14 top-3 z-10 rounded-lg bg-accent px-3 py-1.5 text-[13px] text-white" onClick={() => { setAgent(personaViewId); setSurface("session"); }}>召唤</button>
             <button className="absolute right-4 top-3 z-10 text-xl text-muted hover:text-ink" aria-label="关闭" onClick={() => setSurface(personaViewReturn)}>×</button>
             <PersonaView
               personaId={personaViewId || agent}

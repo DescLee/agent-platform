@@ -65,9 +65,9 @@ def string_list(value, field: str) -> list[str]:
         return []
     if isinstance(value, str):
         return [value]
-    if not isinstance(value, list) or any(not isinstance(v, str) for v in value):
+    if not isinstance(value, list) or any(not isinstance(v, (str, dict)) for v in value):
         raise ManifestError(f"专家包 {field} 必须为路径字符串列表")
-    return value
+    return [localized(v) for v in value if localized(v)]
 
 
 def convert(root: Path, dest: Path) -> str:

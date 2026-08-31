@@ -160,7 +160,7 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
         )}
         <div className="expert-grid" data-testid="expert-grid">
           {list.map((p) => (
-            <article key={p.id} className={CARD + " expert-card"} data-testid={`expert-card-${p.id}`}>
+            <article key={p.id} className={CARD + " expert-card cursor-pointer"} data-testid={`expert-card-${p.id}`} onClick={() => onOpenPersona?.(p.id)}>
               <div className="flex items-start gap-3.5">
                 <div className="w-10 h-10 rounded-full bg-accentSoft text-accent flex items-center justify-center shrink-0 overflow-hidden" aria-hidden="true">
                   {avatars[p.id] ? (
@@ -187,17 +187,6 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
                   </span>
                 ) : (
                   <>
-                    {onOpenPersona && (
-                      <button
-                        className="text-faint hover:text-ink shrink-0 p-1"
-                        title={`Configure ${p.name}`}
-                        aria-label={`Configure ${p.name}`}
-                        data-testid={`persona-configure-${p.id}`}
-                        onClick={() => onOpenPersona(p.id)}
-                      >
-                        <Icon name="sliders" size={15} />
-                      </button>
-                    )}
                   </>
                 )}
                 </div>

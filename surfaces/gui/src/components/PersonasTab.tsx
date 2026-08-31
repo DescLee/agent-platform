@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
   getPersonasIndex,
-  getSessions,
   getPersonaAvatarUrl,
   installPersona,
   updatePersona,
@@ -9,9 +8,7 @@ import {
   type PersonaConsent,
 } from "../api";
 import { chooseFolder } from "../tauri";
-import type { SessionInfo } from "../types";
 import { Icon } from "./Icon";
-import { Toggle } from "./Toggle";
 import { PersonaGlyph } from "./personaIcon";
 
 // Expert management: one toggle per row; retired Security entries are excluded.
@@ -42,7 +39,6 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
   // Disabling archives the persona's conversations (server-side), so when there are any we
   // arm an inline confirm (same two-step idiom as delete) instead of flipping immediately.
   const [confirmOff, setConfirmOff] = useState<string | null>(null);
-  const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [avatars, setAvatars] = useState<Record<string, string>>({});
   // The picker's "Import coworker…" door lands here and asks us to put the Add section
   // front and center (sharing v1).
@@ -66,10 +62,8 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
         setInternal(r.internal);
       })
       .catch(() => {});
-  const reloadSessions = () => getSessions().then(setSessions).catch(() => {});
   useEffect(() => {
     reload();
-    reloadSessions();
   }, []);
   useEffect(() => {
     let cancelled = false;
@@ -87,9 +81,6 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
   }, [personas]);
 
   // Real conversations the disable would archive (unarchived; run sessions are server-hidden).
-  const liveCount = (id: string) =>
-    sessions.filter((s) => s.agent === id && !s.archived).length;
-
   const toggle = async (
     id: string,
     body: { enabled?: boolean; surfaced?: boolean; default?: boolean },
@@ -97,13 +88,8 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
     const r = await updatePersona(id, body);
     if (r.personas) setPersonas(r.personas);
     else reload();
-    if (body.enabled === false) reloadSessions(); // counts just changed
   };
 
-  const requestDisable = (p: Persona) => {
-    if (liveCount(p.id) > 0) setConfirmOff(p.id);
-    else toggle(p.id, { enabled: false });
-  };
 
   const finishInstall = (r: Awaited<ReturnType<typeof installPersona>>) => {
     setBusy(false);
@@ -201,13 +187,6 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
                   </span>
                 ) : (
                   <>
-                    <Toggle
-                      checked={p.enabled}
-                      onChange={(next) =>
-                        next ? toggle(p.id, { enabled: true }) : requestDisable(p)
-                      }
-                      title={p.enabled ? "停用专家" : "启用专家"}
-                    />
                     {onOpenPersona && (
                       <button
                         className="text-faint hover:text-ink shrink-0 p-1"

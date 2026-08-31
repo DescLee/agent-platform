@@ -178,7 +178,7 @@ export function PersonaView({
                   <Markdown text={detail.description} />
                 </div>
               )}
-              {!!detail.tags?.length && <><div className={`${SEC_H} mt-5 mb-2`}>擅长领域</div><div className="flex flex-wrap gap-2">{detail.tags.map((tag) => <span key={tag} className="text-[14px] px-2.5 py-1 rounded-lg bg-paper border border-line text-muted whitespace-nowrap">{tag}</span>)}</div></>}
+              {!!detail.tags?.length && <><div className={`${SEC_H} mt-5 mb-2`}>擅长领域</div><div className="flex flex-wrap gap-2">{detail.tags.map((tag) => <span key={tag} className="text-[12px] px-2.5 py-1 rounded-lg bg-paper border border-line text-muted whitespace-nowrap">{tag}</span>)}</div></>}
               {mediaUrls.length > 0 && (
                 <div className="mt-3.5">
                   <div className="flex items-center gap-2">

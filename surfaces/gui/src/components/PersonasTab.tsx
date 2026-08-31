@@ -185,6 +185,7 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
                 </div>
                 <div className="min-w-0 flex-1 pt-1">
                   <h3 className="text-[16px] font-semibold leading-snug truncate" title={p.name}>{p.name}</h3>
+                  {p.tagline && <p className="text-[13px] text-muted leading-[20px] truncate mt-1" title={p.tagline}>{p.tagline}</p>}
                 </div>
                 <div className="expert-card-actions">
                 {p.default ? (
@@ -222,7 +223,6 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
                 )}
                 </div>
               </div>
-              {p.tagline && <p className="text-[13px] text-muted leading-[20px] truncate mt-2" title={p.tagline}>{p.tagline}</p>}
               <p className="text-[13px] text-muted leading-[22px] line-clamp-2 break-words mt-1 mb-3" title={p.description || p.tagline}>
                 {p.description || "暂无介绍，可在配置中查看此专家的能力。"}
               </p>

@@ -403,7 +403,7 @@ export function RightRail({
               Artifacts section stays the curated scratch-only surface. */}
           {rootDirs.length > 0 && (
             <RailSection
-              title="Files"
+              title="文件"
               count={String(rootDirs.length)}
               open={open.files}
               onToggle={() => setOpen({ ...open, files: !open.files })}
@@ -601,7 +601,7 @@ function ArtifactViewer({
   const isApp = content?.kind === "sheet" || content?.kind === "pdf" || content?.kind === "office";
   // Text-bearing kinds can copy their contents; images/PDFs/sheets have nothing textual to copy.
   const copyableText = typeof content?.content === "string" && !content?.error;
-  const crumbRoot = artifact.origin === "files" ? "Files" : "Artifacts";
+  const crumbRoot = artifact.origin === "files" ? "文件" : "产物";
   const item = (
     testid: string,
     icon: Parameters<typeof Icon>[0]["name"],

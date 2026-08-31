@@ -1933,11 +1933,11 @@ export function App() {
                   <div className="hero">
                     <h1 className="greeting">
                       <span className="mark">✦</span>
-                      {agent === "chat" ? "How can I help?" : "Let's build something."}
+                      {agent === "chat" ? "我能帮你做什么？" : "一起完成一些事情吧。"}
                     </h1>
                     {(
                       <div className="suggestions">
-                        <div className="suggest-head">Try a task</div>
+                        <div className="suggest-head">试试这些任务</div>
                         {SUGGESTIONS.map((s, i) => (
                           <div className="suggest" key={i} onClick={() => workspace && send(s.text)}>
                             <span className="ico">{s.ico}</span>
@@ -2087,10 +2087,10 @@ export function App() {
               reviewerPaused={reviewerPaused}
               placeholder={
                 agent === "code"
-                  ? "Ask the coder to build, fix, or explain…  (drop or paste files)"
+                  ? "让代码助手构建、修复或解释…（可拖放或粘贴文件）"
                   : agent === "chat"
-                    ? "Ask anything…  (drop or paste files)"
-                    : "Ask the coworker…  (drop or paste files)"
+                    ? "随便问问…（可拖放或粘贴文件）"
+                    : "告诉协作助手你的需求…（可拖放或粘贴文件）"
               }
               approvalSlot={
                 // Live inline cards are for ATTENDED sessions only; when Unattended the prompt is

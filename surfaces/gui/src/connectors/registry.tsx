@@ -234,7 +234,7 @@ export const CONNECTORS: Record<string, ConnectorRegistryEntry> = {
   hunter: { label: "Hunter", logo: HunterLogo },
   // Non-brand utilities.
   email: { label: "Email", logo: EmailLogo },
-  browser: { label: "Browser", logo: BrowserLogo },
+  browser: { label: "浏览器", logo: BrowserLogo },
   mcp: { label: "MCP", logo: McpLogo },
 };
 

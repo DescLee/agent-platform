@@ -121,7 +121,7 @@ export function SessionSetupRow(props: Props) {
         <div className="relative">
           <button className={chip} data-testid="folder-chip" onClick={() => toggle("folder")}>
             <Icon name="folder" size={13} />
-            <span className="max-w-[220px] truncate">{props.folderName || "Choose folder"}</span>
+            <span className="max-w-[220px] truncate">{props.folderName || "选择文件夹"}</span>
             <Icon name="chevronDown" size={12} className="text-faint" />
           </button>
           {openMenu === "folder" && (

@@ -14,12 +14,12 @@ import { Icon } from "./Icon";
 
 // Rail display order: needs-attention first (mock UX-030: "blocked on top").
 const RAIL_GROUPS: { state: string; label: string }[] = [
-  { state: "blocked", label: "Blocked" },
-  { state: "review", label: "Awaiting review" },
-  { state: "in_progress", label: "In progress" },
-  { state: "open", label: "Queued" },
-  { state: "done", label: "Done" },
-  { state: "canceled", label: "Canceled" },
+  { state: "blocked", label: "已阻塞" },
+  { state: "review", label: "待审核" },
+  { state: "in_progress", label: "进行中" },
+  { state: "open", label: "排队中" },
+  { state: "done", label: "已完成" },
+  { state: "canceled", label: "已取消" },
 ];
 
 function dotClass(state: string): string {

@@ -27,7 +27,7 @@ export function WorkspaceTrustPrompt({
     <div className="gate-overlay" role="dialog" aria-modal="true" aria-labelledby="workspace-trust-title">
       <div className="gate max-w-[560px]">
         <div className="gate-mark">✦</div>
-        <h2 id="workspace-trust-title">Trust this workspace&rsquo;s commands?</h2>
+        <h2 id="workspace-trust-title">信任此工作区中的命令？</h2>
         <p className="gate-sub">
           此项目请求绿巨人无需逐项审批即可运行以下命令。
           Trust applies to future configuration changes at this exact folder until you revoke it
@@ -47,7 +47,7 @@ export function WorkspaceTrustPrompt({
             Keep asking
           </button>
           <button className="btn primary" onClick={() => void trust()} disabled={saving}>
-            {saving ? "Saving…" : "Trust workspace"}
+            {saving ? "保存中…" : "信任工作区"}
           </button>
         </div>
       </div>

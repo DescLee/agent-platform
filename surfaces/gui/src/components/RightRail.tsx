@@ -263,7 +263,7 @@ export function RightRail({
         <>
           {/* Leads carry no Progress panel — the board IS the lead's progress surface. */}
           {!isLead && (
-            <RailSection title="Progress" open={open.progress} onToggle={() => setOpen({ ...open, progress: !open.progress })}>
+            <RailSection title="进度" open={open.progress} onToggle={() => setOpen({ ...open, progress: !open.progress })}>
               <ProgressSummary running={running} toolNames={toolNames} todo={todo} />
             </RailSection>
           )}
@@ -272,7 +272,7 @@ export function RightRail({
               Hidden entirely until the workspace has items (no chrome for plain sessions). */}
           {board?.space && (
             <RailSection
-              title="Board"
+              title="看板"
               count={boardChip(board).text}
               countAttention={boardChip(board).attention}
               open={open.board}
@@ -304,7 +304,7 @@ export function RightRail({
               entry per team: the lead). */}
           {teamMembers.length > 0 && (
             <RailSection
-              title="Team"
+              title="团队"
               open={open.team}
               onToggle={() => setOpen({ ...open, team: !open.team })}
               count={String(teamMembers.length)}
@@ -321,13 +321,13 @@ export function RightRail({
                     <span className={"team-dot " + (w.team?.status || "idle")} />
                     <span className="rail-team-name">{w.team?.actor || w.agent}</span>
                     <span className="rail-team-item">{w.team?.current_item || "sleeping"}</span>
-                    <span className="rail-team-open">open ↗</span>
+                    <span className="rail-team-open">打开 ↗</span>
                   </button>
                 ))}
                 {teamChatEnabled && onOpenTeamChat && (
                   <button className="rail-team-row rail-chat-row" data-testid="team-chat-row" onClick={onOpenTeamChat}>
                     <span className="team-hash">#</span>
-                    <span className="rail-team-name">team chat</span>
+                    <span className="rail-team-name">团队聊天</span>
                     {teamChatUnread > 0 && <span className="team-chat-badge">{teamChatUnread}</span>}
                   </button>
                 )}
@@ -337,7 +337,7 @@ export function RightRail({
 
           {showArtifacts && (
           <RailSection
-            title="Artifacts"
+            title="产物"
             count={artifacts.length ? String(artifacts.length) : undefined}
             open={open.artifacts}
             onToggle={() => setOpen({ ...open, artifacts: !open.artifacts })}
@@ -357,7 +357,7 @@ export function RightRail({
             }
           >
             {artifacts.length === 0 ? (
-              <div className="rail-muted">No previewable files yet.</div>
+              <div className="rail-muted">暂无可预览的文件。</div>
             ) : (
               <div className="artifact-list">
                 {artifacts.slice(0, 16).map((a) => (
@@ -369,7 +369,7 @@ export function RightRail({
                       {a.name}
                       <span className="artifact-row-meta">{formatBytes(a.size)} · {formatTime(a.modified_at)}</span>
                     </span>
-                    <span className="artifact-open">Open</span>
+                    <span className="artifact-open">打开</span>
                   </button>
                 ))}
               </div>

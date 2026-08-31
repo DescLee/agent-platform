@@ -864,7 +864,7 @@ function AutoApproveCard() {
   if (on === null) return null;
   return (
     <div className={CARD + " p-4 mb-4"} data-testid="auto-approve-card">
-      <div className={FIELD_LABEL}>智能审批（实验性功能）</div>
+      <div className={FIELD_LABEL}>替我审批（实验性功能）</div>
       <label className="flex items-start gap-3 py-2">
         <input
           type="checkbox"
@@ -874,10 +874,10 @@ function AutoApproveCard() {
           onChange={(e) => saveOn(e.target.checked)}
         />
         <span>
-          <span className="block text-[13px] text-ink">启用智能审批模式</span>
+          <span className="block text-[13px] text-ink">启用替我审批</span>
           <span className="block text-[12px] text-muted">
-            在权限模式中增加“智能审批”。会话模型会审核原本需要批准的操作，常规操作自动放行，
-            不确定事项仍会询问你；规则禁止的操作不会被放行。每次检查会额外调用一次模型。
+            选择“替我审批”时会自动启用。当前模型可放行中低风险操作，高风险或不确定事项交给你确认，
+            明确危险或规则禁止的操作会被拒绝。关闭后改由你审批；每次审核会额外调用模型。
           </span>
         </span>
       </label>

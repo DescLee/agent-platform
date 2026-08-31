@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import type { Attachment, SessionUsage } from "../types";
 import { isPdfFile, readFile } from "../attach";
 import { ProjectBindMenu } from "./ProjectBindMenu";
-import { getSettings, inspectPdf, sessionSkills, type SessionSkillRow } from "../api";
+import { getSettings, inspectPdf, sessionSkills, setAutoApprove, type SessionSkillRow } from "../api";
 import { formatTokens, totalTokens } from "../usage";
 import { Dropdown, type Option } from "./Dropdown";
 import { Icon } from "./Icon";
@@ -22,27 +22,17 @@ import {
 // with no in-app explanation. The server still honors both — a session already in one of
 // those modes keeps working; the picker just doesn't offer them.
 // "auto" is the legacy wire value for Bypass approvals (server: Mode.BYPASS_APPROVALS) —
-// kept so saved sessions and configs keep working. Auto-Approve ("auto-approve") is the
-// reviewer mode (spec: reviewed-auto-mode.md); it appears only when the server says the
-// feature flag is on, wired in the settings pass — until then the picker omits it.
-// `caution` prefixes the label with a warning triangle; `gated` hides the entry unless the
-// server's auto_approve flag is on. Picker-local extensions of Dropdown's Option.
-type ModeOption = Option & { caution?: boolean; gated?: boolean };
-
-// "auto" is the legacy wire value for Bypass approvals (server: Mode.BYPASS_APPROVALS).
-// Auto-approve is `gated`: shown only when getSettings().auto_approve is true (the feature
-// flag, off by default). Copy (owner, 2026-08-22): imperative like the sibling entries;
-// "your session model" carries the who-judges fact inline; per-check cost is logged, not
-// picker text.
+// kept so saved sessions and configs keep working. Selecting the reviewer mode explicitly
+// enables its user-global feature flag before changing the session mode.
+type ModeOption = Option & { caution?: boolean };
 const PERMISSION_OPTIONS: ModeOption[] = [
   { value: "discuss", label: "讨论", description: "仅对话和探索，不编辑文件或运行命令" },
   { value: "interactive", label: "操作前询问", description: "编辑文件和运行命令前征求你的同意" },
   {
     value: "auto-approve",
-    label: "智能审批",
+    label: "替我审批",
     description:
-      "由当前模型判断并处理操作，遇到不确定事项时再询问你",
-    gated: true,
+      "当前模型审核中低风险操作；高风险转人工，明确危险时拒绝",
   },
   {
     value: "auto",
@@ -693,6 +683,7 @@ export function Composer(props: Props) {
             </div>
           ) : props.workspace !== undefined ? (
             <ModeMenu
+              sessionId={props.sessionId}
               reviewerPaused={props.reviewerPaused}
               mode={props.mode}
               onModeChange={props.onModeChange}
@@ -951,12 +942,14 @@ function UsageChip({
 // the current one marked, plus — when the session supports it — the "Send approvals to Inbox"
 // toggle at the bottom (the old standalone InboxControl, folded in).
 function ModeMenu({
+  sessionId,
   mode,
   onModeChange,
   unattended,
   onUnattendedChange,
   reviewerPaused,
 }: {
+  sessionId?: string;
   mode: string;
   onModeChange: (mode: string) => void;
   unattended?: boolean;
@@ -964,19 +957,34 @@ function ModeMenu({
   reviewerPaused?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  // The Auto-Approve entry is gated on the server flag. Fetch once on first open; a session
-  // already IN auto-approve mode always shows its own entry so the current mode is legible
-  // even if the flag was later turned off.
-  const [autoApproveEnabled, setAutoApproveEnabled] = useState(false);
-  useEffect(() => {
-    if (!open) return;
-    getSettings()
-      .then((s) => setAutoApproveEnabled(s.auto_approve === true))
-      .catch(() => {});
-  }, [open]);
-  const options = PERMISSION_OPTIONS.filter(
-    (o) => !o.gated || autoApproveEnabled || o.value === mode,
-  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const selectionEpoch = useRef(0);
+  useLayoutEffect(() => {
+    setSaving(false);
+    setError("");
+    return () => { selectionEpoch.current += 1; };
+  }, [sessionId, mode]);
+  const selectMode = async (value: string) => {
+    if (saving) return;
+    setError("");
+    setSaving(true);
+    const epoch = selectionEpoch.current;
+    try {
+      if (value === "auto-approve") {
+        const result = await setAutoApprove(true);
+        if (!result.ok || result.auto_approve !== true) throw new Error("enable failed");
+      }
+      // Never apply a delayed response to a different conversation.
+      if (selectionEpoch.current !== epoch) return;
+      onModeChange(value);
+      setOpen(false);
+    } catch {
+      if (selectionEpoch.current === epoch) setError("未能启用替我审批，已保留原权限模式，请重试。");
+    } finally {
+      if (selectionEpoch.current === epoch) setSaving(false);
+    }
+  };
   const current = PERMISSION_OPTIONS.find((o) => o.value === mode);
   return (
     <div className="relative">
@@ -1011,14 +1019,12 @@ function ModeMenu({
             role="menu"
             data-testid="mode-menu"
           >
-            {options.map((o) => (
+            {PERMISSION_OPTIONS.map((o) => (
               <button
                 key={o.value}
                 className="w-full flex flex-col items-start px-2.5 py-1.5 rounded-lg text-left hover:bg-paper"
-                onClick={() => {
-                  onModeChange(o.value);
-                  setOpen(false);
-                }}
+                disabled={saving}
+                onClick={() => void selectMode(o.value)}
               >
                 <span
                   className={
@@ -1035,6 +1041,8 @@ function ModeMenu({
                 <span className="text-[11px] text-faint leading-snug">{o.description}</span>
               </button>
             ))}
+            {saving && <p role="status" className="px-2.5 py-1 text-[11px] text-muted">正在启用…</p>}
+            {error && <p role="alert" className="px-2.5 py-1 text-[11px] text-warnInk">{error}</p>}
             {onUnattendedChange && (
               <>
                 <div className="my-1 border-t border-line" />

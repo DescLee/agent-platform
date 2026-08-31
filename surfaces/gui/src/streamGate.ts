@@ -11,8 +11,7 @@
 //                   streaming bubble from that point.
 //   mode = "none"   nothing streaming (or session idle).
 //
-// Turns also start COLLAPSED while running (owner call): the header's live line is the
-// pulse; expanding is opt-in.
+// Steps start expanded and default to collapsed once answer prose becomes visible.
 
 import type { Item } from "./types";
 

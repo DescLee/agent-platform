@@ -22,6 +22,7 @@ export type EventType =
   | "interrupted"
   | "model_changed"
   | "mode_notice"
+  | "mode_changed"
   | "memory_saved"
   | "compacting"
   | "compacted"

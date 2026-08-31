@@ -426,7 +426,7 @@ def test_ws_allows_only_one_inflight_turn_per_session(tmp_path):
             # The fire-and-forget auto-title completion legitimately runs CONCURRENTLY
             # with the chat turn (it fires at turn start, owner catch 2026-08-24) — the
             # invariant under test is one CHAT turn at a time, so exclude title calls.
-            if messages and "title chat sessions" in str(messages[0].get("content", "")):
+            if messages and messages[0].get("content") == SessionManager._AUTOTITLE_PROMPT:
                 return _text("A Title")
             with self._lock:
                 self.active += 1
@@ -1134,16 +1134,19 @@ def test_set_mode_persists_notice_once_then_markers(tmp_path):
     client = TestClient(create_app(manager))
     with client.websocket_connect("/ws/session/modes1") as ws:
         assert ws.receive_json()["type"] == "ready"
+        ws.send_json({"type": "user_message", "text": "hello"})
+        while ws.receive_json()["type"] != "turn_done":
+            pass
         ws.send_json({"type": "set_mode", "mode": "auto-approve"})
         ev = ws.receive_json()
         assert ev["type"] == "mode_notice"
-        assert ev["data"]["title"] == "Auto-approve is on."
-        assert "uses a model" in ev["data"]["text"]
+        assert ev["data"]["title"] == "已启用替我审批。"
+        assert "当前会话模型" in ev["data"]["text"]
         ws.send_json({"type": "set_mode", "mode": "interactive"})
-        assert ws.receive_json()["data"] == {"text": "Ask for approval is on."}
+        assert ws.receive_json()["data"] == {"text": "已切换为操作前询问。"}
         # Re-entering auto-approve: marker, never the banner again.
         ws.send_json({"type": "set_mode", "mode": "auto-approve"})
-        assert ws.receive_json()["data"] == {"text": "Auto-approve is on."}
+        assert ws.receive_json()["data"] == {"text": "已切换为替我审批。"}
 
     engine = manager._engines["modes1"]
     kinds = [m.get("kind") for m in engine.messages if m.get("role") == "notice"]
@@ -1151,7 +1154,7 @@ def test_set_mode_persists_notice_once_then_markers(tmp_path):
     assert kinds.count("mode_switch") == 2
 
 
-def test_connect_banners_a_session_already_in_auto_approve(tmp_path):
+def test_auto_approve_draft_defers_banner_until_first_message(tmp_path):
     from coworker.permissions import Mode
 
     manager = SessionManager(
@@ -1162,14 +1165,63 @@ def test_connect_banners_a_session_already_in_auto_approve(tmp_path):
     client = TestClient(create_app(manager))
     with client.websocket_connect("/ws/session/modes2") as ws:
         assert ws.receive_json()["type"] == "ready"
-        ev = ws.receive_json()
-        assert ev["type"] == "mode_notice" and ev["data"]["title"] == "Auto-approve is on."
+        assert manager.session_store.load("modes2") is None
+        ws.send_json({"type": "user_message", "text": "hello"})
+        events = []
+        while not events or events[-1]["type"] != "turn_done":
+            events.append(ws.receive_json())
+        notices = [ev for ev in events if ev["type"] == "mode_notice"]
+        assert len(notices) == 1
+        assert notices[0]["data"]["title"] == "已启用替我审批。"
     # A reconnect stays quiet: the banner is persisted (asserted below), not re-announced —
     # a set_mode echo of the SAME mode also stays silent (previous is new_mode).
     with client.websocket_connect("/ws/session/modes2") as ws:
         assert ws.receive_json()["type"] == "ready"
         ws.send_json({"type": "set_mode", "mode": "interactive"})
-        assert ws.receive_json()["data"] == {"text": "Ask for approval is on."}
+        assert ws.receive_json()["data"] == {"text": "已切换为操作前询问。"}
     engine = manager._engines["modes2"]
     kinds = [m.get("kind") for m in engine.messages if m.get("role") == "notice"]
     assert kinds.count("mode_notice") == 1
+
+
+def test_switching_draft_modes_does_not_create_a_conversation(tmp_path):
+    manager = SessionManager(workspace=tmp_path, provider=ScriptedProvider([_text("hi")]))
+    client = TestClient(create_app(manager))
+    with client.websocket_connect("/ws/session/draft-mode") as ws:
+        assert ws.receive_json()["type"] == "ready"
+        for mode in ("auto-approve", "interactive", "auto-approve"):
+            ws.send_json({"type": "set_mode", "mode": mode})
+            assert ws.receive_json() == {"type": "mode_changed", "data": {"mode": mode}}
+            assert manager.session_store.load("draft-mode") is None
+            assert not manager.list_sessions()
+            assert not any(m.get("role") == "notice" for m in manager._engines["draft-mode"].messages)
+    # Reopening the same draft also must not materialize a session.
+    with client.websocket_connect("/ws/session/draft-mode") as ws:
+        assert ws.receive_json()["data"]["mode"] == "auto-approve"
+        ws.send_json({"type": "user_message", "text": "start the task"})
+        while ws.receive_json()["type"] != "turn_done":
+            pass
+    record = manager.session_store.load("draft-mode")
+    assert record.mode == "auto-approve"
+    assert len(manager.list_sessions()) == 1
+    assert sum(m.get("kind") == "mode_notice" for m in record.messages) == 1
+
+
+def test_legacy_mode_only_rows_are_hidden_without_deleting_real_history(tmp_path):
+    manager = SessionManager(workspace=tmp_path, provider=ScriptedProvider([]))
+    notice = {"role": "notice", "kind": "mode_notice", "text": "Auto-approve is on."}
+    for sid, messages, pinned in (
+        ("phantom", [notice], False),
+        ("real", [notice, {"role": "user", "content": ""}], False),
+        ("pinned", [notice], True),
+    ):
+        manager.session_store.save(SessionRecord(
+            session_id=sid, workspace=str(tmp_path), model="test", mode="auto-approve",
+            title="New session", messages=messages,
+        ))
+        if pinned:
+            manager.session_store.set_flags(sid, pinned=True)
+    rows = manager.list_sessions()
+    assert {r["session_id"] for r in rows} == {"real", "pinned"}
+    assert all(r["title"] == "新会话" for r in rows)
+    assert manager.session_store.load("phantom").messages == [notice]

@@ -177,9 +177,9 @@ function originChip(origin: string | undefined, note: string | undefined, grant?
     <span
       className="text-[11px] text-faint shrink-0"
       data-testid="tool-approval-origin"
-      title={origin === "reviewer" ? note || "已由智能审批审核器允许" : "跳过审批模式下直接运行"}
+      title={origin === "reviewer" ? note || "已由替我审批审核器允许" : "跳过审批模式下直接运行"}
     >
-      {origin === "reviewer" ? "智能审批通过" : "已跳过审批"}
+      {origin === "reviewer" ? "替我审批通过" : "已跳过审批"}
     </span>
   );
 }
@@ -310,23 +310,27 @@ function StepRow({
 function TurnGroup({
   items,
   live,
+  answerVisible = false,
   streamingText,
   onAllowAnyway,
 }: {
   items: TurnItem[];
   live?: boolean;
+  answerVisible?: boolean;
   // Sub-threshold streamed text belongs to THIS group (§33 ref #3): collapsed → it rides
   // the header as the live line; expanded → the small quiet line under the steps.
   streamingText?: string;
   onAllowAnyway?: (name: string, args: any) => void;
 }) {
-  // Turns start COLLAPSED, running or not (owner call 2026-07-14) — the header's live
-  // line is the pulse; expanding is opt-in.
+  // Show progress until answer prose is displayed. Latch this across the handoff
+  // from streamed prose to the persisted answer so the steps do not flash open.
   const rows = buildRows(items);
   const tools = items.filter((it): it is ToolItem => it.kind === "tool");
   const running = live || tools.some((t) => t.status === "…");
   const [userToggle, setUserToggle] = useState<boolean | null>(null);
-  const open = userToggle ?? false;
+  const [answerSeen, setAnswerSeen] = useState(answerVisible);
+  if (answerVisible && !answerSeen) setAnswerSeen(true);
+  const open = userToggle ?? !(answerVisible || answerSeen);
   const lastNarr = [...items].reverse().find((it): it is AssistantItem => it.kind === "assistant");
   const liveLine = streamingText || lastNarr?.text || "";
 
@@ -412,6 +416,8 @@ interface Props {
   running?: boolean;
   // Sub-threshold streamed text (streamGate mode "quiet") — handed to the live turn group.
   streamingText?: string;
+  // The live answer bubble is rendered by App, outside this transcript.
+  streamingAnswerVisible?: boolean;
   // Re-run the failed turn (no new user message). Offered only on a retriable notice that
   // is the transcript tail of an idle session — anywhere else the error is history.
   onRetry?: () => void;
@@ -480,12 +486,12 @@ function McpNotice({
 }
 
 
-export function Transcript({ items, running, streamingText, onRetry, onOpenConnectors, onUndoMemory, onAllowAnyway }: Props) {
+export function Transcript({ items, running, streamingText, streamingAnswerVisible, onRetry, onOpenConnectors, onUndoMemory, onAllowAnyway }: Props) {
   // §33 grouping: a turn = the maximal run of assistant/tool/resolved-approval items between
   // breakers (user, connector, notices, plan/dir requests…). Trailing assistant texts are the
   // ANSWER and render as bubbles after the group; interior assistant texts are narration and
   // stay inside. A run with no activity at all is just bubbles (unchanged chat behavior).
-  const blocks: Array<{ turn: TurnItem[]; live?: boolean } | { item: Item; i: number }> = [];
+  const blocks: Array<{ turn: TurnItem[]; live?: boolean; answerVisible: boolean } | { item: Item; i: number }> = [];
   let run: TurnItem[] = [];
   const flush = (live = false) => {
     if (!run.length) return;
@@ -498,7 +504,8 @@ export function Transcript({ items, running, streamingText, onRetry, onOpenConne
     if (!keepTrailing)
       while (turn.length && turn[turn.length - 1].kind === "assistant")
         answers.unshift(turn.pop() as AssistantItem);
-    if (turn.some((it) => it.kind !== "assistant")) blocks.push({ turn, live });
+    if (turn.some((it) => it.kind !== "assistant"))
+      blocks.push({ turn, live, answerVisible: answers.some((a) => !!a.text.trim()) });
     else turn.forEach((t) => blocks.push({ item: t, i: -1 }));
     answers.forEach((a) => blocks.push({ item: a, i: -1 }));
   };
@@ -529,6 +536,7 @@ export function Transcript({ items, running, streamingText, onRetry, onOpenConne
             <TurnGroup
               items={block.turn}
               live={block.live}
+              answerVisible={block.answerVisible || !!(block.live && bi === lastTurnIndex && streamingAnswerVisible)}
               streamingText={block.live && bi === lastTurnIndex ? streamingText : undefined}
               onAllowAnyway={onAllowAnyway}
               key={bi}

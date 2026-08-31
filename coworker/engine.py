@@ -30,8 +30,7 @@ from .events import Event, EventType
 # downgraded long agentic turns to hand-approval after one over-strict pair).
 _REVIEWER_TRIP = 5
 _REVIEWER_PAUSED_TEXT = (
-    "Auto-approve is paused for the rest of this turn — the reviewer blocked "
-    f"{_REVIEWER_TRIP} actions in a row, so approvals now come to you."
+    f"审核器已连续拒绝 {_REVIEWER_TRIP} 项操作，本轮已暂停替我审批，后续操作交给你确认。"
 )
 from .permissions import Mode, PermissionEngine
 from .providers import AssistantTurn, ProviderClient, ToolCall
@@ -172,6 +171,8 @@ class TurnEngine:
         # the owner-hit 2026-08-24 was a 2-denial cumulative trip silently downgrading a
         # long agentic turn to hand-approval for everything after one over-strict pair.
         self.reviewer: Optional[Any] = None
+        # Separate from shadow evaluation: a shadow-only reviewer must never authorize.
+        self.reviewer_live_enabled = True
         self._reviewer_denials = 0
         self._reviewer_verdicts: dict[str, Any] = {}
         # (c) How each consequential call got cleared, keyed by tool_call id:
@@ -866,6 +867,7 @@ class TurnEngine:
 
         return (
             self.reviewer is not None
+            and self.reviewer_live_enabled
             and self.permissions.mode is Mode.AUTO_APPROVE
             and self.is_attended is not None
             and self.is_attended()
@@ -1149,6 +1151,11 @@ class TurnEngine:
             # a PERSON sees them, and a verdict here would be that floor's bypass.
             consulted_live = True
             verdict = await self._consult_reviewer(tool_call)
+            # A settings/mode change while the model was judging revokes its authority.
+            if not self._reviewer_active():
+                from .reviewer import Verdict
+
+                verdict = Verdict("unsure", "自动审批已停用，此操作需要你确认。")
             self._audit(
                 tool_call,
                 stage="reviewer_verdict",

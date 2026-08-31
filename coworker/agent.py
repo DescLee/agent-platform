@@ -574,9 +574,10 @@ def build_engine(
             known_world=engine.session_facts.world.render(),
         )
         # Shadow evaluation (Part 6 step 3): with only the shadow flag on, the reviewer is
-        # attached but the LIVE path stays off unless the session is actually in
-        # Mode.AUTO_APPROVE — shadow verdicts are recorded on approval cards in any mode.
+        # attached but the LIVE path stays off unless both live_on and Mode.AUTO_APPROVE
+        # are selected — shadow verdicts are recorded on approval cards in any mode.
         engine.reviewer_shadow = bool(shadow_on)
+    engine.reviewer_live_enabled = bool(live_on)
     engine.audit_context = {
         "session_id": session_id or "",
         "agent": agent.name,

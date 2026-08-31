@@ -2477,6 +2477,32 @@ def create_app(manager: SessionManager) -> FastAPI:
             "iteration_end",
         }
 
+        async def announce_mode(*, switched: bool = False) -> None:
+            # A connected draft is not a conversation yet. Settings must not create
+            # transcript content or a Recents row before the first real message.
+            if not any(m.get("role") in {"user", "assistant"} for m in engine.messages):
+                if switched:
+                    await manager.broadcast_session(
+                        session_id,
+                        {"type": "mode_changed", "data": {"mode": engine.permissions.mode.value}},
+                    )
+                return
+            from coworker.permissions import AUTO_APPROVE_NOTICE, MODE_LABELS
+
+            if engine.permissions.mode is Mode.AUTO_APPROVE and not any(
+                m.get("kind") == "mode_notice" for m in engine.messages
+            ):
+                data = {"title": "已启用替我审批。", "text": AUTO_APPROVE_NOTICE}
+                engine._append_notice("mode_notice", data["text"], title=data["title"])
+            elif switched:
+                label = MODE_LABELS.get(engine.permissions.mode.value, engine.permissions.mode.value)
+                data = {"text": f"已切换为{label}。"}
+                engine._append_notice("mode_switch", data["text"])
+            else:
+                return
+            manager.save(session_id, engine, touch=False)
+            await manager.broadcast_session(session_id, {"type": "mode_notice", "data": data})
+
         async def run_turn(content, *, retry: bool = False, display=None) -> None:
             # The receive loop atomically claims this session before scheduling the task.
             # Keeping the claim outside prevents two back-to-back frames from both starting.
@@ -2495,6 +2521,7 @@ def create_app(manager: SessionManager) -> FastAPI:
                     if event.type.value in _CHECKPOINTS:
                         manager.save(session_id, engine)
                     if event.type.value == "turn_start":
+                        await announce_mode()
                         # Title on the user's words the moment they land — never behind
                         # a long agentic turn (owner catch 2026-08-24).
                         manager._maybe_autotitle(session_id)
@@ -2508,24 +2535,7 @@ def create_app(manager: SessionManager) -> FastAPI:
         # This socket is now a live view of the session; background turns (channel delivery,
         # self-wake, durable resume) broadcast here too, not just locally driven run_turns.
         manager.register_session_client(session_id, ws.send_json)
-        if engine.permissions.mode is Mode.AUTO_APPROVE and not any(
-            m.get("kind") == "mode_notice" for m in engine.messages
-        ):
-            from coworker.permissions import AUTO_APPROVE_NOTICE
-
-            engine._append_notice(
-                "mode_notice", AUTO_APPROVE_NOTICE, title="Auto-approve is on."
-            )
-            manager.save(session_id, engine, touch=False)  # migration ≠ activity
-            await ws.send_json(
-                {
-                    "type": "mode_notice",
-                    "data": {
-                        "title": "Auto-approve is on.",
-                        "text": AUTO_APPROVE_NOTICE,
-                    },
-                }
-            )
+        await announce_mode()
         inbound_times: deque[float] = deque()
 
         async def reject_input(reason: str) -> None:
@@ -2641,46 +2651,7 @@ def create_app(manager: SessionManager) -> FastAPI:
                             manager.audit_autonomy_change(
                                 session_id, "mode", previous.value, new_mode.value
                             )
-                            # The transcript records which mode each exchange ran under
-                            # (owner ruling 2026-08-24): full explainer the first time a
-                            # session enters Auto-Approve, a one-line marker otherwise.
-                            # Server-authored + persisted, so reloads show it in place
-                            # exactly once instead of re-announcing on every restart.
-                            from coworker.permissions import (
-                                AUTO_APPROVE_NOTICE,
-                                MODE_LABELS,
-                            )
-
-                            if new_mode is Mode.AUTO_APPROVE and not any(
-                                m.get("kind") == "mode_notice"
-                                for m in engine.messages
-                            ):
-                                engine._append_notice(
-                                    "mode_notice",
-                                    AUTO_APPROVE_NOTICE,
-                                    title="Auto-approve is on.",
-                                )
-                                notice_data = {
-                                    "title": "Auto-approve is on.",
-                                    "text": AUTO_APPROVE_NOTICE,
-                                }
-                            else:
-                                label = MODE_LABELS.get(
-                                    new_mode.value, new_mode.value
-                                )
-                                engine._append_notice(
-                                    "mode_switch", f"{label} is on."
-                                )
-                                notice_data = {"text": f"{label} is on."}
-                            # A mode switch with no accompanying message is bookkeeping,
-                            # not activity (owner ruling 2026-08-24): the transcript
-                            # records it, Recents doesn't reorder. The next real turn's
-                            # checkpoint save bumps recency as usual.
-                            manager.save(session_id, engine, touch=False)
-                            await manager.broadcast_session(
-                                session_id,
-                                {"type": "mode_notice", "data": notice_data},
-                            )
+                            await announce_mode(switched=True)
                 elif kind == "set_model":
                     model = message.get("model")
                     if model is not None and not isinstance(model, str):

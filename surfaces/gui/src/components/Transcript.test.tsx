@@ -45,17 +45,18 @@ describe("TurnGroup (Transcript §33)", () => {
     expect(container.textContent).toContain('{"ok": true}');
   });
 
-  it("a running turn is labeled Running but starts COLLAPSED (§33 ref #3)", () => {
+  it("a running turn starts expanded and can be manually collapsed", () => {
     const items: Item[] = [
       { kind: "assistant", text: "Looking at the repo." },
       { kind: "tool", id: "t1", name: "grep", args: { pattern: "TODO" }, status: "…" },
     ];
     const { container } = render(<Transcript items={items} onApprove={vi.fn()} />);
     expect(screen.getByText(/正在执行 1 个步骤…/)).toBeTruthy();
-    expect(screen.queryByTestId("turn-narration")).toBeNull(); // collapsed by default
-    expect(screen.getByTestId("turn-live-line").textContent).toContain("Looking at the repo");
-    fireEvent.click(container.querySelector("summary.stepgroup-head")!);
+    expect(screen.getByTestId("turn-narration").textContent).toContain("Looking at the repo");
     expect(screen.getByTestId("step-running")).toBeTruthy();
+    fireEvent.click(container.querySelector("summary.stepgroup-head")!);
+    expect(screen.queryByTestId("turn-narration")).toBeNull();
+    expect(screen.getByTestId("turn-live-line").textContent).toContain("Looking at the repo");
   });
 
   it("declined approvals keep their own 'Wanted to' row and surface on the collapsed line", () => {
@@ -63,9 +64,8 @@ describe("TurnGroup (Transcript §33)", () => {
       { kind: "tool", id: "t1", name: "read_file", args: { path: "a.md" }, status: "ok" },
       { kind: "approval", name: "run_shell", args: { command: "rm -rf build/" }, reason: "", resolved: "deny" },
     ];
-    const { container } = render(<Transcript items={items} onApprove={vi.fn()} />);
+    render(<Transcript items={items} onApprove={vi.fn()} />);
     expect(screen.getByTestId("stepgroup-declined").textContent).toBe("已拒绝 1 项");
-    fireEvent.click(container.querySelector("summary.stepgroup-head")!);
     const ask = screen.getByTestId("turn-ask");
     expect(ask.textContent).toContain("曾申请运行");
     expect(ask.textContent).toContain("rm -rf build/");
@@ -92,13 +92,8 @@ describe("live turns (§33 flicker fix)", () => {
 
   it("while running, trailing assistant text stays INSIDE the group — no answer bubble flash", () => {
     const { container } = render(<Transcript items={LIVE} onApprove={vi.fn()} running />);
-    // No assistant bubble anywhere; the group starts COLLAPSED with the narration riding
-    // the header as the live line (§33 ref #3 — expanding is opt-in).
+    // No assistant bubble yet; show narration inside the expanded progress group.
     expect(container.querySelector(".bubble-assistant")).toBeNull();
-    expect(screen.queryByTestId("turn-narration")).toBeNull();
-    expect(screen.getByTestId("turn-live-line").textContent).toContain("Inspecting the fetched dataset");
-    // Expanding shows it as the quiet line inside.
-    fireEvent.click(container.querySelector("summary.stepgroup-head")!);
     expect(screen.getByTestId("turn-narration").textContent).toContain("Inspecting the fetched dataset");
     // Once the turn ends (running=false), the same trailing text IS the answer bubble.
     cleanup();
@@ -117,12 +112,46 @@ describe("live turns (§33 flicker fix)", () => {
         streamingText="The quote endpoint rate-limited, so I'm checking the historical pages."
       />,
     );
-    // Collapsed: the STREAMING text wins the header live line (fresher than the last item).
-    expect(screen.getByTestId("turn-live-line").textContent).toContain("quote endpoint rate-limited");
-    expect(container.querySelector(".bubble-assistant")).toBeNull();
-    // Expanded: it renders as the small quiet line under the steps.
-    fireEvent.click(container.querySelector("summary.stepgroup-head")!);
+    // Expanded by default: quiet narration must not prematurely collapse the group.
     expect(screen.getByTestId("turn-live-stream").textContent).toContain("quote endpoint rate-limited");
+    expect(container.querySelector(".bubble-assistant")).toBeNull();
+    // A manual collapse shows the freshest narration on the header instead.
+    fireEvent.click(container.querySelector("summary.stepgroup-head")!);
+    expect(screen.getByTestId("turn-live-line").textContent).toContain("quote endpoint rate-limited");
+  });
+
+  it("collapses when answer streaming starts, without reopening during the final handoff", () => {
+    const { container, rerender } = render(<Transcript items={LIVE} running onApprove={vi.fn()} />);
+    const group = () => container.querySelector("details.stepgroup") as HTMLDetailsElement;
+    expect(group().open).toBe(true);
+    rerender(<Transcript items={LIVE} running streamingAnswerVisible onApprove={vi.fn()} />);
+    expect(group().open).toBe(false);
+    rerender(<Transcript items={LIVE} running onApprove={vi.fn()} />);
+    expect(group().open).toBe(false);
+    rerender(<Transcript items={LIVE} onApprove={vi.fn()} />);
+    expect(group().open).toBe(false);
+    // Explicitly reopening after the answer remains respected on later renders.
+    fireEvent.click(container.querySelector("summary.stepgroup-head")!);
+    rerender(<Transcript items={LIVE} onApprove={vi.fn()} />);
+    expect(group().open).toBe(true);
+  });
+
+  it("waits for actual answer text, not merely the end of execution, before collapsing", () => {
+    const progress = LIVE.slice(0, -1);
+    const { container, rerender } = render(<Transcript items={progress} running onApprove={vi.fn()} />);
+    const group = () => container.querySelector("details.stepgroup") as HTMLDetailsElement;
+    rerender(<Transcript items={progress} onApprove={vi.fn()} />);
+    expect(group().open).toBe(true);
+    rerender(<Transcript items={LIVE} onApprove={vi.fn()} />);
+    expect(group().open).toBe(false);
+  });
+
+  it("keeps a new turn expanded without reopening a previous answered turn", () => {
+    const { container } = render(<Transcript items={[...TURN, ...LIVE]} running onApprove={vi.fn()} />);
+    const groups = container.querySelectorAll<HTMLDetailsElement>("details.stepgroup");
+    expect(groups).toHaveLength(2);
+    expect(groups[0].open).toBe(false);
+    expect(groups[1].open).toBe(true);
   });
 
   it("a PENDING approval neither splits the turn nor promotes the narration", () => {

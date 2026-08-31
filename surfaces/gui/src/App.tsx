@@ -891,6 +891,9 @@ export function App() {
           if (d.status === "max_iterations_exceeded")
             setItems((p) => [...p, { kind: "notice", tone: "warn", text: "已停止：达到最大迭代次数。" }]);
           break;
+        case "mode_changed":
+          if (d.mode) setMode(d.mode);
+          break;
         case "mode_notice":
           // Server-authored + persisted (owner ruling 2026-08-24): the Auto-Approve
           // explainer once per session ever, one-line markers for later switches.
@@ -2001,6 +2004,7 @@ export function App() {
                     // group (header when collapsed, quiet line when expanded) — never as a
                     // floating paragraph.
                     streamingText={streamMode(streaming, items, running) === "quiet" ? streaming : undefined}
+                    streamingAnswerVisible={streamMode(streaming, items, running) === "answer"}
                   />
                   {/* Live thinking (reasoning models): a quiet collapsed block that streams the
                       trace for anyone who expands it; folds into the answer's disclosure when

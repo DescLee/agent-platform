@@ -3476,6 +3476,7 @@ class SessionManager:
     def set_auto_approve(self, on: Any) -> dict[str, Any]:
         self._prefs["auto_approve"] = bool(on)
         self._save_prefs()
+        self._sync_reviewers()
         return {
             "ok": True,
             "auto_approve": self.auto_approve(),
@@ -3485,11 +3486,29 @@ class SessionManager:
     def set_auto_approve_shadow(self, on: Any) -> dict[str, Any]:
         self._prefs["auto_approve_shadow"] = bool(on)
         self._save_prefs()
+        self._sync_reviewers()
         return {
             "ok": True,
             "auto_approve": self.auto_approve(),
             "auto_approve_shadow": self.auto_approve_shadow(),
         }
+
+    def _sync_reviewers(self) -> None:
+        """Apply user settings to already-open sessions, without rebuilding their state."""
+        from ..reviewer import Reviewer
+
+        live, shadow = self.auto_approve(), self.auto_approve_shadow()
+        for engine in list(self._engines.values()):
+            if (live or shadow) and engine.reviewer is None:
+                engine.reviewer = Reviewer(
+                    provider=engine.provider,
+                    model=engine.model,
+                    known_world=engine.session_facts.world.render(),
+                )
+            engine.reviewer_live_enabled = live
+            engine.reviewer_shadow = shadow
+            # Keep the object for in-flight calls, but revoke its authority immediately.
+            engine._reviewer_verdicts.clear()
 
     # -- PDF attachments / token savings (owner ask, 2026-07-17) ----------------
     DEFAULT_PDF_MAX_PAGES = 20
@@ -5605,7 +5624,7 @@ class SessionManager:
         return [
             {
                 "session_id": r.session_id,
-                "title": r.title or "New session",
+                "title": "新会话" if r.title in {None, "", "New session"} else r.title,
                 "workspace": r.workspace,
                 "agent": r.agent,
                 "model": r.model,
@@ -5638,7 +5657,21 @@ class SessionManager:
             }
             for r in self.session_store.list(workspace=ws)
             if not r.session_id.startswith("__")  # hide internal threads
+            and not self._is_mode_only_draft(r)
         ]
+
+    def _is_mode_only_draft(self, record: SessionRecord) -> bool:
+        """Hide legacy phantom rows without deleting messages or user-managed sessions."""
+        if record.pinned or record.team or record.origin or record.title not in {None, "", "New session", "新会话"}:
+            return False
+        full = self.session_store.load(record.session_id)
+        if full is None:
+            return False
+        notices = [m for m in full.messages if m.get("role") != "system"]
+        return bool(notices) and all(
+            m.get("role") == "notice" and m.get("kind") in {"mode_notice", "mode_switch"}
+            for m in notices
+        )
 
     def _session_team_row(self, record: SessionRecord) -> dict[str, Any]:
         info = record.team or {}

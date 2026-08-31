@@ -80,6 +80,45 @@ def test_build_engine_override_beats_config(tmp_path, monkeypatch):
     assert engine2.reviewer is None
 
 
+def test_settings_apply_to_an_existing_session(tmp_path, monkeypatch):
+    from coworker.agent import build_engine
+    from coworker.agents.chat import chat_agent
+    from coworker.permissions import Mode
+
+    monkeypatch.setenv("COWORKER_STATE_DIR", str(tmp_path / "state"))
+    mgr = SessionManager(data_dir=tmp_path / "data")
+    engine = build_engine(agent=chat_agent(), auto_approve=False, auto_approve_shadow=False)
+    engine.permissions.mode = Mode.AUTO_APPROVE
+    engine.is_attended = lambda: True
+    mgr._engines["existing"] = engine
+    assert engine.reviewer is None
+    mgr.set_auto_approve(True)
+    assert engine._reviewer_active()
+    assert engine.reviewer.provider is engine.provider
+    assert engine.reviewer.model == engine.model
+    # Disabling live while shadow stays on must still revoke all automatic decisions.
+    mgr.set_auto_approve_shadow(True)
+    engine._reviewer_verdicts["pending"] = object()
+    mgr.set_auto_approve(False)
+    assert not engine._reviewer_active()
+    assert engine.reviewer_shadow
+    assert not engine._reviewer_verdicts
+    assert engine.permissions.mode is Mode.AUTO_APPROVE
+
+
+def test_shadow_only_build_does_not_enable_live_approval(tmp_path, monkeypatch):
+    from coworker.agent import build_engine
+    from coworker.agents.chat import chat_agent
+    from coworker.permissions import Mode
+
+    monkeypatch.setenv("COWORKER_STATE_DIR", str(tmp_path / "state"))
+    engine = build_engine(agent=chat_agent(), auto_approve=False, auto_approve_shadow=True)
+    engine.permissions.mode = Mode.AUTO_APPROVE
+    engine.is_attended = lambda: True
+    assert engine.reviewer is not None and engine.reviewer_shadow
+    assert not engine._reviewer_active()
+
+
 # -- metering (§1.7): durable reviewer stats from the audit store ------------------
 
 

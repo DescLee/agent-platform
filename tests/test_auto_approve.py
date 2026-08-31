@@ -112,6 +112,22 @@ def test_deferred_execution_files_are_human_only(tmp_path):
     assert d3.needs_user and not d3.human_only
 
 
+@pytest.mark.parametrize("command", [
+    "rm -rf ./build", "git reset --hard HEAD", "git push --force-with-lease origin main",
+    "sudo apt install pkg", "find . -delete", 'powershell -Command "Remove-Item -Recurse C:\\data"',
+    "terraform destroy", "kubectl delete namespace production", "psql -c 'DROP TABLE users'",
+])
+def test_destructive_commands_need_human_even_with_allowlists(tmp_path, command):
+    gate = _gate(tmp_path, allowed_commands=[command], auto_allow_tools={"run_shell"})
+    d = gate.evaluate("run_shell", {"command": command})
+    assert not d.allowed and d.needs_user and d.human_only
+
+
+def test_high_risk_external_action_needs_human(tmp_path):
+    d = _gate(tmp_path).evaluate("charge_customer", {}, _Meta(requires_approval=True))
+    assert not d.allowed and d.needs_user and d.human_only
+
+
 # -- verdict parsing: no parse path results in execution (§8.5) -------------------
 
 
@@ -152,7 +168,7 @@ def test_messages_are_cache_shaped_one_action_last():
     assert [m["role"] for m in msgs] == ["system", "user"]
     system, user = msgs[0]["content"], msgs[1]["content"]
     # Stable content in the prefix: instructions, known world, history.
-    assert system.startswith("You are the action reviewer")
+    assert system.startswith("你是绿巨人的操作审核器")
     assert "KNOWN WORLD" in system
     assert "fix the failing tests" in system
     # Varying content last: this turn's request, then exactly one action.
@@ -172,10 +188,10 @@ def test_prompt_never_claims_shell_writes_are_pre_blocked():
     assert "you will never be asked to judge one" not in text
     assert "do not spend the verdict on that" not in text
     # The per-tool-class split: file tools keep the true guarantee...
-    assert "For file tools, writes outside these folders are blocked" in text
+    assert "文件工具无法写出边界" in text
     # ...and shell is named as unscoped, with the reviewer as the only check.
-    assert "nothing scopes what a command touches" in text
-    assert "your verdict is the only check" in text
+    assert "Shell 命令可能访问用户账号能触达的任何位置" in text
+    assert "至少应选择 unsure" in text
 
 
 def test_history_is_clipped_hard_with_marker():
@@ -228,6 +244,29 @@ def test_reviewer_cannot_clear_a_git_hook_write(tmp_path):
     assert EventType.PERMISSION_REQUIRED in [ev.type for ev in events]
     assert engine.reviewer.asked == []  # the reviewer was never consulted
     assert [r for r in rows if r.get("stage") == "reviewer_verdict"] == []
+
+
+def test_reviewer_cannot_clear_a_destructive_command(tmp_path):
+    engine, _, approvals = _engine(tmp_path, [
+        _tool_turn(("run_shell", {"command": "rm -rf ./data"})),
+        AssistantTurn(text="done", finish_reason="stop"),
+    ])
+    engine.reviewer = _FakeReviewer({"run_shell": "allow"})
+    _run(engine, "delete the data")
+    assert approvals == ["run_shell"]
+    assert engine.reviewer.asked == []
+
+
+def test_shadow_only_reviewer_never_authorizes(tmp_path):
+    engine, _, approvals = _engine(tmp_path, [
+        _tool_turn(("run_shell", {"command": "pytest -q"})),
+        AssistantTurn(text="done", finish_reason="stop"),
+    ])
+    engine.reviewer = _FakeReviewer({"run_shell": "allow"})
+    engine.reviewer_live_enabled = False
+    engine.reviewer_shadow = True
+    _run(engine, "run tests")
+    assert approvals == ["run_shell"]
 
 
 # -- attachments never reach the reviewer's request (§4.4) --------------------------

@@ -193,21 +193,50 @@ from .risk import (  # re-exported for back-compat (manager.py imports WRITE_TOO
 # it appears exactly once, in place, and survives reloads (the old client-side banner
 # re-announced on every restart).
 AUTO_APPROVE_NOTICE = (
-    "Auto-approve uses a model to let routine actions through without asking; anything "
-    "it isn't sure about still comes to you. It cuts interruptions but still carries "
-    "some risk i.e. a command it allows still reaches anything you can. These are model "
-    "judgments, and not guarantees."
+    "替我审批会使用当前会话模型审核操作：请求范围内的中低风险操作可自动放行；"
+    "高风险或无法判断的操作交给你确认，明确危险或违反权限规则的操作会被拒绝。"
+    "每次审核会额外调用模型。模型判断并非安全保证，请继续关注执行过程。"
 )
 
 # Human labels for the one-line persisted switch markers ("Ask for approval is on.").
 MODE_LABELS = {
-    "discuss": "Discuss",
-    "plan": "Plan",
-    "interactive": "Ask for approval",
-    "auto": "Bypass approvals",
-    "bypass-approvals": "Bypass approvals",
-    "auto-approve": "Auto-approve",
+    "discuss": "讨论",
+    "plan": "计划",
+    "interactive": "操作前询问",
+    "auto": "跳过审批",
+    "bypass-approvals": "跳过审批",
+    "auto-approve": "替我审批",
 }
+
+
+def _auto_approve_human_reason(
+    tool_name: str, arguments: dict[str, Any], metadata: Any, risk: RiskClass,
+) -> str:
+    """Conservative floors for recognizable destructive operations, not a shell sandbox.
+
+    The reviewer still evaluates scope and unknown risks. Matching raw command text also
+    catches nested commands/wrappers; false positives deliberately go to a person.
+    """
+    if risk is RiskClass.EXTERNAL and getattr(metadata, "risk_level", "") in {"high", "critical"}:
+        return "此操作涉及高风险外部变更，需要你确认。"
+    if risk is not RiskClass.EXEC:
+        return ""
+    command = str(arguments.get("command", ""))
+    patterns = (
+        # Deletion, privilege changes, disks, and their Windows equivalents.
+        r"\b(?:rm|rmdir|unlink|shred|sudo|doas|chmod|chown|mkfs|diskpart|format-volume|remove-item|del|erase|rd|icacls)\b",
+        r"\b(?:dd)\s+.*\bof\s*=",
+        r"\bfind\b.*-(?:delete|exec|execdir)\b",
+        # Destructive Git operations (ordinary local commits remain reviewable).
+        r"\bgit\b.*\b(?:reset\b.*--hard|clean\b|push\b.*(?:--force|--delete|\s-[^-\s]*[fD])|branch\b.*\s-[^-\s]*D)\b",
+        # Infrastructure changes are deliberately conservative, even on staging.
+        r"\b(?:terraform|pulumi)\b.*\b(?:apply|destroy)\b",
+        r"\bkubectl\b.*\b(?:apply|delete|replace|patch|scale|rollout)\b",
+        r"\b(?:drop|truncate)\s+(?:table|database|schema)\b",
+    )
+    if any(re.search(pattern, command, re.IGNORECASE | re.DOTALL) for pattern in patterns):
+        return "此命令可能删除数据、改写历史或改变系统权限，需要你确认。"
+    return ""
 
 
 class Mode(str, Enum):
@@ -401,6 +430,11 @@ class PermissionEngine:
                 needs_user=True,
                 human_only=True,  # deferred-execution files: a human sees every one (§ floor)
             )
+
+        if self.mode is Mode.AUTO_APPROVE:
+            reason = _auto_approve_human_reason(tool_name, arguments, metadata, risk)
+            if reason:
+                return Decision(False, reason, needs_user=True, human_only=True)
 
         # Full access.
         if self.mode is Mode.BYPASS_APPROVALS:

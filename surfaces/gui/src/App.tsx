@@ -1821,13 +1821,15 @@ export function App() {
       ) : surface === "audit" ? (
         <AuditView />
       ) : surface === "persona" ? (
-        <PersonaView
-          personaId={personaViewId || agent}
-          onBack={() =>
-            setSurface(personaViewReturn)
-          }
-          onOpenIntegrations={() => setSurface("integrations")}
-        />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-6" onClick={() => setSurface(personaViewReturn)}>
+          <div className="w-full max-w-5xl h-[min(760px,90vh)] overflow-hidden rounded-2xl shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <PersonaView
+              personaId={personaViewId || agent}
+              onBack={() => setSurface(personaViewReturn)}
+              onOpenIntegrations={() => setSurface("integrations")}
+            />
+          </div>
+        </div>
       ) : (
       <div className={"main" + (surface === "session" && agent !== "chat" && !railHidden ? " rail-open" : "")}>
         <div className="main-topbar" onPointerDown={beginWindowDrag} data-tauri-drag-region>

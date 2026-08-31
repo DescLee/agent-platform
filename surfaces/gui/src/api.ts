@@ -617,6 +617,7 @@ export interface Connector {
   name: string;
   title: string;
   icon: string;
+  avatar?: string | null;
   blurb: string;
   // Pre-connect detail page copy (UX-DECISIONS §38): optional About paragraph
   // (empty → group omitted) + honest Access bullets.

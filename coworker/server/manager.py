@@ -889,6 +889,7 @@ class SessionManager:
             "id": entry.id,
             "name": entry.name,
             "icon": entry.icon,
+            "avatar": self.personas.avatar_name(entry.id),
             "tagline": entry.tagline,
             "description": manifest.description if manifest else "",
             "media": media,

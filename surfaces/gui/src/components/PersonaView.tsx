@@ -16,6 +16,7 @@ import {
   getConnectors,
   getPersonaDetail,
   getPersonaMediaUrl,
+  getPersonaAvatarUrl,
   setPersonaConnection,
   updatePersona,
   type PersonaDetail,
@@ -51,6 +52,7 @@ export function PersonaView({
   const [byName, setByName] = useState<ConnectorMap>({});
   const [error, setError] = useState<string | null>(null);
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [shot, setShot] = useState(0);
   const [showTools, setShowTools] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
@@ -67,6 +69,7 @@ export function PersonaView({
       .then(async (d) => {
         if (!live) return;
         setDetail(d);
+        if (d.avatar) setAvatarUrl(await getPersonaAvatarUrl(personaId, d.avatar).catch(() => null));
         const loaded = await Promise.all(
           (d.media || []).map((name) => getPersonaMediaUrl(personaId, name).catch(() => null)),
         );
@@ -169,6 +172,7 @@ export function PersonaView({
         <div className="max-w-3xl mx-auto px-7 py-6 space-y-6">
           {/* identity + enable (no coworker glyph — owner 2026-08-21) */}
           <header className="flex items-start gap-3.5">
+            {avatarUrl && <img src={avatarUrl} alt="" className="w-16 h-16 rounded-xl object-cover" />}
             <div className="min-w-0">
               <h1 className="text-[20px] font-semibold tracking-tight">
                 {fullPersonaName(detail.name, personaId)}

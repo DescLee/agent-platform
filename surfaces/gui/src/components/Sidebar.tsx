@@ -118,6 +118,8 @@ interface Props {
   sessions: SessionInfo[];
   projects: RecentWorkspace[];
   activeSession: string;
+  activeRunning?: boolean;
+  completedSessionId?: string | null;
   onSwitchAgent: (agent: string) => void;
   onNewSession: (agent: string) => void;
   onSelectSession: (id: string, workspace: string, agent: string) => void;
@@ -274,6 +276,18 @@ export function Sidebar(props: Props) {
     return () => window.removeEventListener(PERSONAS_CHANGED, load);
   }, []);
   const personaOf = (id: string) => personas?.find((p) => p.id === id);
+
+  // Mirror the main pane's turn state in the conversation history: loading while active,
+  // then a quiet completion dot until the next turn starts.
+  const ActivityDot = (s: SessionInfo) => {
+    if (s.liveness === "working" || (s.session_id === props.activeSession && props.activeRunning)) {
+      return <span className="waiting-spinner" title="思考中" />;
+    }
+    if (s.session_id === props.completedSessionId) {
+      return <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" title="已完成" />;
+    }
+    return <LiveDot state={s.liveness} />;
+  };
 
   // Sidebar layout (§7): "grouped" = the per-coworker accordion; "flat" = a single
   // ungrouped list (Pinned + Recent). Flat stays the default even with Coworkers shipped
@@ -583,7 +597,7 @@ export function Sidebar(props: Props) {
                 <span className="text-[11px] text-faint tabular-nums">{compactAge(s.updated_at)}</span>
               )}
               <OriginIcon s={s} />
-              <LiveDot state={s.liveness} />
+              {ActivityDot(s)}
               <AttnBadge n={s.attention || 0} />
             </span>
             {rowActions(s, title)}
@@ -654,7 +668,7 @@ export function Sidebar(props: Props) {
             >
               <OriginIcon s={s} />
               <ConnectorDot subs={s.subscriptions} />
-              <LiveDot state={s.liveness} />
+              {ActivityDot(s)}
               <AttnBadge n={s.attention || 0} />
             </span>
             {rowActions(s, title)}

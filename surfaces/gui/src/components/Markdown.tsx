@@ -30,6 +30,8 @@ function BoardChip({ label }: { label: string }) {
 
 function ArtifactChip({ path, title }: { path: string; title: string }) {
   const file = path.split("/").pop() || path;
+  const displayFile = (() => { try { return decodeURIComponent(file); } catch { return file; } })();
+  const displayTitle = (() => { try { return decodeURIComponent(title || ""); } catch { return title; } })();
   return (
     <button
       className="art-chip"
@@ -43,10 +45,10 @@ function ArtifactChip({ path, title }: { path: string; title: string }) {
         <Icon name="file" size={14} />
       </span>
       <span className="art-chip-meta">
-        <b>{title || file}</b>
-        {title && title !== file && <span>{file}</span>}
+        <b>{displayTitle || displayFile}</b>
+        {displayTitle && displayTitle !== displayFile && <span>{displayFile}</span>}
       </span>
-      <span className="art-chip-open">Open ›</span>
+      <span className="art-chip-open">打开 ›</span>
     </button>
   );
 }

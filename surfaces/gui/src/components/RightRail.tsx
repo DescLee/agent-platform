@@ -597,6 +597,7 @@ function ArtifactViewer({
     return () => window.removeEventListener("mousedown", close);
   }, [menuOpen]);
   const isHtml = content?.kind === "html" && !content.error;
+  const displayArtifactName = (() => { try { return decodeURIComponent(artifact.name); } catch { return artifact.name; } })();
   // Best viewed in a real app: spreadsheets, PDFs, and Office docs (pptx/docx can't preview inline)
   const isApp = content?.kind === "sheet" || content?.kind === "pdf" || content?.kind === "office";
   // Text-bearing kinds can copy their contents; images/PDFs/sheets have nothing textual to copy.
@@ -635,7 +636,7 @@ function ArtifactViewer({
               {crumbRoot}
             </button>
             <span className="artifact-sep">/</span>
-            <span>{artifact.name}</span>
+            <span>{displayArtifactName}</span>
           </div>
           <div className="artifact-path">{artifact.path}</div>
         </div>
@@ -674,14 +675,14 @@ function ArtifactViewer({
                 )}
                 <div className="artifact-menu-div" />
                 {isHtml &&
-                  item("artifact-open-browser", "panelOpen", "Open in browser", () =>
+                    item("artifact-open-browser", "panelOpen", "在浏览器中打开", () =>
                     revealArtifact(sessionId, artifact.path, "open"),
                   )}
                 {isApp &&
-                  item("artifact-open-app", "panelOpen", "Open in default app", () =>
+                  item("artifact-open-app", "panelOpen", "在默认应用中打开", () =>
                     revealArtifact(sessionId, artifact.path, "open"),
                   )}
-                {item("artifact-reveal", "folder", "Reveal in Finder", () =>
+                {item("artifact-reveal", "folder", "在访达中显示", () =>
                   revealArtifact(sessionId, artifact.path, "reveal"),
                 )}
               </div>
@@ -700,7 +701,7 @@ function ArtifactViewer({
       </div>
       <div className="artifact-preview">
         {!content ? (
-          <div className="rail-muted">Loading...</div>
+            <div className="rail-muted">加载中...</div>
         ) : content.error ? (
           <div className="rail-error">{content.error}</div>
         ) : content.kind === "html" ? (
@@ -737,14 +738,14 @@ function ArtifactViewer({
                 {!e.dir && <span className="artifact-folder-size">{formatBytes(e.size)}</span>}
               </button>
             ))}
-            {!content.entries?.length && <div className="rail-muted">This folder is empty.</div>}
+            {!content.entries?.length && <div className="rail-muted">此文件夹为空。</div>}
           </div>
         ) : content.kind === "office" ? (
           <div className="artifact-open-prompt">
             <Icon name="panelOpen" size={28} />
-            <p>This {/\.pptx?$/i.test(artifact.name) ? "PowerPoint" : "Word"} file can’t be previewed here.</p>
+            <p>此 {/\.pptx?$/i.test(artifact.name) ? "PowerPoint" : "Word"} 文件无法在此预览。</p>
             <button className="btn sm" onClick={() => revealArtifact(sessionId, artifact.path, "open")}>
-              Open in default app
+              在默认应用中打开
             </button>
           </div>
         ) : (

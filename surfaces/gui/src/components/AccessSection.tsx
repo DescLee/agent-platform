@@ -289,7 +289,7 @@ export function AccessSection({
                 <div className={`${SEC_H} mb-1.5`}>Sources</div>
                 {connected.length === 0 && (
                   <div className="text-[12px] text-faint py-0.5">
-                    No connectors enabled for this session.
+                    此会话未启用连接器。
                   </div>
                 )}
                 <div className="space-y-1">
@@ -383,7 +383,7 @@ export function AccessSection({
                       onClick={() => setAdding(true)}
                       data-testid="access-add-source"
                     >
-                      + Add a source
+                      + 添加来源
                     </button>
                     <span className="text-faint">·</span>
                     <button
@@ -391,7 +391,7 @@ export function AccessSection({
                       data-testid="access-manage"
                       onClick={() => onOpenIntegrations?.()}
                     >
-                      Manage →
+                      管理 →
                     </button>
                   </div>
                 )}
@@ -435,7 +435,7 @@ export function AccessSection({
                   a quiet "+" link, structurally identical to Sources (owner ask 2026-07-13:
                   the old drawer's card wrapper read too heavy in the rail). */}
               <div data-testid="drawer-directories">
-                <div className={`${SEC_H} mb-1.5`}>Folders</div>
+                <div className={`${SEC_H} mb-1.5`}>文件夹</div>
                 <div className="-mx-1.5">
                   {roots.map((r) => (
                     <RootRow
@@ -463,7 +463,7 @@ export function AccessSection({
                     className="mt-1 text-[12px] text-accent hover:underline text-left"
                     onClick={() => setAddingFolder(true)}
                   >
-                    + Give access to a folder…
+                    + 授予文件夹访问权限…
                   </button>
                 )}
                 {rootsError && <div className="roots-err">{rootsError}</div>}

@@ -78,25 +78,23 @@ export function MemorySection() {
   };
 
   if (!settings || entries === null)
-    return <div className="text-[13px] text-muted">Loading…</div>;
+    return <div className="text-[13px] text-muted">加载中...</div>;
 
   return (
     <section>
       <PanelHead
-        title="Memory"
-        sub="Your coworkers can remember useful things about you between conversations. Everything they know is listed here."
+        title="记忆"
+        sub="协作助手可以在对话之间记住你的有用信息，所有已记住的内容都会显示在这里。"
       />
 
       {/* On/off — one switch, no other setup (§5.4). */}
       <div className={CARD + " p-4 mb-4"} data-testid="memory-toggle-card">
         <div className="flex items-center gap-3">
-          <Toggle checked={settings.enabled} onChange={toggleEnabled} title="Remember new things about you" />
+          <Toggle checked={settings.enabled} onChange={toggleEnabled} title="记住关于我的新信息" />
           <div className="min-w-0 flex-1">
-            <div className={FIELD_LABEL}>Remember new things about me</div>
+            <div className={FIELD_LABEL}>记住关于我的新信息</div>
             <div className="text-[12px] text-muted mt-0.5">
-              Lasting preferences you mention in chat get saved and used in future conversations —
-              you'll see a small note each time, with one-tap Undo. Turning this off stops new
-              saves; anything already below is still used until you delete it.
+              你在对话中提到的长期偏好会被保存并用于未来对话。关闭后将停止保存新内容，已有内容仍会继续使用，直到你删除。
             </div>
           </div>
         </div>
@@ -111,21 +109,19 @@ export function MemorySection() {
           message ("what I already know is kept, delete it below") points here. */}
       <div className={CARD + " p-4 mb-4"} data-testid="memory-list-card">
         <div className="flex items-center gap-2">
-          <div className={FIELD_LABEL + " flex-1"}>What I've learned about you</div>
+          <div className={FIELD_LABEL + " flex-1"}>我了解到的关于你的信息</div>
           {entries.length > 0 && (
             <button
               className="text-[12px] text-danger/80 hover:text-danger"
               data-testid="memory-delete-all"
               onClick={wipeAll}
             >
-              Forget everything…
+              全部删除…
             </button>
           )}
         </div>
         <div className={FIELD_HELP}>
-          Saved automatically from your conversations. Fix anything that's wrong — or delete it.
-          Edits and deletions apply to new conversations; ones you already have open keep what
-          they knew when they started.
+          这些内容会从对话中自动保存。你可以修改或删除；修改和删除将应用于新对话，已打开的对话保持原有记忆。
         </div>
         {listMsg && (
           <div className="text-[13px] text-muted mt-2.5" data-testid="memory-list-msg">
@@ -135,8 +131,7 @@ export function MemorySection() {
         {entries.length === 0 ? (
           !listMsg && (
             <div className="text-[12px] text-muted mt-3" data-testid="memory-empty">
-              Nothing yet. When you mention a lasting preference in chat — or say "remember
-              that…" — it will show up here.
+              暂无内容。在对话中提到长期偏好，或说“记住……”后，内容会显示在这里。
             </div>
           )
         ) : (
@@ -174,9 +169,9 @@ function UserRulesCard({
 
   return (
     <div className={CARD + " p-4"} data-testid="user-rules-card">
-      <div className={FIELD_LABEL}>Your instructions</div>
+      <div className={FIELD_LABEL}>你的指令</div>
       <div className={FIELD_HELP}>
-        Your coworkers follow these in every conversation.
+        协作助手会在每次对话中遵循这些指令。
       </div>
       <textarea
         value={draft}
@@ -196,7 +191,7 @@ function UserRulesCard({
           disabled={draft === settings.user_rules}
           data-testid="user-rules-save"
         >
-          Save
+              保存
         </button>
         {savedMsg && (
           <span className="text-[13px] text-muted">
@@ -243,7 +238,7 @@ function MemoryRow({ entry, onChanged }: { entry: MemoryEntry; onChanged: () => 
         />
         <div className="flex items-center gap-2.5 mt-1.5">
           <button className={BTN_ACCENT} onClick={() => void save()}>
-            Save
+            保存
           </button>
           <button className="text-[13px] text-muted hover:text-ink" onClick={() => setEditing(false)}>
             cancel

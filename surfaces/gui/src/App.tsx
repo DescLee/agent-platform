@@ -214,6 +214,7 @@ export function App() {
   const [connected, setConnected] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
   const [running, setRunning] = useState(false);
+  const [completedSessionId, setCompletedSessionId] = useState<string | null>(null);
   // Transient "Compacting context…" indicator (OPE-27): set by the `compacting` event,
   // cleared by whatever the engine emits next — the summarizer call is otherwise a
   // multi-second silent stall mid-turn.
@@ -953,6 +954,7 @@ export function App() {
           break;
         case "turn_done":
           setRunning(false);
+          setCompletedSessionId(sessionId);
           setReviewerPaused(false); // the pause is scoped to the turn
           refreshSessions();
           // Catch-all artifact refresh: files created via shell or on a brand-new session (whose
@@ -1131,6 +1133,7 @@ export function App() {
     // Force-run shows exactly what the user typed: "/name rest". Must match the server's
     // `display` sidecar formula so the turn_start dedupe recognizes the local echo.
     const shown = skill ? `/${skill}${text ? ` ${text}` : ""}` : text;
+    setCompletedSessionId(null);
     setItems((p) => [...p, { kind: "user", text: shown, attachments, ts: Date.now() / 1000 }]);
     // The visible model rides along with the message (single source of truth per turn).
     sessionRef.current?.userMessage(text, attachments, model, skill);
@@ -1194,6 +1197,7 @@ export function App() {
   const retry = () => {
     // Optimistic running: turn_start confirms; a rejected retry still ends in turn_done.
     setRunning(true);
+    setCompletedSessionId(null);
     sessionRef.current?.retry();
   };
   const changeMode = (m: string) => {
@@ -1757,6 +1761,8 @@ export function App() {
         sessions={sessions}
         projects={projects}
         activeSession={sessionId}
+        activeRunning={running}
+        completedSessionId={completedSessionId}
         onSwitchAgent={switchAgent}
         onNewSession={startNewSession}
         onSelectSession={selectSession}
@@ -2327,7 +2333,7 @@ function WaitingForAgent({ label }: { label?: string }) {
     <div className="waiting-transcript">
       <div className="waiting-row" aria-live="polite">
         <span className="waiting-spinner" />
-        <span>{label || "Waiting for agent..."}</span>
+        <span>{label || "思考中..."}</span>
       </div>
     </div>
   );

@@ -163,7 +163,7 @@ body {
 
 .app {
   display: grid;
-  grid-template-columns: 300px 1fr;
+  grid-template-columns: 380px 1fr;
   grid-template-rows: minmax(0, 1fr); /* row fills viewport AND allows children to shrink */
   height: 100vh;
   overflow: hidden;

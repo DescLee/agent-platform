@@ -1822,7 +1822,8 @@ export function App() {
         <AuditView />
       ) : surface === "persona" ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-6" onClick={() => setSurface(personaViewReturn)}>
-          <div className="w-full max-w-2xl max-h-[85vh] overflow-hidden rounded-2xl shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="relative w-full max-w-2xl max-h-[85vh] overflow-hidden rounded-2xl shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <button className="absolute right-4 top-3 z-10 text-xl text-muted hover:text-ink" aria-label="关闭" onClick={() => setSurface(personaViewReturn)}>×</button>
             <PersonaView
               personaId={personaViewId || agent}
               onBack={() => setSurface(personaViewReturn)}

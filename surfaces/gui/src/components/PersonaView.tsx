@@ -107,20 +107,7 @@ export function PersonaView({
     setMsg(r.ok ? `已导出至 ${r.path}` : r.error || "导出失败");
   };
 
-  const header = (
-    <div className="h-12 shrink-0 px-5 flex items-center gap-3 border-b border-line bg-paper">
-      {onBack && (
-        <>
-          <button
-            className="inline-flex items-center gap-1 text-[13px] text-muted hover:text-ink"
-            onClick={onBack}
-          >
-            <Icon name="arrowLeft" size={15} /> 返回
-          </button>
-        </>
-      )}
-    </div>
-  );
+  const header = null;
 
   if (error || !detail) {
     return (
@@ -185,12 +172,13 @@ export function PersonaView({
           {/* about: bundle markdown + screenshot carousel */}
           {(detail.description || mediaUrls.length > 0) && (
             <section>
-              <div className={`${SEC_H} mb-1.5`}>关于</div>
+              <div className={`${SEC_H} mb-1.5`}>能力介绍</div>
               {detail.description && (
                 <div className="text-[14px] leading-relaxed text-ink/90">
                   <Markdown text={detail.description} />
                 </div>
               )}
+              {!!detail.tags?.length && <><div className={`${SEC_H} mt-5 mb-2`}>擅长领域</div><div className="flex flex-wrap gap-2">{detail.tags.map((tag) => <span key={tag} className="px-2.5 py-1 rounded-lg bg-paper border border-line text-muted whitespace-nowrap">{tag}</span>)}</div></>}
               {mediaUrls.length > 0 && (
                 <div className="mt-3.5">
                   <div className="flex items-center gap-2">

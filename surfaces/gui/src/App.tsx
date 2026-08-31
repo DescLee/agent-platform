@@ -286,12 +286,14 @@ export function App() {
   // The persona whose detail page is showing (surface === "persona"); empty falls back to the
   // active session's persona. Phase 5 wires the grouped-nav gear + "Manage personas…" entry points.
   const [personaViewId, setPersonaViewId] = useState<string>("");
+  const [personaModalOpen, setPersonaModalOpen] = useState(false);
   // Persona details return to the session or the standalone coworker management page.
   const [personaViewReturn, setPersonaViewReturn] = useState<"session" | "coworkers">("session");
   const openPersona = (id: string, from: "session" | "coworkers" = "session") => {
     setPersonaViewReturn(from);
     setPersonaViewId(id);
-    setSurface("persona");
+    if (from === "coworkers") setPersonaModalOpen(true);
+    else setSurface("persona");
   };
   const [browserRefreshKey, setBrowserRefreshKey] = useState(0);
   // Agent teams (OPE-96): board for the current session's workspace space.
@@ -1793,6 +1795,7 @@ export function App() {
           <div className="experts-content mx-auto px-7 py-6">
             <PersonasSection onOpenPersona={(id) => openPersona(id, "coworkers")} />
           </div>
+          {personaModalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-6" onClick={() => setPersonaModalOpen(false)}><div className="relative w-full max-w-[580px] max-h-[85vh] overflow-hidden rounded-2xl shadow-2xl" onClick={(e) => e.stopPropagation()}><button className="absolute right-4 top-3 z-10 text-xl text-muted" onClick={() => setPersonaModalOpen(false)}>×</button><PersonaView personaId={personaViewId} onBack={() => setPersonaModalOpen(false)} /></div></div>}
         </main>
       ) : surface === "scheduled" ? (
         <ScheduledView
@@ -1821,7 +1824,7 @@ export function App() {
       ) : surface === "audit" ? (
         <AuditView />
       ) : surface === "persona" ? (
-        <><div className="absolute inset-0 z-0 flex-1 min-w-0 min-h-0 overflow-auto bg-paper hairline-scroll"><div className="experts-content mx-auto px-7 py-6"><PersonasSection onOpenPersona={(id) => openPersona(id, "coworkers")} /></div></div><div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-6" onClick={() => setSurface(personaViewReturn)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-6" onClick={() => setSurface(personaViewReturn)}>
           <div className="relative w-full max-w-[580px] max-h-[85vh] overflow-hidden rounded-2xl shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <button className="absolute right-4 top-3 z-10 text-xl text-muted hover:text-ink" aria-label="关闭" onClick={() => setSurface(personaViewReturn)}>×</button>
             <PersonaView
@@ -1830,7 +1833,7 @@ export function App() {
               onOpenIntegrations={() => setSurface("integrations")}
             />
           </div>
-        </div></>
+        </div>
       ) : (
       <div className={"main" + (surface === "session" && agent !== "chat" && !railHidden ? " rail-open" : "")}>
         <div className="main-topbar" onPointerDown={beginWindowDrag} data-tauri-drag-region>

@@ -1065,6 +1065,7 @@ function announcePersonasChanged() {
 }
 
 export interface Persona {
+  quick_prompts?: string[];
   id: string;
   name: string;
   icon: string;
@@ -1083,6 +1084,7 @@ export interface Persona {
 }
 
 export interface PersonaConsent {
+  import_notes?: string[];
   id: string;
   name: string;
   description: string;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getConnectors } from "../api";
 import { ConnectorsSection } from "./connectors/ConnectorsSection";
 import { Icon } from "./Icon";
@@ -13,6 +13,10 @@ import { Icon } from "./Icon";
 export function IntegrationsView() {
   // Sub-nav count: how many connectors exist. Polled so the badge stays live.
   const [connCount, setConnCount] = useState<number | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const resetScroll = useCallback(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+  }, []);
 
   useEffect(() => {
     const load = () => {
@@ -24,7 +28,7 @@ export function IntegrationsView() {
   }, []);
 
   return (
-    <main className="flex-1 min-w-0 flex bg-paper">
+    <main className="flex-1 min-w-0 min-h-0 overflow-hidden flex bg-paper">
       <nav className="page-subnav w-[208px] shrink-0 border-r border-line bg-panel/40 px-3 py-4">
         <div className="px-2 text-[13px] font-semibold mb-3 flex items-center gap-2">
           <Icon name="plug" size={16} /> Connectors
@@ -39,14 +43,14 @@ export function IntegrationsView() {
         </button>
       </nav>
 
-      <div className="flex-1 min-w-0 overflow-y-auto hairline-scroll">
+      <div ref={scrollRef} data-testid="integrations-scroll" className="flex-1 min-w-0 min-h-0 overflow-y-auto overscroll-contain hairline-scroll">
         <div className="max-w-4xl mx-auto px-7 py-6">
           <section>
             <PanelHead
               title="Connectors"
               sub="Apps and tools your coworkers can use. Connected ones come first."
             />
-            <ConnectorsSection />
+            <ConnectorsSection onNavigate={resetScroll} />
           </section>
         </div>
       </div>

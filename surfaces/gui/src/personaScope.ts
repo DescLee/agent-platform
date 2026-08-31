@@ -24,5 +24,6 @@ export function fullPersonaName(name?: string, id?: string): string {
   if (id === "cowork") return "Coworker";
   const n = (name || id || "").trim();
   if (id === "chat" || !n) return n;
+  if (id?.startsWith("wb-")) return n;
   return /coworker$/i.test(n) ? n : `${n} Coworker`;
 }

@@ -13,6 +13,48 @@ from coworker.providers import resolve_api_key
 from coworker.secrets import SecretStore
 
 
+def test_removed_custom_provider_falls_back_and_persists(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from coworker.server import create_app
+    from coworker.server.manager import SessionManager
+
+    monkeypatch.setenv("COWORKER_STATE_DIR", str(tmp_path / "state"))
+    manager = SessionManager(data_dir=tmp_path / "data")
+    # Exercise real profile removal, but make availability deterministic and offline.
+    monkeypatch.setattr(manager, "_provider_configured", lambda name: bool(manager.secrets.get(f"provider:{name}")))
+    monkeypatch.setattr(manager, "_ollama_alive", lambda: False)
+    for name in ("custom-old", "custom-passion"):
+        manager.secrets.put(f"provider:{name}", {"api_key": "test-only", "base_url": "https://example.invalid/v1"})
+    manager.secrets.put("provider:custom_index", {"ids": ["custom-old", "custom-passion"]})
+    manager._prefs["models"] = ["custom-old:old-model", "custom-passion:new-model"]
+    manager.model = "custom-old:old-model"
+    manager._prefs["default_model"] = manager.model
+    client = TestClient(create_app(manager))
+    assert client.delete("/v1/providers/custom-old").json()["ok"]
+    result = client.get("/v1/settings").json()
+    assert result["model_ready"]
+    assert result["model"] == "custom-passion:new-model"
+    assert result["models"] == ["custom-passion:new-model"]
+    assert SessionManager(data_dir=tmp_path / "data").model == result["model"]
+
+
+def test_settings_recovers_stale_default_but_keeps_valid_selection(tmp_path, monkeypatch):
+    from coworker.server.manager import SessionManager
+
+    monkeypatch.setenv("COWORKER_STATE_DIR", str(tmp_path / "state"))
+    manager = SessionManager(data_dir=tmp_path / "data")
+    monkeypatch.setattr(manager, "_ollama_alive", lambda: False)
+    monkeypatch.setattr(manager, "_curated_models", lambda: [manager.model, "deepseek:deepseek-chat", "deepseek:deepseek-reasoner"])
+    monkeypatch.setattr(manager, "_provider_configured", lambda name: name == "deepseek")
+    manager.model = "gpt-5.6-sol"
+    assert manager.get_settings()["model"] == "deepseek:deepseek-chat"
+    manager.model = "deepseek:deepseek-reasoner"
+    assert manager.get_settings()["model"] == "deepseek:deepseek-reasoner"
+    monkeypatch.setattr(manager, "_provider_configured", lambda name: False)
+    assert not manager.get_settings()["model_ready"]
+    assert manager.model == "deepseek:deepseek-reasoner"
+
+
 def test_resolve_api_key_prefers_env(monkeypatch, tmp_path):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-env-123")
     secrets = SecretStore(path=tmp_path / "secrets.json")
@@ -99,6 +141,32 @@ def test_default_model_and_onboarding_persist(tmp_path, monkeypatch):
     assert reborn.model == "gpt-4o"
     s = reborn.get_settings()
     assert s["onboarded"] is True and s["model"] == "gpt-4o"
+
+
+def test_home_model_default_applies_to_new_sessions_but_not_history(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from coworker.server import create_app
+    from coworker.server.manager import SessionManager
+
+    monkeypatch.setenv("COWORKER_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setattr(SessionManager, "_provider_configured", lambda self, name: name == "openai")
+    monkeypatch.setattr(SessionManager, "_ollama_alive", lambda self: False)
+    data = tmp_path / "data"
+    manager = SessionManager(data_dir=data)
+    existing = manager.get_engine("history", workspace=tmp_path)
+    old_model = existing.model
+    existing.messages.append({"role": "user", "content": "An existing conversation"})
+    manager.save("history", existing)
+
+    client = TestClient(create_app(manager))
+    result = client.post("/v1/settings/default-model", json={"model": "gpt-5.5"}).json()
+    assert result["ok"] and result["model"] == "gpt-5.5"
+    assert manager.get_engine("new-home", workspace=tmp_path).model == "gpt-5.5"
+    assert existing.model == old_model
+
+    restarted = SessionManager(data_dir=data)
+    assert restarted.get_engine("after-restart", workspace=tmp_path).model == "gpt-5.5"
+    assert restarted.get_engine("history", workspace=tmp_path).model == old_model
 
 
 def test_nav_layout_setting_roundtrips(tmp_path, monkeypatch):

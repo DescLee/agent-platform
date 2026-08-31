@@ -3066,11 +3066,11 @@ class SessionManager:
             self.secrets.put("provider:custom_index", {"ids": [x for x in ids if x != name]})
             models = self._prefs.get("models") or []
             self._prefs["models"] = [m for m in models if not m.startswith(f"{name}:")]
-            if self.model.startswith(f"{name}:"):
-                self.model = "gpt-5.6-sol"
-                self._prefs["default_model"] = self.model
             self._save_prefs()
         self._refresh_provider(name)
+        # Resolve the default against remaining connected providers, not a hardcoded
+        # OpenAI model whose credentials may never have been configured.
+        self.get_settings()
         return {"ok": True, "provider": name}
 
     # -- ChatGPT-subscription provider (OAuth, no key) ---------------------------
@@ -3331,8 +3331,8 @@ class SessionManager:
         env_key = bool(os.environ.get("OPENAI_API_KEY"))
         stored = bool((self.secrets.get("provider:openai") or {}).get("api_key"))
         # Only surface models whose provider is actually configured — the composer picker
-        # reflects exactly what's connected. The active default is always kept selectable
-        # (it's hidden behind the "No model" state until a provider is connected anyway).
+        # reflects exactly what's connected. Recover a stale default after removal or
+        # on restart, while preserving it if its provider still works.
         # Ollama is keyless, so "configured" is meaningless there — its models show only
         # while a local Ollama answers (cached liveness probe).
         def _selectable(m: str) -> bool:
@@ -3342,7 +3342,13 @@ class SessionManager:
             return self._provider_configured(provider)
 
         selectable = [m for m in self._curated_models() if _selectable(m)]
-        if self.model not in selectable:
+        if selectable and self.model not in selectable:
+            self.model = selectable[0]
+            self._prefs["default_model"] = self.model
+            self._save_prefs()
+        model_ready = bool(selectable)
+        if not selectable:
+            # Keep the saved selection for setup/reconnection, but do not claim readiness.
             selectable.insert(0, self.model)
         from ..providers.matrix import model_context_windows, model_labels
         labels = model_labels()
@@ -3368,7 +3374,7 @@ class SessionManager:
             # Provider-agnostic "can this default model actually run?" — true when the default
             # model's provider is configured (any provider, not just OpenAI). Drives the GUI's
             # "No model connected" composer chip and the onboarding Skip warning.
-            "model_ready": self._provider_configured(self._model_provider(self.model)),
+            "model_ready": model_ready,
             "source": "env" if env_key else ("store" if stored else None),
             "onboarded": bool(self._prefs.get("onboarded")),
             "experimental_connectors": experimental_enabled(self.secrets),
@@ -5736,6 +5742,8 @@ class SessionManager:
         the user's enabled/configured/authed gates apply regardless."""
         entry = self.personas.get(persona_id)
         names = list((entry.manifest.mcp if entry and entry.manifest else []) or [])
+        if entry and entry.manifest and entry.manifest.source_format == "workbuddy":
+            return set()  # WorkBuddy does not import or inherit configured MCP servers.
         return {n for n in names if n} or None
 
     def persona_skill_scope(

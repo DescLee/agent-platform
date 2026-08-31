@@ -84,6 +84,9 @@ class PersonaManifest:
     # informational provenance — with folder/git distribution there is no authoritative
     # update channel, so this drives the "replaces vN" note on re-install, nothing more.
     version: str = ""
+    quick_prompts: list[str] = field(default_factory=list)
+    import_notes: list[str] = field(default_factory=list)
+    source_format: str = "native"
     recommends: list[Recommendation] = field(default_factory=list)
     # Distribution decision, not a maturity claim (owner, 2026-08-21): ships:false
     # coworkers exist in the codebase but are absent from release builds — internal
@@ -333,6 +336,9 @@ def parse_manifest(
         skills=_strlist(meta, "skills"),
         mcp=_strlist(meta, "mcp"),
         version=str(meta.get("version", "") or "").strip(),
+        quick_prompts=_strlist(meta, "quick_prompts"),
+        import_notes=_strlist(meta, "import_notes"),
+        source_format=str(meta.get("source_format", "native")),
         recommends=recommends,
         ships=bool(meta.get("ships", True)),
         group=group,

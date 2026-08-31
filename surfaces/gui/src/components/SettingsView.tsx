@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   getSettings,
   getTrustedWorkspaces,
@@ -96,9 +96,13 @@ export function SettingsView({
   const tabs = personas ? SET_TABS : SET_TABS.filter((t) => t.key !== "personas");
   const wanted = initialTab && (personas || initialTab !== "personas") ? initialTab : "appearance";
   const [tab, setTab] = useState<SetTab>(wanted);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+  }, [tab]);
 
   return (
-    <main className="flex-1 min-w-0 flex bg-paper">
+    <main className="flex-1 min-w-0 min-h-0 overflow-hidden flex bg-paper">
       <nav className="page-subnav w-[208px] shrink-0 border-r border-line bg-panel/40 px-3 py-4">
         <div className="px-2 text-[13px] font-semibold mb-3 flex items-center gap-2">
           <Icon name="gear" size={16} /> 设置
@@ -120,7 +124,7 @@ export function SettingsView({
         })}
       </nav>
 
-      <div className="flex-1 min-w-0 overflow-y-auto hairline-scroll">
+      <div ref={scrollRef} data-testid="settings-scroll" className="flex-1 min-w-0 min-h-0 overflow-y-auto overscroll-contain hairline-scroll">
         <div className="max-w-3xl mx-auto px-7 py-6">
           {tab === "appearance" ? (
             <AppearanceSection />

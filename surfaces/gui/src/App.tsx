@@ -20,6 +20,7 @@ import {
   deleteMemory,
   updateMemory,
   getSettings,
+  setDefaultModel as saveDefaultModel,
   getPersonas,
   getInbox,
   getUnattended,
@@ -211,6 +212,7 @@ export function App() {
   const [surfaces, setSurfaces] = useState<SurfaceVisibility>({ cowork: true, chat: false, code: false });
   const [mode, setMode] = useState("interactive");
   const [connected, setConnected] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
   const [running, setRunning] = useState(false);
   // Transient "Compacting context…" indicator (OPE-27): set by the `compacting` event,
   // cleared by whatever the engine emits next — the summarizer call is otherwise a
@@ -268,6 +270,10 @@ export function App() {
   // composer's "No model connected" chip. Default true so we don't flash the chip before settings
   // load; corrected by loadSettings.
   const [modelReady, setModelReady] = useState(true);
+  const [defaultModel, setDefaultModel] = useState("");
+  // Serialize homepage selections so a slower save cannot overwrite a later choice.
+  const homeModelSave = useRef<Promise<void>>(Promise.resolve());
+  const [homeModelSaveError, setHomeModelSaveError] = useState(false);
   const [surface, setSurface] = useState<
     "session" | "scheduled" | "integrations" | "audit" | "inbox" | "persona" | "settings"
   >("session");
@@ -609,6 +615,7 @@ export function App() {
         setModelContextWindows(s.model_context_windows || {});
         setContextBar(s.context_bar === true);
         setModelReady(s.model_ready);
+        setDefaultModel(s.model);
         if (s.surfaces) setSurfaces(s.surfaces);
       })
       .catch(() => {});
@@ -688,6 +695,7 @@ export function App() {
       switch (ev.type) {
         case "ready":
           setConnected(true);
+          setSessionReady(true);
           if (d.model) setModel(d.model);
           if (d.mode) setMode(d.mode);
           if (d.command_trust?.required) setWorkspaceTrustRequest(d.command_trust);
@@ -959,6 +967,7 @@ export function App() {
       }
     };
 
+    setSessionReady(false);
     const session = new Session(sessionId, workspace || "", agent, {
       onEvent: handleEvent,
       onOpen: () => {
@@ -979,7 +988,7 @@ export function App() {
           sessionRef.current?.userMessage(p.text, p.attachments, p.model, p.skill);
         }
       },
-      onClose: () => setConnected(false),
+      onClose: () => { setConnected(false); setSessionReady(false); },
     });
     sessionRef.current = session;
     return () => session.close();
@@ -1192,9 +1201,35 @@ export function App() {
     if (running) return; // the server refuses mid-turn rebinds — don't let the header lie
     setModel(m);
     sessionRef.current?.setModel(m);
+    if (idle) {
+      setDefaultModel(m);
+      setHomeModelSaveError(false);
+      homeModelSave.current = homeModelSave.current
+        .then(async () => {
+          const result = await saveDefaultModel(m);
+          if (!result.ok) throw new Error(result.error || "保存失败");
+          setHomeModelSaveError(false);
+        })
+        .catch(() => {
+          setHomeModelSaveError(true);
+        });
+    }
   };
 
-  const startNewSession = (forAgent?: string) => {
+  // A removed provider can leave the active conversation on an obsolete model even
+  // after Settings repairs the default. Rebind idle sessions too; keep a valid user
+  // selection and never switch a model in the middle of a running turn.
+  useEffect(() => {
+    if (!connected || !sessionReady || running || !modelReady || !models.length || models.includes(model)) return;
+    const next = models.includes(defaultModel) ? defaultModel : models[0];
+    setModel(next);
+    sessionRef.current?.setModel(next);
+  }, [connected, sessionReady, running, modelReady, models, model, defaultModel]);
+
+  const startNewSession = async (forAgent?: string) => {
+    // The next engine reads the persisted default; wait if the user immediately
+    // clicks New session after choosing a model.
+    await homeModelSave.current;
     const target = forAgent || agent;
     setSurface("session"); // return to the conversation view if we were on a sub-view
     setItems([]);
@@ -1230,8 +1265,9 @@ export function App() {
   // switchAgent this never resumes that coworker's last conversation — the user is
   // composing a new one. A fresh id keeps knowledge families' per-conversation scratch
   // dirs clean and re-triggers the connection effect.
-  const pickCoworker = (id: string) => {
+  const pickCoworker = async (id: string) => {
     if (id === agent) return;
+    await homeModelSave.current;
     setAgent(id);
     // An explicit draft folder pick survives a coworker change (owner catch
     // 2026-08-24). Anything inherited — boot-resume, scratch adoption, temp
@@ -1246,7 +1282,8 @@ export function App() {
   };
   // UX-029: the setup row's folder chip — bind the draft to a folder before the first
   // message. A fresh id re-triggers the connection effect with the folder attached.
-  const pickDraftFolder = (path: string, b?: string | null) => {
+  const pickDraftFolder = async (path: string, b?: string | null) => {
+    await homeModelSave.current;
     setWorkspace(path);
     setBranch(b ?? null);
     setDraftFolderPicked(true);
@@ -1758,11 +1795,11 @@ export function App() {
           key={settingsTab}
           initialTab={settingsTab}
           onOpenPersona={(id) => openPersona(id, "settings")}
-          onCreateSkill={(description) => {
+          onCreateSkill={async (description) => {
             // The Skills doorway (SKILLS-SPEC §5.2): creation is a conversation. Fresh
             // session, description in the composer — the user reads and hits send. With
             // no description, the prefill invites them to finish the sentence there.
-            startNewSession();
+            await startNewSession();
             prefillComposer(
               description
                 ? `Build a new skill for me: ${description}`
@@ -1938,8 +1975,10 @@ export function App() {
                     {(
                       <div className="suggestions">
                         <div className="suggest-head">试试这些任务</div>
-                        {SUGGESTIONS.map((s, i) => (
-                          <div className="suggest" key={i} onClick={() => workspace && send(s.text)}>
+                        {(personaOf(agent)?.quick_prompts?.length
+                          ? personaOf(agent)!.quick_prompts!.map((text) => ({ text, ico: "✦" }))
+                          : SUGGESTIONS).map((s, i) => (
+                          <div className="suggest" key={i} onClick={() => personaOf(agent)?.quick_prompts?.length ? prefillComposer(s.text) : workspace && send(s.text)}>
                             <span className="ico">{s.ico}</span>
                             {s.text}
                           </div>
@@ -2058,6 +2097,11 @@ export function App() {
                   Ask for a status
                 </button>
               </div>
+            )}
+            {idle && homeModelSaveError && (
+              <p role="alert" className="px-6 py-2 text-[12px] text-amber-700">
+                本次模型已切换，但未能保存默认模型，请重新选择后重试。
+              </p>
             )}
             <Composer
               mode={mode}

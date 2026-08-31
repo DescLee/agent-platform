@@ -91,12 +91,12 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
   const finishInstall = (r: Awaited<ReturnType<typeof installPersona>>) => {
     setBusy(false);
     if (!r.ok) {
-      setMsg(r.error || "install failed");
+      setMsg(r.error || "导入失败");
       return;
     }
     setConsent(r.consent || []);
     if (r.personas) setPersonas(r.personas);
-    setMsg(`Installed ${(r.consent || []).length} coworker(s) — review and enable below.`);
+    setMsg(`已导入 ${(r.consent || []).length} 个协作助手，请在下方检查能力并启用。`);
     setSrc("");
   };
 
@@ -107,18 +107,29 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
     setBusy(true);
     setMsg(null);
     setConsent(null);
-    finishInstall(await installPersona({ dir }));
+    try {
+      finishInstall(await installPersona({ dir }));
+    } catch {
+      setBusy(false);
+      setMsg("导入失败，请检查文件夹后重试。");
+    }
   };
 
   const installZip = async (file: File) => {
     setBusy(true);
     setMsg(null);
     setConsent(null);
-    const buf = new Uint8Array(await file.arrayBuffer());
-    let bin = "";
-    for (let i = 0; i < buf.length; i += 0x8000)
-      bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
-    finishInstall(await installPersona({ zip_b64: btoa(bin), filename: file.name }));
+    try {
+      if (file.size > 50 * 1024 * 1024) throw new Error("压缩包不能超过 50 MB。");
+      const buf = new Uint8Array(await file.arrayBuffer());
+      let bin = "";
+      for (let i = 0; i < buf.length; i += 0x8000)
+        bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+      finishInstall(await installPersona({ zip_b64: btoa(bin), filename: file.name }));
+    } catch (error) {
+      setBusy(false);
+      setMsg(error instanceof Error ? error.message : "导入失败，请检查压缩包后重试。");
+    }
   };
 
   const install = async () => {
@@ -126,16 +137,12 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
     setBusy(true);
     setMsg(null);
     setConsent(null);
-    const r = await installPersona({ git_url: src.trim() });
-    setBusy(false);
-    if (!r.ok) {
-      setMsg(r.error || "install failed");
-      return;
+    try {
+      finishInstall(await installPersona({ git_url: src.trim() }));
+    } catch {
+      setBusy(false);
+      setMsg("导入失败，请检查网络后重试。");
     }
-    setConsent(r.consent || []);
-    if (r.personas) setPersonas(r.personas);
-    setMsg(`Installed ${(r.consent || []).length} coworker(s) — review and enable below.`);
-    setSrc("");
   };
 
   const unshipped = personas.filter((p) => p.ships === false);
@@ -260,8 +267,8 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
           size={12}
           className={"transition-transform" + (showInstall ? " rotate-90" : "")}
         />
-        <span>Install a coworker</span>
-        <span className="ml-auto text-faint text-[12px]">GitHub · folder · .zip</span>
+        <span>导入协作助手</span>
+        <span className="ml-auto text-faint text-[12px]">GitHub · 文件夹 · ZIP · WorkBuddy 专家</span>
       </button>
       {showInstall && (
         <div className={CARD + " mt-1.5 p-4"}>
@@ -271,21 +278,21 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
               value={mode}
               onChange={(e) => setMode(e.target.value as "git" | "dir" | "zip")}
             >
-              <option value="git">GitHub URL</option>
-              <option value="dir">Local folder</option>
-              <option value="zip">Bundle zip</option>
+              <option value="git">GitHub 链接</option>
+              <option value="dir">本地文件夹</option>
+              <option value="zip">ZIP 压缩包</option>
             </select>
             {mode === "git" ? (
               <>
                 <input
                   className={INPUT}
-                  placeholder="https://github.com/acme/ops-coworker"
+                  placeholder="https://github.com/infometa/workbuddyskills/tree/main/experts/ai-meeting-notes"
                   value={src}
                   onChange={(e) => setSrc(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && install()}
                 />
                 <button className={BTN_ACCENT} disabled={busy || !src.trim()} onClick={install}>
-                  {busy ? "Installing…" : "Install"}
+                  {busy ? "导入中…" : "导入"}
                 </button>
               </>
             ) : mode === "dir" ? (
@@ -296,15 +303,15 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
                   data-testid="persona-dir-choose"
                   onClick={() => void installDir()}
                 >
-                  {busy ? "Installing…" : "Choose folder…"}
+                  {busy ? "导入中…" : "选择专家文件夹…"}
                 </button>
                 <span className="text-[12px] text-faint">
-                  Opens the system folder picker; installs on selection.
+                  选择包含 manifest.md 或 .codebuddy-plugin/plugin.json 的目录。
                 </span>
               </>
             ) : (
               <label className={BTN_BORDERED + " cursor-pointer"}>
-                {busy ? "Installing…" : "Choose a .zip bundle…"}
+                {busy ? "导入中…" : "选择 ZIP 专家包…"}
                 <input
                   type="file"
                   accept=".zip"
@@ -323,11 +330,9 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
           <div className="flex items-start gap-2 mt-3 text-[12px] text-muted leading-relaxed">
             <span className="text-warnInk shrink-0">⚠</span>
             <span>
-              Only install coworkers from sources you trust and can hold accountable — a
-              coworker runs with access to your system. Files are snapshotted into a managed
-              area; no third-party code runs, but the instructions steer the coworker. Best
-              used by teams whose lead builds and distributes coworkers through official
-              channels.
+              支持原生协作助手及 WorkBuddy 单专家包。GitHub 链接请指向具体专家目录；
+              暂不支持团队包和 Hooks。只导入可信且有权使用的内容，导入时不会执行脚本。
+              第三方技能的依赖不会自动安装，执行操作仍受应用审批控制。
             </span>
           </div>
         </div>
@@ -343,8 +348,8 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
           <div className="flex items-start gap-2.5 rounded-xl border border-warnInk/30 bg-warnSoft px-3.5 py-2.5 text-[13px] text-warnInk">
             <Icon name="shield" size={15} className="shrink-0 mt-0.5" />
             <span>
-              Only enable coworkers from someone you trust. Nothing here runs third-party
-              code — but its instructions will guide the coworker's behavior.
+              请检查来源、能力和兼容性说明后启用。导入不会执行代码；使用助手时，
+              提示词和技能会影响其行为，但不会绕过应用的权限审批。
             </span>
           </div>
           {consent.map((c) => (
@@ -366,11 +371,11 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
 // One phrase per risk class — the plain-language capability summary the consent card leads
 // with; unknown classes fall back to their raw id so nothing is silently omitted.
 const RISK_PHRASE: Record<string, string> = {
-  read: "read files",
-  write_local: "create & edit files",
-  exec: "run shell commands",
-  network: "access the network",
-  write_remote: "act on connected services",
+  read: "读取文件",
+  write_local: "创建和修改文件",
+  exec: "执行 Shell 命令",
+  network: "访问网络",
+  write_remote: "操作已连接的服务",
 };
 
 function ConsentCard({
@@ -385,7 +390,7 @@ function ConsentCard({
   const [showTools, setShowTools] = useState(false);
   const [busy, setBusy] = useState(false);
   const phrases = (c.risk.length ? c.risk : ["read"]).map((r) => RISK_PHRASE[r] || r);
-  const summary = phrases.join(", ").replace(/, ([^,]*)$/, " and $1");
+  const summary = phrases.join("、");
   const recommends = c.recommends || [];
   return (
     <div className={CARD + " p-3.5"} data-testid={`consent-${c.id}`}>
@@ -394,6 +399,11 @@ function ConsentCard({
         {c.version && <span className="text-[11px] text-faint font-normal">v{c.version}</span>}
       </div>
       {c.description && <div className="text-[12px] text-muted mt-0.5">{c.description}</div>}
+      {!!c.import_notes?.length && (
+        <div className="text-[12px] text-warnInk mt-2 space-y-1" data-testid="import-notes">
+          {c.import_notes.map((note, i) => <p key={i}>{note}</p>)}
+        </div>
+      )}
       {c.replaces && (
         <div className="text-[12px] text-muted mt-1.5" data-testid="replaces-note">
           Replaces {c.name}
@@ -405,7 +415,7 @@ function ConsentCard({
         </div>
       )}
       <div className="text-[13px] text-ink mt-2">
-        Can {summary}
+        可{summary}
         {c.connectors === "all"
           ? " · use ALL your connected services"
           : c.connectors.length
@@ -418,7 +428,7 @@ function ConsentCard({
           data-testid="consent-tools-toggle"
           onClick={() => setShowTools((v) => !v)}
         >
-          {showTools ? "Hide tools" : `Exact tools (${c.tools.length})`}
+          {showTools ? "收起工具" : `查看工具（${c.tools.length}）`}
         </button>
       </div>
       {showTools && (
@@ -439,7 +449,7 @@ function ConsentCard({
             sent the user hunting back up the list. */}
         {enabled ? (
           <span className="text-[13px] text-muted" data-testid="consent-enabled">
-            ✓ Enabled — it's in your coworker picker.
+            ✓ 已启用，可在会话的协作助手列表中选择。
           </span>
         ) : (
           <button
@@ -451,10 +461,10 @@ function ConsentCard({
               void onEnable().finally(() => setBusy(false));
             }}
           >
-            {busy ? "Enabling…" : "Enable this coworker"}
+            {busy ? "启用中…" : "启用此协作助手"}
           </button>
         )}
-        <span className="text-[12px] text-faint">Recommended mode: {c.recommended_mode}.</span>
+        <span className="text-[12px] text-faint">建议模式：{c.recommended_mode === "interactive" ? "操作前询问" : c.recommended_mode}</span>
       </div>
     </div>
   );

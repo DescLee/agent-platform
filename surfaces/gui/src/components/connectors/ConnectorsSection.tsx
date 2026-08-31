@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import {
   disconnectConnector,
   getCloudStatus,
@@ -52,8 +52,9 @@ const DETAIL_PAGES: Record<string, (p: DetailProps) => JSX.Element> = {
   hunter: (p) => <AccountsDetail {...p} />,
 };
 
-export function ConnectorsSection() {
+export function ConnectorsSection({ onNavigate }: { onNavigate?: () => void } = {}) {
   const [detail, setDetail] = useState<string | null>(null);
+  useLayoutEffect(() => { onNavigate?.(); }, [detail, onNavigate]);
   const [connectors, setConnectors] = useState<Connector[]>([]);
   const [mcpServers, setMcpServers] = useState<McpServer[]>([]);
   const [cloud, setCloud] = useState<CloudStatus | null>(null);

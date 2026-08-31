@@ -339,6 +339,7 @@ class PersonaRegistry:
                 "ships": e.ships,
                 "group": e.group,
                 "version": e.manifest.version if e.manifest else "",
+                "quick_prompts": e.manifest.quick_prompts if e.manifest else [],
                 "installed_at": self._installed_meta.get(e.id, {}).get("installed_at", ""),
             }
             for e in self._entries.values()
@@ -400,10 +401,25 @@ class PersonaRegistry:
         NOTE: re-installing an updated persona overwrites the snapshot; live sessions on it simply
         resume with the new prompt/tools. We accept that for now (see PERSONAS.md)."""
         from .loading import consent_summary
+        from .workbuddy import PLUGIN_FILE, convert
+        import tempfile
 
         d = Path(directory)
         if not d.is_dir():
             raise FileNotFoundError(f"not a directory: {d}")
+        if (d / PLUGIN_FILE).exists():
+            with tempfile.TemporaryDirectory(prefix="ocw-workbuddy-") as tmp:
+                converted = Path(tmp)
+                convert(d, converted)
+                summaries = self.install_from_dir(converted)
+                for summary in summaries:
+                    source = str(d / PLUGIN_FILE)
+                    summary["source"] = source
+                    self._installed_meta[summary["id"]]["source"] = source
+                self.save()
+                return summaries
+        if (d / "expert_center.json").exists() or (d / "experts" / "expert_center.json").exists():
+            raise ValueError("这是专家合集，请选择具体 experts/专家名 目录，或输入 GitHub 对应目录链接")
         mds = sorted(d.glob("*.md"))
         if not mds:
             raise FileNotFoundError(f"no persona manifests (*.md) in {d}")
@@ -411,6 +427,8 @@ class PersonaRegistry:
         summaries: list[dict] = []
         for md in mds:
             m = load_manifest_file(md, builtin=False)  # validate before snapshotting
+            if m.id in self._entries and self._entries[m.id].builtin:
+                raise ValueError(f"不能覆盖内置协作助手：{m.id}")
             replaces = self._replaces_of(m)
             snapshot = self._snapshot(md, m.id)
             installed = load_manifest_file(snapshot, builtin=False) if snapshot else m
@@ -480,6 +498,11 @@ class PersonaRegistry:
                     for p in sorted(skills_dir.rglob("*")):
                         if p.is_file():
                             zf.write(p, str(Path("skills") / p.relative_to(skills_dir)))
+                attribution = src_md.parent / "attribution"
+                if attribution.is_dir():
+                    for p in sorted(attribution.rglob("*")):
+                        if p.is_file():
+                            zf.write(p, str(Path("attribution") / p.relative_to(attribution)))
         except OSError as e:
             return {"ok": False, "error": f"could not write the archive: {e}"}
         return {"ok": True, "path": str(zip_path)}
@@ -491,15 +514,19 @@ class PersonaRegistry:
         import io
         import tempfile
         import zipfile
+        import stat
+        from .workbuddy import PLUGIN_FILE, MAX_BYTES, MAX_FILES
 
         with tempfile.TemporaryDirectory(prefix="ocw-persona-zip-") as tmp:
             root = Path(tmp)
             try:
                 with zipfile.ZipFile(io.BytesIO(data)) as zf:
+                    if len(zf.infolist()) > MAX_FILES or sum(i.file_size for i in zf.infolist()) > MAX_BYTES:
+                        raise ValueError("压缩包过大（最多 5000 个文件、50 MB）")
                     for info in zf.infolist():
                         name = info.filename
                         target = (root / name).resolve()
-                        if not str(target).startswith(str(root.resolve())):
+                        if "\\" in name or ":" in name or not target.is_relative_to(root.resolve()) or stat.S_ISLNK(info.external_attr >> 16):
                             raise FileNotFoundError(f"unsafe path in archive: {name}")
                     zf.extractall(root)
             except zipfile.BadZipFile as e:
@@ -507,6 +534,10 @@ class PersonaRegistry:
             # Accept both layouts: files at the root, or a single wrapping folder
             # (how macOS zips a directory).
             candidates = [root, *[p for p in root.iterdir() if p.is_dir()]]
+            # Prefer an explicit expert bundle over a wrapping directory's README.
+            for d in candidates:
+                if (d / PLUGIN_FILE).is_file():
+                    return self.install_from_dir(d)
             for d in candidates:
                 if list(d.glob("*.md")) or (d / "manifest.md").is_file():
                     return self.install_from_dir(d)
@@ -526,8 +557,14 @@ class PersonaRegistry:
         # Bundle shape (OPE-58 / sharing v1): a `skills/` dir next to the manifest travels
         # with the snapshot, so a persona's skills stay stable independent of the source.
         src_skills = md.parent / "skills"
+        # Replace rather than merge: removed skills must not survive an update.
+        if (dest_dir / "skills").is_dir():
+            shutil.rmtree(dest_dir / "skills")
         if src_skills.is_dir():
             shutil.copytree(src_skills, dest_dir / "skills", dirs_exist_ok=True)
+        attribution = md.parent / "attribution"
+        if attribution.is_dir():
+            shutil.copytree(attribution, dest_dir / "attribution", dirs_exist_ok=True)
         return dest
 
     def install_from_git(
@@ -535,6 +572,8 @@ class PersonaRegistry:
     ) -> list[dict]:
         """Clone a persona repo and install its personas (disabled pending consent)."""
         from .loading import clone_persona_repo, git_clone
+        from .loading import cache_dir_for
+        from .workbuddy import github_source, checked_path
 
         base = (
             Path(cache_base)
@@ -544,8 +583,23 @@ class PersonaRegistry:
                 / "persona-cache"
             )
         )
-        dest = clone_persona_repo(url, base, clone=clone or git_clone)
-        return self.install_from_dir(dest)
+        repo_url, ref, subdir = github_source(url)
+        if subdir is not None:
+            dest = cache_dir_for(repo_url + "#" + ref, base)
+            if not dest.is_dir():
+                if clone:
+                    clone(repo_url, dest)
+                else:
+                    git_clone(repo_url, dest, ref=ref)
+            summaries = self.install_from_dir(checked_path(dest, subdir))
+        else:
+            dest = clone_persona_repo(url, base, clone=clone or git_clone)
+            summaries = self.install_from_dir(dest)
+        for summary in summaries:
+            summary["source"] = url
+            self._installed_meta[summary["id"]]["source"] = url
+        self.save()
+        return summaries
 
 
 # -- module singleton (used by agents.get_agent / list_agents) ------------------

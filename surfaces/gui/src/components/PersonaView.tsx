@@ -17,7 +17,6 @@ import {
   getPersonaDetail,
   getPersonaMediaUrl,
   setPersonaConnection,
-  setPersonaEnabled,
   updatePersona,
   type PersonaDetail,
 } from "../api";
@@ -26,7 +25,6 @@ import { ConnectorBadge } from "../connectors/ConnectorIcon";
 import { fullPersonaName } from "../personaScope";
 import { Icon } from "./Icon";
 import { Markdown } from "./Markdown";
-import { Toggle } from "./Toggle";
 import { indexConnectors, labelFor, visualFor, type ConnectorMap } from "../connectors/visuals";
 
 const SEC_H = "text-[11px] uppercase tracking-[0.05em] text-faint font-semibold";
@@ -85,12 +83,6 @@ export function PersonaView({
     };
   }, [personaId]);
 
-  const toggleEnabled = async (next: boolean) => {
-    setDetail((d) => (d ? { ...d, enabled: next } : d)); // optimistic
-    const r = await setPersonaEnabled(personaId, next);
-    if (!r.ok) getPersonaDetail(personaId).then(setDetail).catch(() => {});
-  };
-
   const toggleDefault = async (connector: string, next: boolean) => {
     const r = await setPersonaConnection(personaId, connector, next);
     if (r.default_connections) {
@@ -122,10 +114,8 @@ export function PersonaView({
           >
             <Icon name="arrowLeft" size={15} /> 返回
           </button>
-          <span className="text-faint">·</span>
         </>
       )}
-      <span className="text-[13px] font-semibold">Coworker</span>
     </div>
   );
 
@@ -184,10 +174,6 @@ export function PersonaView({
                 {fullPersonaName(detail.name, personaId)}
               </h1>
               <p className="text-[13px] text-muted mt-0.5">{detail.tagline}</p>
-            </div>
-            <div className="ml-auto flex items-center gap-2">
-              <span className="text-[12px] text-muted">{detail.enabled ? "已启用" : "未启用"}</span>
-              <Toggle checked={detail.enabled} onChange={toggleEnabled} title="启用此专家" />
             </div>
           </header>
 
@@ -365,16 +351,6 @@ export function PersonaView({
 
           {/* management — the controls that left the list page (UX-035) */}
           <section className="border-t border-line pt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px]">
-            <label className="flex items-center gap-2 text-muted select-none">
-              <input
-                type="checkbox"
-                checked={detail.surfaced}
-                disabled={!detail.enabled}
-                data-testid="persona-surfaced"
-                onChange={(e) => patch({ surfaced: e.target.checked })}
-              />
-              在选择器中显示
-            </label>
             <button
               className={BTN_BORDERED}
               disabled={detail.default || !detail.enabled}

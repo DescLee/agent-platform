@@ -288,7 +288,6 @@ export function App() {
   const [personaViewId, setPersonaViewId] = useState<string>("");
   const [personaModalOpen, setPersonaModalOpen] = useState(false);
   const [summonedAvatar, setSummonedAvatar] = useState<string | null>(null);
-  useEffect(() => { const p = personas.find((x) => x.id === agent); setSummonedAvatar(null); if (p?.avatar) getPersonaAvatarUrl(agent, p.avatar).then(setSummonedAvatar).catch(() => {}); }, [agent, personas]);
   useEffect(() => {
     const handler = (e: Event) => { const id = (e as CustomEvent<string>).detail; if (id) { setAgent(id); setSurface("session"); } };
     window.addEventListener("ocw-summon-persona", handler);
@@ -410,6 +409,7 @@ export function App() {
   // Persona metadata drives workspace behavior by FAMILY, not by hardcoded id (so a DevOps/SecOps
   // code-family persona gates a folder like Code, and a knowledge persona starts orphan like Cowork).
   const [personas, setPersonas] = useState<Persona[] | null>(null);
+  useEffect(() => { const p = personas?.find((x) => x.id === agent); setSummonedAvatar(null); if (p?.avatar) getPersonaAvatarUrl(agent, p.avatar).then(setSummonedAvatar).catch(() => {}); }, [agent, personas]);
   const loadPersonas = useCallback(() => {
     getPersonas().then(setPersonas).catch(() => {});
   }, []);

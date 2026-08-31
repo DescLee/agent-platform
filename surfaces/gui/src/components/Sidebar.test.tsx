@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { Sidebar } from "./Sidebar";
 import type { SessionInfo } from "../types";
 
@@ -53,6 +53,8 @@ const baseProps = {
   onTogglePin: vi.fn(),
   onManage: vi.fn(),
   onOpenPersona: vi.fn(),
+  onOpenCoworkers: vi.fn(),
+  coworkersActive: false,
   onOpenScheduled: vi.fn(),
   onOpenAutomation: vi.fn(),
   onOpenIntegrations: vi.fn(),
@@ -84,7 +86,7 @@ describe("Sidebar group/filter control", () => {
 
     // Open the popover and choose "Group by → Coworker".
     fireEvent.click(control);
-    fireEvent.click(await screen.findByText("协作助手"));
+    fireEvent.click(within(screen.getByTestId("group-filter-menu")).getByText("专家"));
 
     // POSTs the new layout pref.
     await waitFor(() => {

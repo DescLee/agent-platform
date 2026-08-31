@@ -66,6 +66,7 @@ const mergeAttachments = (cur: Attachment[], add: Attachment[]): Attachment[] =>
 };
 
 interface Props {
+  expertSlot?: ReactNode;
   mode: string;
   model: string;
   models?: string[];
@@ -664,6 +665,8 @@ export function Composer(props: Props) {
               e.target.value = "";
             }}
           />
+
+          {props.expertSlot}
 
           {/* Listening replaces the quiet middle controls with a LIVE waveform (mic RMS,
               polled ~10Hz, scrolling left) + elapsed time (§37). */}

@@ -30,17 +30,16 @@ def test_builtins_present(tmp_path):
 
 
 def test_release_lineup(tmp_path, monkeypatch):
-    # A release build (no flag) offers exactly OpenWorker + the security coworkers;
+    # A release build offers OpenWorker; retired Security experts stay unlisted.
     # Code is listed in Settings but disabled + unsurfaced (the recovery path).
     monkeypatch.delenv("OPENWORKER_UNSHIPPED", raising=False)
     reg = _reg(tmp_path)
     assert [e["name"] for e in reg.sidebar()] == [
-        "cowork", "cloud-posture", "dep-audit", "security",
+        "cowork",
     ]
     listed = {p["id"]: p for p in reg.list_all()}
-    assert set(listed) == {"cowork", "code", "cloud-posture", "dep-audit", "security"}
+    assert set(listed) == {"cowork", "code"}
     assert listed["code"]["enabled"] is False and listed["code"]["surfaced"] is False
-    assert listed["cloud-posture"]["group"] == "security"
     assert listed["cowork"]["group"] == "general"
     # Enabling Code from Settings puts it in the picker (enable implies surface).
     reg.set_enabled("code", True)
@@ -68,7 +67,7 @@ def test_sidebar_defaults_to_surfaced_builtins(tmp_path, internal):
     # Leads surface (the user's entry to a team — "the team IS the lead"); team
     # workers never do.
     assert set(ids) == {
-        "cowork", "ops", "security", "cloud-posture", "dep-audit",
+        "cowork", "ops",
         "swe-lead", "devsecops-lead", "devops-lead", "triage-lead",
     }
     assert not any(
@@ -157,3 +156,17 @@ def test_set_unknown_persona_raises(tmp_path):
     reg = _reg(tmp_path)
     with pytest.raises(KeyError):
         reg.set_enabled("ghost", False)
+
+
+def test_retired_security_experts_stay_unlisted_with_saved_state(tmp_path, internal):
+    reg = _reg(tmp_path)
+    for pid in ("security", "cloud-posture", "dep-audit"):
+        reg.set_enabled(pid, True)
+        reg.set_surfaced(pid, True)
+    reg.set_default("security")
+    reloaded = _reg(tmp_path)
+    assert not any(p["group"] == "security" for p in reloaded.list_all())
+    assert not {"security", "cloud-posture", "dep-audit"} & {p["name"] for p in reloaded.sidebar()}
+    assert reloaded.default_id() == "cowork"
+    # Retirement must not silently change capabilities in existing conversations.
+    assert reloaded.agent("security").name == "security"

@@ -608,6 +608,27 @@ def create_app(manager: SessionManager) -> FastAPI:
             return Response(status_code=404)
         return FileResponse(f)
 
+    @app.get("/v1/personas/{persona_id}/avatar/{name}")
+    def persona_avatar(persona_id: str, name: str) -> Any:
+        from fastapi.responses import FileResponse, Response
+
+        entry = manager.personas.get(persona_id)
+        avatar_dir = None
+        if entry and entry.manifest and entry.manifest.source:
+            candidate = Path(entry.manifest.source).parent / "avatars"
+            if candidate.is_dir():
+                avatar_dir = candidate
+        if avatar_dir is None or "/" in name or "\\" in name or name.startswith("."):
+            return Response(status_code=404)
+        f = (avatar_dir / name).resolve()
+        try:
+            inside = f.is_relative_to(avatar_dir.resolve())
+        except AttributeError:  # pragma: no cover
+            inside = str(f).startswith(str(avatar_dir.resolve()))
+        if not inside or not f.is_file():
+            return Response(status_code=404)
+        return FileResponse(f)
+
     @app.post("/v1/personas/{persona_id}/enable")
     def persona_enable(persona_id: str, body: dict) -> dict[str, Any]:
         # Dedicated §5/§8 route; delegates to the same manager toggle as POST /v1/personas/{id}

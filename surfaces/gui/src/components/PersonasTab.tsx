@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   getPersonasIndex,
   getSessions,
+  getPersonaAvatarUrl,
   installPersona,
   updatePersona,
   type Persona,
@@ -11,8 +12,9 @@ import { chooseFolder } from "../tauri";
 import type { SessionInfo } from "../types";
 import { Icon } from "./Icon";
 import { Toggle } from "./Toggle";
+import { PersonaGlyph } from "./personaIcon";
 
-// Personas management (UX-035): grouped General/Security lists with ONE toggle per row
+// Expert management: one toggle per row; retired Security entries are excluded.
 // (enable implies picker); in-picker nuance, set-default, export and delete live on the
 // per-coworker detail page. Unshipped coworkers (ships:false) and the installer are quiet
 // text disclosures at the bottom; Folder/Zip install through native pickers.
@@ -41,6 +43,7 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
   // arm an inline confirm (same two-step idiom as delete) instead of flipping immediately.
   const [confirmOff, setConfirmOff] = useState<string | null>(null);
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
+  const [avatars, setAvatars] = useState<Record<string, string>>({});
   // The picker's "Import coworker…" door lands here and asks us to put the Add section
   // front and center (sharing v1).
   const addRef = useRef<HTMLDivElement | null>(null);
@@ -68,6 +71,20 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
     reload();
     reloadSessions();
   }, []);
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      const entries = await Promise.all(
+        personas.filter((p) => p.avatar).map(async (p) => {
+          try { return [p.id, await getPersonaAvatarUrl(p.id, p.avatar!)] as const; }
+          catch { return null; }
+        }),
+      );
+      if (!cancelled) setAvatars(Object.fromEntries(entries.filter(Boolean) as [string, string][]));
+    };
+    if (personas.length) void load();
+    return () => { cancelled = true; };
+  }, [personas]);
 
   // Real conversations the disable would archive (unarchived; run sessions are server-hidden).
   const liveCount = (id: string) =>
@@ -96,7 +113,7 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
     }
     setConsent(r.consent || []);
     if (r.personas) setPersonas(r.personas);
-    setMsg(`已导入 ${(r.consent || []).length} 个协作助手，请在下方检查能力并启用。`);
+    setMsg(`已导入 ${(r.consent || []).length} 个专家，请在下方检查能力并启用。`);
     setSrc("");
   };
 
@@ -145,7 +162,8 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
     }
   };
 
-  const unshipped = personas.filter((p) => p.ships === false);
+  const available = personas.filter((p) => p.group !== "security");
+  const unshipped = available.filter((p) => p.ships === false);
 
   const group = (title: string | null, list: Persona[]) => {
     if (list.length === 0) return null;
@@ -154,24 +172,31 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
         {title && (
           <div className="text-[12px] font-semibold text-muted px-4 mb-1.5">{title}</div>
         )}
-        <div className={CARD + " divide-y divide-line"}>
+        <div className="expert-grid" data-testid="expert-grid">
           {list.map((p) => (
-            <div key={p.id} className="px-[18px] py-4">
-              <div className="flex items-center gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="text-[14px] font-medium truncate">{p.name}</div>
-                  <div className="text-[12px] text-faint truncate mt-0.5">{p.tagline}</div>
+            <article key={p.id} className={CARD + " expert-card"} data-testid={`expert-card-${p.id}`}>
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-full bg-accentSoft text-accent flex items-center justify-center shrink-0 overflow-hidden" aria-hidden="true">
+                  {avatars[p.id] ? (
+                    <img src={avatars[p.id]} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <PersonaGlyph icon={p.icon} folderScoped={p.requires_folder} size={22} />
+                  )}
                 </div>
+                <div className="min-w-0 flex-1 pt-1">
+                  <h3 className="text-[16px] font-semibold leading-snug truncate" title={p.name}>{p.name}</h3>
+                </div>
+                <div className="expert-card-actions">
                 {p.default ? (
                   /* The default coworker cannot be disabled or hidden — no toggle, no
                      configure; a quiet tag says why (owner 2026-08-21). It regains its
                      controls the moment another coworker is made default. */
                   <span
                     className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-paper border border-lineStrong text-muted shrink-0"
-                    title="Default for new sessions"
+                    title="新会话的默认专家"
                     data-testid="persona-default-tag"
                   >
-                    Default
+                    默认
                   </span>
                 ) : (
                   <>
@@ -180,7 +205,7 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
                       onChange={(next) =>
                         next ? toggle(p.id, { enabled: true }) : requestDisable(p)
                       }
-                      title={p.enabled ? "Disable this coworker" : "Enable this coworker"}
+                      title={p.enabled ? "停用专家" : "启用专家"}
                     />
                     {onOpenPersona && (
                       <button
@@ -195,16 +220,29 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
                     )}
                   </>
                 )}
+                </div>
+              </div>
+              <p className="text-[13px] text-muted leading-[22px] line-clamp-2 break-words mt-3 mb-3" title={p.tagline}>
+                {p.tagline || "暂无介绍，可在配置中查看此专家的能力。"}
+              </p>
+              <div className="mt-auto flex items-center gap-2 text-[12px]">
+                <span className="rounded-md bg-paper px-2.5 py-1 text-muted">
+                  {p.requires_folder ? "项目任务" : "通用任务"}
+                </span>
+                <span className="rounded-md bg-paper px-2.5 py-1 text-muted">
+                  {p.builtin ? "内置专家" : "导入专家"}
+                </span>
+                <span className="rounded-md bg-paper px-2.5 py-1 text-muted">
+                  {p.default ? "默认专家" : p.enabled ? "已启用" : "未启用"}
+                </span>
               </div>
               {confirmOff === p.id && (
                 <div
-                  className="mt-2 flex items-center gap-2.5 text-[12px] text-muted"
+                  className="mt-4 pt-4 border-t border-line flex flex-wrap items-center gap-2.5 text-[12px] text-muted"
                   data-testid={`persona-disable-warning-${p.id}`}
                 >
                   <span className="min-w-0">
-                    Disabling archives its {liveCount(p.id)} conversation
-                    {liveCount(p.id) === 1 ? "" : "s"} — they stay available under “Show
-                    archived”.
+                    停用后将归档该专家的 {liveCount(p.id)} 个会话，仍可在“已归档”中查看。
                   </span>
                   <button
                     className="text-[12px] px-2.5 py-1.5 rounded-lg bg-accent text-white shrink-0"
@@ -214,14 +252,14 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
                       toggle(p.id, { enabled: false });
                     }}
                   >
-                    Disable
+                    停用
                   </button>
                   <button className={BTN_BORDERED} onClick={() => setConfirmOff(null)}>
-                    Keep enabled
+                    保持启用
                   </button>
                 </div>
               )}
-            </div>
+            </article>
           ))}
         </div>
       </div>
@@ -232,8 +270,7 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
     <div>
       {/* One toggle per row (enable implies picker); ★ marks the default. Everything
           else — in-picker nuance, default, export, delete — lives on the detail page. */}
-      {group("General", personas.filter((p) => p.ships !== false && p.group !== "security"))}
-      {group("Security", personas.filter((p) => p.ships !== false && p.group === "security"))}
+      {group(null, available.filter((p) => p.ships !== false))}
 
       {unshipped.length > 0 && (
         <>
@@ -247,7 +284,7 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
               size={12}
               className={"transition-transform" + (showUnshipped ? " rotate-90" : "")}
             />
-            <span>Not in this release · {unshipped.length} coworkers</span>
+            <span>暂未正式发布 · {unshipped.length} 位专家</span>
             <span className="ml-auto text-faint text-[12px]">
               {internal ? "internal build" : "not in this release"}
             </span>
@@ -267,7 +304,7 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
           size={12}
           className={"transition-transform" + (showInstall ? " rotate-90" : "")}
         />
-        <span>导入协作助手</span>
+        <span>导入专家</span>
         <span className="ml-auto text-faint text-[12px]">GitHub · 文件夹 · ZIP · WorkBuddy 专家</span>
       </button>
       {showInstall && (
@@ -330,7 +367,7 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
           <div className="flex items-start gap-2 mt-3 text-[12px] text-muted leading-relaxed">
             <span className="text-warnInk shrink-0">⚠</span>
             <span>
-              支持原生协作助手及 WorkBuddy 单专家包。GitHub 链接请指向具体专家目录；
+              支持原生专家及 WorkBuddy 单专家包。GitHub 链接请指向具体专家目录；
               暂不支持团队包和 Hooks。只导入可信且有权使用的内容，导入时不会执行脚本。
               第三方技能的依赖不会自动安装，执行操作仍受应用审批控制。
             </span>
@@ -449,7 +486,7 @@ function ConsentCard({
             sent the user hunting back up the list. */}
         {enabled ? (
           <span className="text-[13px] text-muted" data-testid="consent-enabled">
-            ✓ 已启用，可在会话的协作助手列表中选择。
+            ✓ 已启用，可在会话的专家列表中选择。
           </span>
         ) : (
           <button
@@ -461,7 +498,7 @@ function ConsentCard({
               void onEnable().finally(() => setBusy(false));
             }}
           >
-            {busy ? "启用中…" : "启用此协作助手"}
+            {busy ? "启用中…" : "启用此专家"}
           </button>
         )}
         <span className="text-[12px] text-faint">建议模式：{c.recommended_mode === "interactive" ? "操作前询问" : c.recommended_mode}</span>

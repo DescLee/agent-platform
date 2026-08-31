@@ -163,6 +163,11 @@ def convert(root: Path, dest: Path) -> str:
             shutil.copy2(p, attribution / p.name)
         elif p.is_dir():
             shutil.copytree(p, attribution / p.name)
+    # Preserve the optional avatar bundle alongside the converted manifest. The UI
+    # serves the first image in this directory as the expert's profile avatar.
+    avatars = root / "avatars"
+    if avatars.is_dir():
+        shutil.copytree(avatars, dest / "avatars", dirs_exist_ok=True)
     return manifest["id"]
 
 

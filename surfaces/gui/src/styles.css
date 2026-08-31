@@ -2061,3 +2061,45 @@ html[data-platform="linux"] ::-webkit-scrollbar-thumb:hover { background-color: 
   font-family: var(--mono); font-size: var(--fs-mono); line-height: 1.5;
   color: var(--muted); white-space: pre-wrap; text-align: left;
 }
+
+/* Expert cards: 260px minimum, 16px gutters, at most four columns.
+   The page scrolls horizontally if even one card cannot fit the window. */
+.experts-content {
+  width: 100%;
+  min-width: 316px;
+  max-width: 2208px;
+}
+.expert-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(max(260px, calc((100% - 48px) / 4)), 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+.expert-card {
+  border: 1px solid var(--line);
+  min-width: 260px;
+  position: relative;
+  min-height: 140px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 24px;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+.expert-card:hover {
+  border-color: var(--line-strong);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 4%);
+}
+
+.expert-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.expert-card:hover .expert-card-actions,
+.expert-card:focus-within .expert-card-actions { opacity: 1; }
+@media (hover: none) {
+  .expert-card-actions { opacity: 1; }
+}

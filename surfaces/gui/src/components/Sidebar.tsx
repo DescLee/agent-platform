@@ -30,7 +30,7 @@ import { baseName } from "../paths";
 // Session surfaces shown as accordions, in display order. The surfaced personas drive this list
 // (so third-party / Ops personas appear); the hardcoded set is the fallback before personas load.
 const SURFACES: { key: string; label: string; icon: IconName; cls: string }[] = [
-  { key: "cowork", label: "协作助手", icon: "diamond", cls: "ico-cowork" },
+  { key: "cowork", label: "专家", icon: "diamond", cls: "ico-cowork" },
   { key: "chat", label: "对话助手", icon: "chat", cls: "ico-chat" },
   { key: "code", label: "编程助手", icon: "code", cls: "ico-code" },
 ];
@@ -132,12 +132,14 @@ interface Props {
   // Grouped-nav gear entry point (§7). "Manage coworkers…" moved to the composer's
   // setup-row picker (UX-029).
   onOpenPersona: (id: string) => void;
+  onOpenCoworkers: () => void;
   onOpenScheduled: () => void;
   // Scheduled-band row click: open the Automations surface ON that automation (UX-023).
   onOpenAutomation: (id: string) => void;
   onOpenIntegrations: () => void;
   onOpenAudit: () => void;
   onOpenInbox: () => void;
+  coworkersActive: boolean;
   scheduledActive: boolean;
   integrationsActive: boolean;
   auditActive: boolean;
@@ -752,7 +754,7 @@ export function Sidebar(props: Props) {
             <div className="px-2 pt-1 pb-1 text-[11px] uppercase tracking-[0.06em] text-faint font-semibold">
               分组方式
             </div>
-            {([["grouped", "协作助手"], ["flat", "按时间"]] as ["flat" | "grouped", string][]).map(
+            {([["grouped", "专家"], ["flat", "按时间"]] as ["flat" | "grouped", string][]).map(
               ([key, label]) => (
                 <button
                   key={key}
@@ -769,7 +771,7 @@ export function Sidebar(props: Props) {
                 <div className="my-1 border-t border-line" />
                 <div className="px-2 pt-1 pb-1 flex items-center justify-between">
                   <span className="text-[11px] uppercase tracking-[0.06em] text-faint font-semibold">
-                    按协作助手筛选
+                    按专家筛选
                   </span>
                   {filterPersonas.size > 0 && (
                     <button className="text-[11px] text-accent" onClick={() => setFilterPersonas(new Set())}>
@@ -1035,12 +1037,11 @@ export function Sidebar(props: Props) {
       </div>
 
       {/* New session: a quiet nav row like its siblings (UX-040 — the filled accent block
-          shouted over the whole panel). The coworker pick lives in the composer's setup
-          row (UX-029); this starts the last-used persona. */}
+          shouted over the whole panel). The expert picker lives inside the composer; new sessions start with the default coworker. */}
       <div className="px-2.5 pt-2">
         <button
           className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] text-left font-medium text-ink hover:bg-chromeHover"
-          onClick={() => props.onNewSession(props.agent)}
+          onClick={() => props.onNewSession("cowork")}
         >
           <Icon name="plus" size={15} className="shrink-0" /> 新会话
         </button>
@@ -1054,6 +1055,19 @@ export function Sidebar(props: Props) {
           onClick={() => setSearchModalOpen(true)}
         >
           <Icon name="search" size={15} className="shrink-0" /> 搜索
+        </button>
+      </div>
+
+      <div className="px-2.5 mt-1">
+        <button
+          className={
+            "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] text-left hover:bg-chromeHover hover:text-ink " +
+            (props.coworkersActive ? "text-ink bg-chromeHover" : "text-muted")
+          }
+          data-testid="nav-coworkers"
+          onClick={props.onOpenCoworkers}
+        >
+          <Icon name="sparkle" size={15} className="shrink-0" /> 专家
         </button>
       </div>
 

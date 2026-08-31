@@ -44,7 +44,6 @@ import { ModelsTab } from "./ManageTabs";
 import { MemorySection } from "./MemorySection";
 import { PersonasTab } from "./PersonasTab";
 import { SkillsTab } from "./SkillsTab";
-import { showPersonas } from "../flags";
 
 // Settings, restructured (Option 2) into a full-page surface that mirrors IntegrationsView's shell:
 // a left sub-nav (Appearance · Files · Models · Personas) + centered panel, replacing the old
@@ -53,7 +52,7 @@ import { showPersonas } from "../flags";
 // Models + Personas host the existing tab components inside the page shell (field re-skin to follow).
 // "appearance" is the General tab's stable key — callers deep-link with it, so the
 // rename (UX-021) changed only the label. "files" folded into General as a card.
-type SetTab = "appearance" | "models" | "context" | "skills" | "voice" | "memory" | "personas";
+type SetTab = "appearance" | "models" | "context" | "skills" | "voice" | "memory";
 
 const CARD = "rounded-xl2 border border-line bg-panel";
 const FIELD_LABEL = "text-[13px] font-medium text-ink";
@@ -75,26 +74,19 @@ const SET_TABS: {
   { key: "skills", label: "技能", icon: "book" },
   { key: "voice", label: "语音输入", icon: "mic" },
   { key: "memory", label: "记忆", icon: "archive" },
-  { key: "personas", label: "协作助手", icon: "sparkle" },
 ];
 
 export function SettingsView({
   initialTab,
-  onOpenPersona,
   onCreateSkill,
 }: {
   initialTab?: SetTab;
-  onOpenPersona?: (id: string) => void;
   // Skills doorway (SKILLS-SPEC §5.2): start a new conversation with the description
   // prefilled — the worker builds the skill and proposes it via save_skill.
   onCreateSkill?: (description: string) => void;
 }) {
-  // Personas is flag-gated (hidden for launch) — filter the tab AND coerce a stale
-  // deep-link to it (openSettings("personas") callers) so the page never opens on a
-  // section with no nav entry.
-  const personas = showPersonas();
-  const tabs = personas ? SET_TABS : SET_TABS.filter((t) => t.key !== "personas");
-  const wanted = initialTab && (personas || initialTab !== "personas") ? initialTab : "appearance";
+  const tabs = SET_TABS;
+  const wanted = initialTab || "appearance";
   const [tab, setTab] = useState<SetTab>(wanted);
   const scrollRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -149,10 +141,8 @@ export function SettingsView({
             <SkillsTab onCreateSkill={onCreateSkill} />
           ) : tab === "voice" ? (
             <VoiceInputSection />
-          ) : tab === "memory" ? (
-            <MemorySection />
           ) : (
-            <PersonasSection onOpenPersona={onOpenPersona} />
+            <MemorySection />
           )}
         </div>
       </div>
@@ -383,13 +373,13 @@ function VoiceInputSection() {
 // The Gallery entry point is GONE (owner 2026-08-21) — coworkers install from
 // GitHub / folder / zip only. GalleryModal stays in the tree for the gallery's
 // possible return as a first-class distribution surface, but nothing mounts it.
-function PersonasSection({ onOpenPersona }: { onOpenPersona?: (id: string) => void }) {
+export function PersonasSection({ onOpenPersona }: { onOpenPersona?: (id: string) => void }) {
   return (
     <section>
-      <PanelHead title="协作助手" sub="管理现有协作助手或添加新的助手。" />
-      <p className="text-[13px] text-muted leading-relaxed max-w-[560px] mt-5 mb-1">
-        协作助手是针对特定角色或任务设计的智能体，自带完成该职责所需的工具和技能。
-        启用后，新建会话时即可选择对应助手。
+      <PanelHead title="专家" sub="管理和添加专家，为不同任务选择合适的专业能力。" />
+      <p className="text-[13px] text-muted leading-relaxed max-w-[900px] mt-5 mb-6">
+        每位专家都具备特定领域的知识、工具和技能，可协助你完成写作、分析、代码审查等任务。
+        启用后，可在输入框中选择专家；未选择时由默认 coworker 处理。
       </p>
       <PersonasTab onOpenPersona={onOpenPersona} />
     </section>
@@ -923,7 +913,7 @@ function SidebarCard() {
     <div className={CARD + " p-4 mb-4"}>
       <div className={FIELD_LABEL}>侧边栏</div>
       <label className="flex items-center gap-3 mt-2.5">
-        <span className="text-[13px] text-ink">每个协作助手显示的会话数</span>
+        <span className="text-[13px] text-ink">每个专家显示的会话数</span>
         <input
           type="number"
           min={1}
@@ -934,7 +924,7 @@ function SidebarCard() {
         />
       </label>
       <div className={FIELD_HELP}>
-        超出部分会收起到“显示更多”中，此设置分别应用于每个协作助手和项目。
+        超出部分会收起到“显示更多”中，此设置分别应用于每个专家和项目。
       </div>
     </div>
   );

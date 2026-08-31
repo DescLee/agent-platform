@@ -1068,6 +1068,7 @@ export interface Persona {
   id: string;
   name: string;
   icon: string;
+  avatar?: string | null;
   tagline: string;
   requires_folder: boolean; // folder gate — drives project-scoping
   builtin: boolean;
@@ -1104,14 +1105,14 @@ export interface PersonaConsent {
 
 export async function getPersonas(): Promise<Persona[]> {
   const res = await fetch(`${httpBase()}/v1/personas`);
-  return (await res.json()).personas;
+  return ((await res.json()).personas ?? []).filter((p: Persona) => p.group !== "security");
 }
 
 /** Personas plus the build flag: `internal` builds may show unshipped coworkers + the Gallery. */
 export async function getPersonasIndex(): Promise<{ personas: Persona[]; internal: boolean }> {
   const res = await fetch(`${httpBase()}/v1/personas`);
   const body = await res.json();
-  return { personas: body.personas ?? [], internal: !!body.internal };
+  return { personas: (body.personas ?? []).filter((p: Persona) => p.group !== "security"), internal: !!body.internal };
 }
 
 export async function updatePersona(
@@ -1262,6 +1263,14 @@ export async function getPersonaMediaUrl(id: string, name: string): Promise<stri
     `${httpBase()}/v1/personas/${encodeURIComponent(id)}/media/${encodeURIComponent(name)}`,
   );
   if (!res.ok) throw new Error(`media ${name}: ${res.status}`);
+  return URL.createObjectURL(await res.blob());
+}
+
+export async function getPersonaAvatarUrl(id: string, name: string): Promise<string> {
+  const res = await fetch(
+    `${httpBase()}/v1/personas/${encodeURIComponent(id)}/avatar/${encodeURIComponent(name)}`,
+  );
+  if (!res.ok) throw new Error(`avatar ${name}: ${res.status}`);
   return URL.createObjectURL(await res.blob());
 }
 

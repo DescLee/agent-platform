@@ -216,7 +216,22 @@ class PersonaRegistry:
             return
         for sub in sorted(self.installed_dir.iterdir()):
             if sub.is_dir():
+                self._restore_avatar_bundle(sub)
                 self._load_dir(sub, builtin=False)
+
+    def _restore_avatar_bundle(self, snapshot: Path) -> None:
+        """Backfill avatars for snapshots created before avatar preservation shipped."""
+        if (snapshot / "avatars").is_dir():
+            return
+        source = self._installed_meta.get(snapshot.name, {}).get("source")
+        if not source:
+            return
+        source_path = Path(source)
+        candidates = [source_path.parent / "avatars", source_path.parent.parent / "avatars"]
+        for avatars in candidates:
+            if avatars.is_dir():
+                shutil.copytree(avatars, snapshot / "avatars", dirs_exist_ok=True)
+                return
 
     def _load_state(self) -> None:
         if self.state_path and self.state_path.is_file():
@@ -245,6 +260,10 @@ class PersonaRegistry:
 
     # -- queries ----------------------------------------------------------------
     def _visible(self, e: PersonaEntry) -> bool:
+        # Retired from expert management and selection. Keep definitions available
+        # only so existing sessions can still resolve their original capabilities.
+        if e.group == "security":
+            return False
         # Unshipped personas surface only on internal builds — except one a user
         # already enabled (an internal-build choice must not vanish under them).
         return e.ships or include_unshipped() or self._enabled.get(e.id) is True
@@ -263,6 +282,20 @@ class PersonaRegistry:
             return None
         d = Path(entry.manifest.source).parent / "media"
         return d if d.is_dir() else None
+
+    def avatar_name(self, persona_id: str) -> Optional[str]:
+        """Return the first bundled avatar image, if this persona provides one."""
+        entry = self._entries.get(persona_id)
+        if entry is None or entry.manifest is None or not entry.manifest.source:
+            return None
+        d = Path(entry.manifest.source).parent / "avatars"
+        if not d.is_dir():
+            return None
+        files = sorted(
+            f.name for f in d.iterdir()
+            if f.is_file() and f.suffix.lower() in {".png", ".jpg", ".jpeg", ".gif", ".webp"}
+        )
+        return files[0] if files else None
 
     def is_enabled(self, persona_id: str) -> bool:
         # Explicit state (either way) always wins. Absent a user choice, the entry's
@@ -286,7 +319,11 @@ class PersonaRegistry:
 
     def default_id(self) -> str:
         # The configured default if it's enabled, else cowork if present, else any enabled one.
-        if self._default in self._entries and self.is_enabled(self._default):
+        if (
+            self._default in self._entries
+            and self._entries[self._default].group != "security"
+            and self.is_enabled(self._default)
+        ):
             return self._default
         if DEFAULT_PERSONA_ID in self._entries and self.is_enabled(DEFAULT_PERSONA_ID):
             return DEFAULT_PERSONA_ID
@@ -329,6 +366,7 @@ class PersonaRegistry:
                 "id": e.id,
                 "name": e.name,
                 "icon": e.icon,
+                "avatar": self.avatar_name(e.id),
                 "tagline": e.tagline,
                 "requires_folder": e.requires_folder,
                 "builtin": e.builtin,
@@ -562,6 +600,11 @@ class PersonaRegistry:
             shutil.rmtree(dest_dir / "skills")
         if src_skills.is_dir():
             shutil.copytree(src_skills, dest_dir / "skills", dirs_exist_ok=True)
+        src_avatars = md.parent / "avatars"
+        if (dest_dir / "avatars").is_dir():
+            shutil.rmtree(dest_dir / "avatars")
+        if src_avatars.is_dir():
+            shutil.copytree(src_avatars, dest_dir / "avatars", dirs_exist_ok=True)
         attribution = md.parent / "attribution"
         if attribution.is_dir():
             shutil.copytree(attribution, dest_dir / "attribution", dirs_exist_ok=True)

@@ -62,6 +62,7 @@ import { Markdown } from "./components/Markdown";
 import { SearchModal } from "./components/SearchModal";
 import { SessionIntro } from "./components/SessionIntro";
 import { FolderGate } from "./components/FolderGate";
+import { ExpertPicker } from "./components/ExpertPicker";
 import { SessionSetupRow } from "./components/SessionSetupRow";
 import { SendFolderDialog } from "./components/SendFolderDialog";
 import { Onboarding } from "./components/Onboarding";
@@ -69,7 +70,7 @@ import { UpdateBanner } from "./components/UpdateBanner";
 import { ScheduledView } from "./components/ScheduledView";
 import { RightRail } from "./components/RightRail";
 import { IntegrationsView } from "./components/IntegrationsView";
-import { SettingsView } from "./components/SettingsView";
+import { PersonasSection, SettingsView } from "./components/SettingsView";
 import { PersonaView } from "./components/PersonaView";
 import { AuditView } from "./components/AuditView";
 import { ApprovalCard } from "./components/ApprovalCard";
@@ -257,10 +258,10 @@ export function App() {
   const [gateCreate, setGateCreate] = useState(false);
   // Which Settings section the full-page Settings surface opens on (§ Settings-as-page).
   const [settingsTab, setSettingsTab] = useState<
-    "appearance" | "models" | "skills" | "voice" | "memory" | "personas"
+    "appearance" | "models" | "skills" | "voice" | "memory"
   >("appearance");
   const openSettings = (
-    tab: "appearance" | "models" | "skills" | "voice" | "memory" | "personas" = "appearance",
+    tab: "appearance" | "models" | "skills" | "voice" | "memory" = "appearance",
   ) => {
     setSettingsTab(tab);
     setSurface("settings");
@@ -274,7 +275,7 @@ export function App() {
   const homeModelSave = useRef<Promise<void>>(Promise.resolve());
   const [homeModelSaveError, setHomeModelSaveError] = useState(false);
   const [surface, setSurface] = useState<
-    "session" | "scheduled" | "integrations" | "audit" | "inbox" | "persona" | "settings"
+    "session" | "coworkers" | "scheduled" | "integrations" | "audit" | "inbox" | "persona" | "settings"
   >("session");
   // A remembered Scheduled-detail target must not outlive the surface (see the
   // scheduledOpenId comment above): nav re-entry lands on the list, never a
@@ -285,10 +286,9 @@ export function App() {
   // The persona whose detail page is showing (surface === "persona"); empty falls back to the
   // active session's persona. Phase 5 wires the grouped-nav gear + "Manage personas…" entry points.
   const [personaViewId, setPersonaViewId] = useState<string>("");
-  // Where the persona page returns on "back": the active session, or Settings ▸ Personas when it
-  // was opened from there (persona config now lives in Settings).
-  const [personaViewReturn, setPersonaViewReturn] = useState<"session" | "settings">("session");
-  const openPersona = (id: string, from: "session" | "settings" = "session") => {
+  // Persona details return to the session or the standalone coworker management page.
+  const [personaViewReturn, setPersonaViewReturn] = useState<"session" | "coworkers">("session");
+  const openPersona = (id: string, from: "session" | "coworkers" = "session") => {
     setPersonaViewReturn(from);
     setPersonaViewId(id);
     setSurface("persona");
@@ -1228,7 +1228,7 @@ export function App() {
     // The next engine reads the persisted default; wait if the user immediately
     // clicks New session after choosing a model.
     await homeModelSave.current;
-    const target = forAgent || agent;
+    const target = forAgent || "cowork";
     setSurface("session"); // return to the conversation view if we were on a sub-view
     setItems([]);
     setUsage(emptyUsage());
@@ -1263,6 +1263,8 @@ export function App() {
   // switchAgent this never resumes that coworker's last conversation — the user is
   // composing a new one. A fresh id keeps knowledge families' per-conversation scratch
   // dirs clean and re-triggers the connection effect.
+  const [draftIdentity, setDraftIdentity] = useState<{ sessionId: string; key: string } | null>(null);
+  const composerResetKey = draftIdentity?.sessionId === sessionId ? draftIdentity.key : sessionId;
   const pickCoworker = async (id: string) => {
     if (id === agent) return;
     await homeModelSave.current;
@@ -1276,7 +1278,9 @@ export function App() {
     }
     setTempWorkspace(false);
     setShowGate(false);
-    setSessionId(newId());
+    const nextSessionId = newId();
+    setDraftIdentity({ sessionId: nextSessionId, key: composerResetKey });
+    setSessionId(nextSessionId);
   };
   // UX-029: the setup row's folder chip — bind the draft to a folder before the first
   // message. A fresh id re-triggers the connection effect with the folder attached.
@@ -1501,7 +1505,7 @@ export function App() {
   // fresh session with no folder yet, and open the gate in create mode — so the gate's
   // surface==="session" && gatesWorkspace(agent) guard passes even if the active session was Chat/Cowork.
   const newProject = (forAgent?: string) => {
-    const target = forAgent || agent;
+    const target = forAgent || "cowork";
     setSurface("session");
     setItems([]);
     setUsage(emptyUsage());
@@ -1731,8 +1735,8 @@ export function App() {
             getHealth().then((h) => setModel(h.model)).catch(() => {});
             loadSettings(); // pick up a model connected during setup (clears the composer chip)
             if (next === "gallery") {
-              // The specialists tip: land on Settings ▸ Personas, where the Gallery link lives.
-              openSettings("personas");
+              // The specialists tip opens coworker management.
+              setSurface("coworkers");
             } else if (next === "automations") {
               // "Create your first automation" (§29) lands on the Automations quickstart.
               setSurface("scheduled");
@@ -1766,6 +1770,7 @@ export function App() {
         onOpenPersona={(id) => {
           openPersona(id, "session");
         }}
+        onOpenCoworkers={() => setSurface("coworkers")}
         onOpenScheduled={() => setSurface("scheduled")}
         onOpenAutomation={(id) => {
           setScheduledOpenId(id);
@@ -1774,6 +1779,7 @@ export function App() {
         onOpenIntegrations={() => setSurface("integrations")}
         onOpenAudit={() => setSurface("audit")}
         onOpenInbox={() => setSurface("inbox")}
+        coworkersActive={surface === "coworkers" || (surface === "persona" && personaViewReturn === "coworkers")}
         scheduledActive={surface === "scheduled"}
         integrationsActive={surface === "integrations"}
         auditActive={surface === "audit"}
@@ -1782,7 +1788,13 @@ export function App() {
         onCollapse={toggleNav}
         onPeekLeave={() => setNavPeek(false)}
       />
-      {surface === "scheduled" ? (
+      {surface === "coworkers" ? (
+        <main className="flex-1 min-w-0 min-h-0 overflow-auto bg-paper hairline-scroll">
+          <div className="experts-content mx-auto px-7 py-6">
+            <PersonasSection onOpenPersona={(id) => openPersona(id, "coworkers")} />
+          </div>
+        </main>
+      ) : surface === "scheduled" ? (
         <ScheduledView
           onOpenRun={openRunSession}
           onRunNow={runTaskNow}
@@ -1794,7 +1806,6 @@ export function App() {
         <SettingsView
           key={settingsTab}
           initialTab={settingsTab}
-          onOpenPersona={(id) => openPersona(id, "settings")}
           onCreateSkill={async (description) => {
             // The Skills doorway (SKILLS-SPEC §5.2): creation is a conversation. Fresh
             // session, description in the composer — the user reads and hits send. With
@@ -1813,7 +1824,7 @@ export function App() {
         <PersonaView
           personaId={personaViewId || agent}
           onBack={() =>
-            personaViewReturn === "settings" ? openSettings("personas") : setSurface("session")
+            setSurface(personaViewReturn)
           }
           onOpenIntegrations={() => setSurface("integrations")}
         />
@@ -2048,27 +2059,13 @@ export function App() {
               </div>
             )}
 
-            {/* UX-029: per-session setup (coworker + folder) lives in its own quiet row
-                above the composer — never inside the per-message control row. One-time
-                pick: the whole row leaves after the first message; its facts move to the
-                session header. */}
+            {/* Draft folder selection remains above the composer. */}
             {idle && !sessionId.startsWith("__run__") && (
               <SessionSetupRow
-                personas={personas}
-                agent={agent}
                 showFolder
                 folderName={workspace && !tempWorkspace ? baseName(workspace) : null}
-                onPickCoworker={pickCoworker}
                 onPickFolder={pickDraftFolder}
-                onManage={() => openSettings("personas")}
-                onImport={() => {
-                  openSettings("personas");
-                  // Give the Settings page a beat to mount, then spotlight the Add section.
-                  window.setTimeout(
-                    () => window.dispatchEvent(new CustomEvent("ocw-focus-import")),
-                    250,
-                  );
-                }}
+
               />
             )}
             {/* A scheduled agent must never read as a dead one: while a self-wake is
@@ -2105,6 +2102,22 @@ export function App() {
               </p>
             )}
             <Composer
+              expertSlot={idle && !sessionId.startsWith("__run__") ? (
+                <ExpertPicker
+                  personas={personas}
+                  agent={agent}
+                  onPickCoworker={pickCoworker}
+                  onManage={() => setSurface("coworkers")}
+                  onImport={() => {
+                    setSurface("coworkers");
+                    // Let coworker management mount, then spotlight the Add section.
+                    window.setTimeout(
+                      () => window.dispatchEvent(new CustomEvent("ocw-focus-import")),
+                      250,
+                    );
+                  }}
+                />
+              ) : undefined}
               mode={mode}
               model={model}
               models={models}
@@ -2124,7 +2137,7 @@ export function App() {
               workspace={workspace || ""}
               unattended={unattended}
               prefill={composerPrefill}
-              resetKey={sessionId}
+              resetKey={composerResetKey}
               usage={usage}
               contextWindow={modelContextWindows[model]}
               contextBar={contextBar}

@@ -42,13 +42,6 @@ const BTN_BORDERED =
 const BADGE =
   "text-[11px] px-2 py-0.5 rounded-full border border-line bg-paper text-muted shrink-0";
 
-const skillDisplayName = (name: string, fallback: string) => {
-  const value = name.trim();
-  const skillTitle = value.match(/^(.+?\.Skill)(?:\s|$)/i)?.[1];
-  if (skillTitle) return skillTitle;
-  return value.split(/\r?\n|[，,。；;]/, 1)[0]?.trim() || fallback;
-};
-
 type Editor = {
   mode: "new" | "edit";
   name: string;
@@ -658,7 +651,7 @@ function SkillHubCatalog({
     getSkillHubSkill(skill.slug, skill.namespace)
       .then((result) => {
         if (requestId !== detailRequestRef.current) return;
-        if (result.ok && result.skill) setSelectedSkill((current) => current && current.slug === skill.slug && current.namespace === skill.namespace ? { ...current, ...result.skill } : current);
+        if (result.ok && result.skill) setSelectedSkill((current) => current && current.slug === skill.slug && current.namespace === skill.namespace ? { ...current, ...result.skill, name: current.name } : current);
         else setOverviewError(result.error || "技能详情暂时无法加载");
       })
       .catch(() => { if (requestId === detailRequestRef.current) setOverviewError("技能详情暂时无法加载"); });
@@ -703,7 +696,7 @@ function SkillHubCatalog({
             </div>
             <div className="shrink-0 text-right">
               {installedName ? (
-                <button className={BTN_ACCENT} onClick={() => onUseSkill(installedName, skillDisplayName(selectedSkill.name, selectedSkill.slug))}>使用</button>
+                <button className={BTN_ACCENT} onClick={() => onUseSkill(installedName, selectedSkill.name)}>使用</button>
               ) : (
                 <button
                   className={BTN_ACCENT}

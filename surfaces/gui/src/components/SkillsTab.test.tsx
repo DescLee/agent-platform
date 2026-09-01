@@ -153,7 +153,7 @@ describe("SkillsTab", () => {
     expect(await screen.findByRole("button", { name: "使用" })).toBeTruthy();
     expect(calls.find((call) => call.url.includes("/docs/install"))?.body).toEqual({ namespace: "tester" });
     fireEvent.click(screen.getByRole("button", { name: "使用" }));
-    expect(onUseSkill).toHaveBeenCalledWith("docs", "文档助手.Skill");
+    expect(onUseSkill).toHaveBeenCalledWith("docs", "文档助手");
     expect(screen.queryByTestId("trace-score-summary")).toBeNull();
     expect(calls.some((call) => call.url.includes("/evaluation"))).toBe(false);
 

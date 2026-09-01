@@ -70,6 +70,18 @@ const skillLabel = (skill: Pick<SessionSkillRow, "name" | "description"> & { lab
   return skill.description.match(/^(.+?\.Skill)(?:\s|$)/i)?.[1]?.trim() || skill.name;
 };
 
+function HighlightedSkillName({ value, query }: { value: string; query: string }) {
+  const index = value.toLocaleLowerCase().indexOf(query.toLocaleLowerCase());
+  if (!query || index < 0) return <span className="text-ink">{value}</span>;
+  return (
+    <>
+      <span className="text-ink">{value.slice(0, index)}</span>
+      <span className="text-accent">{value.slice(index, index + query.length)}</span>
+      <span className="text-ink">{value.slice(index + query.length)}</span>
+    </>
+  );
+}
+
 interface Props {
   expertSlot?: ReactNode;
   mode: string;
@@ -140,9 +152,10 @@ export function Composer(props: Props) {
     !pendingSkill && props.sessionId && text.startsWith("/") && !/\s/.test(text.slice(1))
       ? text.slice(1).toLowerCase()
       : null;
-  const slashMatches = (slashSkills ?? []).filter((s) =>
-    s.name.toLowerCase().includes(slashQuery ?? ""),
-  );
+  const slashMatches = (slashSkills ?? []).filter((s) => {
+    const query = slashQuery ?? "";
+    return s.name.toLocaleLowerCase().includes(query) || skillLabel(s).toLocaleLowerCase().includes(query);
+  });
   useEffect(() => {
     // Fetch on each popup open (fresh menu); drop when closed.
     if (slashQuery === null) {
@@ -567,6 +580,7 @@ export function Composer(props: Props) {
                 <button
                   key={s.name}
                   role="option"
+                  aria-label={skillLabel(s) === s.name ? `/${s.name}` : skillLabel(s)}
                   aria-selected={i === slashIndex}
                   className={
                     "w-full text-left flex items-center gap-2 px-2 py-1.5 rounded-lg " +
@@ -575,7 +589,9 @@ export function Composer(props: Props) {
                   onMouseEnter={() => setSlashIndex(i)}
                   onClick={() => pickSkill(s)}
                 >
-                  <span className="text-[13px] font-medium text-accent truncate">{skillLabel(s) === s.name ? `/${s.name}` : skillLabel(s)}</span>
+                  <span className="text-[13px] font-medium truncate">
+                    <HighlightedSkillName value={skillLabel(s) === s.name ? `/${s.name}` : skillLabel(s)} query={slashQuery ?? ""} />
+                  </span>
                 </button>
               ))
             )}

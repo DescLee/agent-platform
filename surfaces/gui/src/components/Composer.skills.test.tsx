@@ -65,9 +65,19 @@ describe("Composer / skills popup", () => {
     stubFetch();
     render(<Composer {...props()} />);
     fireEvent.change(box(), { target: { value: "/" } });
-    await screen.findByText("/weekly-report");
+    await screen.findByRole("option", { name: "/weekly-report" });
     fireEvent.change(box(), { target: { value: "/wee" } });
-    expect(screen.getByText("/weekly-report")).toBeTruthy();
+    expect(screen.getByRole("option", { name: "/weekly-report" })).toBeTruthy();
+    expect(screen.queryByText("/greet")).toBeNull();
+  });
+
+  it("filters by the Chinese display name and highlights only the matching text", async () => {
+    stubFetch();
+    render(<Composer {...props()} />);
+    fireEvent.change(box(), { target: { value: "/编程" } });
+    const match = await screen.findByText("编程");
+    expect(match.className).toContain("text-accent");
+    expect(screen.getByText("专家.Skill").className).toContain("text-ink");
     expect(screen.queryByText("/greet")).toBeNull();
   });
 
@@ -97,7 +107,7 @@ describe("Composer / skills popup", () => {
     const p = props();
     render(<Composer {...p} />);
     fireEvent.change(box(), { target: { value: "/wee" } });
-    await screen.findByText("/weekly-report");
+    await screen.findByRole("option", { name: "/weekly-report" });
     fireEvent.keyDown(box(), { key: "Enter" }); // selects, does not send
     expect(p.onSend).not.toHaveBeenCalled();
     expect((box() as HTMLTextAreaElement).value).toBe("");

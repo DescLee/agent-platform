@@ -366,7 +366,7 @@ function VoiceInputSection() {
 // The Gallery entry point is GONE (owner 2026-08-21) — coworkers install from
 // GitHub / folder / zip only. GalleryModal stays in the tree for the gallery's
 // possible return as a first-class distribution surface, but nothing mounts it.
-export function PersonasSection({ onOpenPersona, onSummonPersona, onCreateSkill }: { onOpenPersona?: (id: string) => void; onSummonPersona?: (id: string, prompt?: string) => void; onCreateSkill?: (description: string) => void }) {
+export function PersonasSection({ onOpenPersona, onSummonPersona, onCreateSkill, onUseSkill }: { onOpenPersona?: (id: string) => void; onSummonPersona?: (id: string, prompt?: string) => void; onCreateSkill?: (description: string) => void; onUseSkill?: (name: string) => void }) {
   const [tab, setTab] = useState<"experts" | "skills">("experts");
   const [skillDetailOpen, setSkillDetailOpen] = useState(false);
   return (
@@ -396,7 +396,7 @@ export function PersonasSection({ onOpenPersona, onSummonPersona, onCreateSkill 
           <PersonasTab onOpenPersona={onOpenPersona} onSummonPersona={onSummonPersona} />
         ) : (
           <div className="flex-1 min-h-0">
-            <SkillsTab onCreateSkill={onCreateSkill} onDetailChange={setSkillDetailOpen} embedded />
+            <SkillsTab onCreateSkill={onCreateSkill} onUseSkill={onUseSkill} onDetailChange={setSkillDetailOpen} embedded />
           </div>
         )}
       </div>

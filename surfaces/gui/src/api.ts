@@ -1562,6 +1562,14 @@ export async function getSkillHubSkillEvaluation(slug: string, namespace?: strin
   return res.json();
 }
 
+export async function installSkillHubSkill(slug: string, namespace?: string, version?: string): Promise<{ ok: boolean; error?: string; name?: string }> {
+  const res = await fetch(
+    `${httpBase()}/v1/skillhub/skills/${encodeURIComponent(slug)}/install`,
+    jsonPost({ namespace, version }),
+  );
+  return res.json();
+}
+
 export async function createSkill(body: {
   name: string;
   description: string;

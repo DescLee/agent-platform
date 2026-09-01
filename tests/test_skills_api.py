@@ -47,6 +47,10 @@ def _zip_b64(entries: dict[str, str]) -> str:
     return base64.b64encode(buf.getvalue()).decode()
 
 
+def _zip_bytes(entries: dict[str, str]) -> bytes:
+    return base64.b64decode(_zip_b64(entries))
+
+
 GREET = {
     "name": "greet",
     "description": "says hello",
@@ -55,6 +59,21 @@ GREET = {
 
 
 # -- CRUD -----------------------------------------------------------------------
+
+
+def test_install_skillhub_skill_uses_validated_upload_flow(tmp_path, monkeypatch):
+    client, _m, _p = _client(tmp_path)
+    archive = _zip_bytes({"smart-charts/SKILL.md": "---\nname: smart-charts\ndescription: Charts\n---\n\nUse charts."})
+    monkeypatch.setattr("coworker.skillhub.skillhub_skill_archive", lambda slug, namespace, version: archive)
+
+    result = client.post(
+        "/v1/skillhub/skills/smart-charts/install",
+        json={"namespace": "publisher", "version": "1.2.3"},
+    ).json()
+
+    assert result["ok"] is True
+    assert result["name"] == "smart-charts"
+    assert client.get("/v1/skills").json()["skills"][0]["name"] == "smart-charts"
 
 
 def test_create_then_list_enriched(tmp_path):

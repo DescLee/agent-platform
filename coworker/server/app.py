@@ -20,6 +20,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Optional
 
+import httpx
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -707,6 +708,27 @@ def create_app(manager: SessionManager) -> FastAPI:
         from ..skillhub import skillhub_skill_evaluation
 
         return skillhub_skill_evaluation(slug, namespace)
+
+    @app.post("/v1/skillhub/skills/{slug}/install")
+    def skillhub_skill_install(slug: str, body: dict) -> dict[str, Any]:
+        from ..skillhub import skillhub_skill_archive
+
+        namespace = str((body or {}).get("namespace", ""))
+        version = str((body or {}).get("version", ""))
+        try:
+            archive = skillhub_skill_archive(slug, namespace, version)
+        except (httpx.HTTPError, ValueError, TypeError) as exc:
+            return {"ok": False, "error": str(exc) or "SkillHub 技能下载失败"}
+        preview = manager.stage_skill_upload(archive, f"{slug}.zip")
+        if not preview.get("ok"):
+            return preview
+        token = str(preview.get("token", ""))
+        installed = manager.confirm_skill_upload({"token": token, "scope": "global"})
+        if not installed.get("ok"):
+            manager.skill_store.discard_upload(token)
+            return installed
+        skill = installed.get("skill") or {}
+        return {"ok": True, "name": str(skill.get("name") or preview.get("name") or slug), "skill": skill}
 
     @app.patch("/v1/skills/{name}")
     def update_skill(name: str, body: dict) -> dict[str, Any]:

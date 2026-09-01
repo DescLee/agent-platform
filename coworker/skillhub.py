@@ -6,6 +6,7 @@ import re
 import threading
 import time
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
@@ -14,6 +15,7 @@ _CACHE_TTL = 300.0
 _CATEGORY_TTL = 3600.0
 _CATEGORY_RE = re.compile(r"^[a-z0-9-]{1,64}$")
 _COORDINATE_RE = re.compile(r"^[A-Za-z0-9_-]{1,100}$")
+_MAX_SKILL_ARCHIVE = 50 * 1024 * 1024
 _cache: dict[tuple[Any, ...], tuple[float, Any]] = {}
 _lock = threading.Lock()
 
@@ -213,3 +215,44 @@ def skillhub_skill_evaluation(slug: str, namespace: str = "") -> dict[str, Any]:
         return {"ok": False, "error": "SkillHub 技能评测暂时无法加载"}
     except (httpx.HTTPError, ValueError, TypeError):
         return {"ok": False, "error": "SkillHub 技能评测暂时无法加载"}
+
+
+def skillhub_skill_archive(slug: str, namespace: str = "", version: str = "") -> bytes:
+    slug = slug.strip()
+    namespace = namespace.strip()
+    version = version.strip()
+    if not _COORDINATE_RE.fullmatch(slug) or (namespace and not _COORDINATE_RE.fullmatch(namespace)):
+        raise ValueError("无效的技能标识")
+    params: dict[str, str] = {"slug": slug}
+    if namespace:
+        params["namespace"] = namespace
+    if version:
+        params["version"] = version
+    with httpx.stream(
+        "GET",
+        _BASE + "/api/v1/download",
+        params=params,
+        timeout=httpx.Timeout(30.0, connect=5.0),
+        follow_redirects=True,
+        headers={"Accept": "application/zip", "User-Agent": "OpenWorker/SkillHubCatalog"},
+    ) as response:
+        response.raise_for_status()
+        final = urlparse(str(response.url))
+        host = (final.hostname or "").lower()
+        if final.scheme != "https" or not (
+            host == "api.skillhub.cn"
+            or host.endswith(".myqcloud.com")
+            or host.endswith(".tencent-cloud.com")
+        ):
+            raise ValueError("SkillHub 返回了不受信任的下载地址")
+        size = int(response.headers.get("content-length") or 0)
+        if size > _MAX_SKILL_ARCHIVE:
+            raise ValueError("技能包不能超过 50 MB")
+        chunks: list[bytes] = []
+        total = 0
+        for chunk in response.iter_bytes():
+            total += len(chunk)
+            if total > _MAX_SKILL_ARCHIVE:
+                raise ValueError("技能包不能超过 50 MB")
+            chunks.append(chunk)
+        return b"".join(chunks)

@@ -119,6 +119,7 @@ describe("SkillsTab", () => {
   it("opens a skill detail page from a catalog card and can return to the list", async () => {
     const calls = stubFetch([
       { match: "/v1/skillhub/categories", json: { ok: true, categories: [] } },
+      { match: "/v1/skillhub/skills/docs/install", method: "POST", json: { ok: true, name: "docs" } },
       { match: "/v1/skillhub/skills/docs/overview?namespace=tester", json: { ok: true, overview: "完整的技能概述" } },
       { match: "/v1/skillhub/skills/docs/evaluation?namespace=tester", json: { ok: true, evaluation: { userSummary: "安全性与可用性评测通过", dimensions: {
         trust: { userReason: "安全可靠", items: { scan: { score: 4.7 } } },
@@ -137,7 +138,8 @@ describe("SkillsTab", () => {
       { match: "/v1/skills", method: "GET", json: { skills: [] } },
     ]);
     const onDetailChange = vi.fn();
-    render(<SkillsTab onDetailChange={onDetailChange} />);
+    const onUseSkill = vi.fn();
+    render(<SkillsTab onDetailChange={onDetailChange} onUseSkill={onUseSkill} />);
 
     fireEvent.click(await screen.findByRole("button", { name: /文档助手/ }));
     expect(onDetailChange).toHaveBeenCalledWith(true);
@@ -147,6 +149,11 @@ describe("SkillsTab", () => {
     expect(backButton.parentElement).toBe(detailPage);
     expect(scrollRegion.contains(backButton)).toBe(false);
     expect(await screen.findByText("完整的技能概述")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "安装" }));
+    expect(await screen.findByRole("button", { name: "使用" })).toBeTruthy();
+    expect(calls.find((call) => call.url.includes("/docs/install"))?.body).toEqual({ namespace: "tester" });
+    fireEvent.click(screen.getByRole("button", { name: "使用" }));
+    expect(onUseSkill).toHaveBeenCalledWith("docs");
     expect(screen.queryByTestId("trace-score-summary")).toBeNull();
     expect(calls.some((call) => call.url.includes("/evaluation"))).toBe(false);
 

@@ -9,6 +9,7 @@ import {
   getSkillHubSkill,
   getSkillHubSkillOverview,
   getSkillHubSkillEvaluation,
+  installSkillHubSkill,
   revealSkill,
   stageSkillUpload,
   confirmSkillUpload,
@@ -77,12 +78,14 @@ async function fileToB64(file: File): Promise<string> {
 
 export function SkillsTab({
   onCreateSkill,
+  onUseSkill,
   onDetailChange,
   embedded = false,
 }: {
   // The doorway (SKILLS-SPEC §5.2): starts a new conversation with the description
   // prefilled in the composer — the worker builds the skill and proposes it via save_skill.
   onCreateSkill?: (description: string) => void;
+  onUseSkill?: (name: string) => void;
   onDetailChange?: (open: boolean) => void;
   embedded?: boolean;
 }) {
@@ -112,6 +115,15 @@ export function SkillsTab({
     "已移除。如果已有会话使用过此技能，请新建会话以获得完全干净的上下文。";
 
   const refresh = () => listSkills().then(setRows);
+  const useSkill = async (name: string) => {
+    const installed = rows.find((row) => row.name === name);
+    if (installed && !installed.enabled) {
+      const result = await updateSkill(name, { enabled: true });
+      if (!result.ok) return;
+      await refresh();
+    }
+    onUseSkill?.(name);
+  };
   useEffect(() => {
     refresh();
   }, []);
@@ -265,7 +277,14 @@ export function SkillsTab({
         }}
       />
 
-      <SkillHubCatalog showMine={showMine} onShowMine={setShowMine} onDetailChange={onDetailChange}>
+      <SkillHubCatalog
+        showMine={showMine}
+        onShowMine={setShowMine}
+        onDetailChange={onDetailChange}
+        installedSkills={new Set(rows.map((row) => row.name))}
+        onInstalled={refresh}
+        onUseSkill={(name) => void useSkill(name)}
+      >
 
       {error ? (
         <div className="text-[13px] text-red-500 mb-3" role="alert">
@@ -494,11 +513,17 @@ function SkillHubCatalog({
   showMine,
   onShowMine,
   onDetailChange,
+  installedSkills,
+  onInstalled,
+  onUseSkill,
   children,
 }: {
   showMine: boolean;
   onShowMine: (show: boolean) => void;
   onDetailChange?: (open: boolean) => void;
+  installedSkills: Set<string>;
+  onInstalled: () => void;
+  onUseSkill: (name: string) => void;
   children: ReactNode;
 }) {
   const [categories, setCategories] = useState<SkillHubCategory[]>([]);
@@ -516,6 +541,9 @@ function SkillHubCatalog({
   const [evaluationLoading, setEvaluationLoading] = useState(false);
   const [evaluationLoaded, setEvaluationLoaded] = useState(false);
   const [evaluationError, setEvaluationError] = useState("");
+  const [installedNames, setInstalledNames] = useState<Record<string, string>>({});
+  const [installing, setInstalling] = useState(false);
+  const [installError, setInstallError] = useState("");
   const detailRequestRef = useRef(0);
 
   useEffect(() => () => onDetailChange?.(false), [onDetailChange]);
@@ -616,6 +644,8 @@ function SkillHubCatalog({
     setOverviewLoaded(false);
     setEvaluationLoaded(false);
     setEvaluationError("");
+    setInstalling(false);
+    setInstallError("");
     onDetailChange?.(true);
     loadOverview(skill, true);
     getSkillHubSkill(skill.slug, skill.namespace)
@@ -628,6 +658,8 @@ function SkillHubCatalog({
   };
 
   if (selectedSkill) {
+    const coordinate = `${selectedSkill.namespace}/${selectedSkill.slug}`;
+    const installedName = installedNames[coordinate] || (installedSkills.has(selectedSkill.slug) ? selectedSkill.slug : "");
     const tags = selectedSkill.tags?.filter(Boolean) || [];
     const rating = Number(selectedSkill.rating || 0);
     const evaluation = selectedSkill.evaluation;
@@ -654,13 +686,38 @@ function SkillHubCatalog({
             <div className="w-14 h-14 rounded-xl bg-accentSoft text-accent flex items-center justify-center shrink-0 overflow-hidden text-xl font-semibold">
               {selectedSkill.icon_url ? <img src={selectedSkill.icon_url} alt="" className="w-full h-full object-cover" /> : selectedSkill.name.slice(0, 1)}
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <h2 className="text-xl font-semibold text-ink">{selectedSkill.name}</h2>
                 {selectedSkill.verified && <span className="text-accent" title="已认证">✓</span>}
               </div>
               <p className="mt-1 text-[13px] leading-5 text-muted">{selectedSkill.description || "暂无描述"}</p>
               {tags.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5" aria-label="标签">{tags.map((tag) => <span key={tag} className={BADGE}>{tag}</span>)}</div>}
+            </div>
+            <div className="shrink-0 text-right">
+              {installedName ? (
+                <button className={BTN_ACCENT} onClick={() => onUseSkill(installedName)}>使用</button>
+              ) : (
+                <button
+                  className={BTN_ACCENT}
+                  disabled={installing}
+                  onClick={() => {
+                    setInstalling(true);
+                    setInstallError("");
+                    installSkillHubSkill(selectedSkill.slug, selectedSkill.namespace, selectedSkill.version)
+                      .then((result) => {
+                        if (!result.ok || !result.name) return setInstallError(result.error || "技能安装失败");
+                        setInstalledNames((current) => ({ ...current, [coordinate]: result.name! }));
+                        onInstalled();
+                      })
+                      .catch(() => setInstallError("技能安装失败"))
+                      .finally(() => setInstalling(false));
+                  }}
+                >
+                  {installing ? "安装中…" : "安装"}
+                </button>
+              )}
+              {installError && <p className="mt-2 max-w-48 text-[12px] text-danger">{installError}</p>}
             </div>
           </div>
           <div className="flex items-center gap-6 border-b border-line mt-5" role="tablist" aria-label="技能详情">

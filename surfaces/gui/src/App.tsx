@@ -2033,6 +2033,8 @@ export function App() {
                 <>
                   <Transcript
                     items={items}
+                    sessionId={sessionId}
+                    workspace={workspace || ""}
                     onApprove={approve}
                     running={running}
                     onRetry={retry}

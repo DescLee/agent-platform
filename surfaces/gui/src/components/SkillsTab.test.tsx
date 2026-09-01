@@ -125,12 +125,12 @@ describe("SkillsTab", () => {
         trust: { userReason: "安全可靠", items: { scan: { score: 4.7 } } },
       } } } },
       { match: "/v1/skillhub/skills/docs?namespace=tester", json: { ok: true, skill: {
-        name: "文档助手.Skill 后面是不应展示的冗长描述，覆盖多项能力", slug: "docs", namespace: "tester", publisher: "tester", description: "处理文档",
+        name: "文档助手.Skill 后面是不应展示的冗长描述，覆盖多项能力", slug: "docs", namespace: "tester", publisher: "detail-owner", description: "详情接口描述",
         category: "", icon_url: "", url: "https://skillhub.cn/skills/docs", verified: true,
         stars: 12, downloads: 34, tags: ["办公", "文档"], rating: 0, evaluation_report: "",
       } } },
       { match: "/v1/skillhub/skills", json: { ok: true, total: 1, skills: [{
-        name: "文档助手", slug: "docs", namespace: "tester", publisher: "tester", description: "处理文档",
+        name: "文档助手", slug: "docs", namespace: "tester", publisher: "catalog-publisher", description: "处理文档",
         category: "", icon_url: "", url: "https://skillhub.cn/skills/docs", verified: false,
         stars: 12, downloads: 34, tags: ["办公", "文档"], overview: "完整的技能概述",
         rating: 4.7, evaluation_report: "安全性与可用性评测通过",
@@ -152,9 +152,21 @@ describe("SkillsTab", () => {
     expect(scrollRegion.contains(backButton)).toBe(false);
     expect(await screen.findByText("完整的技能概述")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "安装" }));
-    expect(await screen.findByRole("button", { name: "使用" })).toBeTruthy();
-    expect(calls.find((call) => call.url.includes("/docs/install"))?.body).toEqual({ namespace: "tester" });
-    fireEvent.click(screen.getByRole("button", { name: "使用" }));
+    expect(await screen.findByRole("button", { name: "去对话" })).toBeTruthy();
+    expect(calls.find((call) => call.url.includes("/docs/install"))?.body).toEqual({
+      namespace: "tester",
+      card: {
+        display_name: "文档助手",
+        description: "处理文档",
+        icon_url: "",
+        publisher: "catalog-publisher",
+        tags: ["办公", "文档"],
+        category: "",
+        category_name: "",
+        verified: false,
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "去对话" }));
     expect(onUseSkill).toHaveBeenCalledWith("docs", "文档助手");
     expect(screen.queryByTestId("trace-score-summary")).toBeNull();
     expect(calls.some((call) => call.url.includes("/evaluation"))).toBe(false);
@@ -211,8 +223,51 @@ describe("SkillsTab", () => {
     expect(screen.queryByText("global")).toBeNull(); // no scope badges — global-only (§4.7)
     expect(screen.getByText("uploaded")).toBeTruthy(); // provenance badge stays
     const toggles = screen.getAllByRole("switch");
-    expect((toggles[0] as HTMLInputElement).checked).toBe(true);
-    expect((toggles[1] as HTMLInputElement).checked).toBe(false);
+    expect(toggles[0].getAttribute("aria-checked")).toBe("true");
+    expect(toggles[1].getAttribute("aria-checked")).toBe("false");
+  });
+
+  it("renders an installed SkillHub row with the same catalog identity", async () => {
+    stubFetch([{
+      match: "/v1/skills",
+      method: "GET",
+      json: { skills: [{
+        ...ROW,
+        name: "dev-expert",
+        slug: "dev-expert",
+        namespace: "user_741dc82b",
+        display_name: "编程专家.Skill",
+        description: "编程专家.Skill P8级编程助手",
+        source: "skillhub",
+        icon_url: "https://cdn.example/dev-expert.png",
+        publisher: "user_741dc82b",
+        category: "dev-programming",
+        category_name: "开发编程",
+        verified: true,
+      }] },
+    }]);
+    render(<SkillsTab />);
+    fireEvent.click(screen.getByRole("button", { name: "我的" }));
+
+    expect(await screen.findByText("编程专家.Skill")).toBeTruthy();
+    expect(screen.getByText("user_741dc82b")).toBeTruthy();
+    expect(screen.getByText("开发编程")).toBeTruthy();
+    expect(screen.getByRole("img", { name: "已认证" })).toBeTruthy();
+    expect((document.querySelector('img[src*="dev-expert.png"]') as HTMLImageElement | null)?.src).toContain("dev-expert.png");
+    expect(screen.queryByText("uploaded")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("installed-skill-card-dev-expert"));
+    expect(screen.getByTestId("skill-detail-page")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "编程专家.Skill" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "去对话" })).toBeTruthy();
+    expect(screen.getByRole("switch", { name: "dev-expert 自动触发" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "dev-expert 更多操作" }));
+    expect(screen.getByRole("menuitem", { name: "打开文件夹" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("menuitem", { name: "卸载" }));
+    expect(screen.getByRole("dialog", { name: "确认卸载" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "返回技能列表" }));
+    expect(screen.getByTestId("installed-skill-card-dev-expert")).toBeTruthy();
   });
 
   it("blocks Save until name and instructions are filled", async () => {
@@ -252,30 +307,17 @@ describe("SkillsTab", () => {
     expect(calls.filter((c) => c.method === "GET" && c.url.includes("/v1/skills")).length).toBeGreaterThan(1);
   });
 
-  it("edit prefills the form (name locked, body loaded) and PATCHes on save", async () => {
-    const calls = stubFetch([
-      { match: "/v1/skills", method: "GET", json: LIST },
-      { match: "/v1/skills/weekly-report", method: "PATCH", json: { ok: true } },
-    ]);
+  it("removes editing from installed skill actions", async () => {
+    stubFetch([{ match: "/v1/skills", method: "GET", json: LIST }]);
     render(<SkillsTab />);
     fireEvent.click(screen.getByRole("button", { name: "我的" }));
     await screen.findByText("weekly-report");
-    fireEvent.click(screen.getAllByTitle("编辑")[0]);
-    const name = screen.getByLabelText("名称") as HTMLInputElement;
-    expect(name.value).toBe("weekly-report");
-    expect(name.disabled).toBe(true);
-    const body = screen.getByLabelText("指令") as HTMLTextAreaElement;
-    expect(body.value).toContain("Collect updates");
-    fireEvent.change(body, { target: { value: "New steps" } });
-    fireEvent.click(screen.getByText("保存技能"));
-    await waitFor(() => {
-      const patch = calls.find((c) => c.method === "PATCH");
-      expect(patch?.url).toContain("/v1/skills/weekly-report");
-      expect(patch?.body.instructions).toBe("New steps");
-    });
+    expect(screen.queryByTitle("编辑")).toBeNull();
+    fireEvent.click(screen.getByLabelText("weekly-report 更多操作"));
+    expect(screen.queryByRole("menuitem", { name: "编辑" })).toBeNull();
   });
 
-  it("delete is two-step: arm, then DELETE on confirm", async () => {
+  it("uninstall opens a confirmation dialog before DELETE", async () => {
     const calls = stubFetch([
       { match: "/v1/skills", method: "GET", json: LIST },
       { match: "/v1/skills/weekly-report", method: "DELETE", json: { ok: true } },
@@ -283,17 +325,18 @@ describe("SkillsTab", () => {
     render(<SkillsTab />);
     fireEvent.click(screen.getByRole("button", { name: "我的" }));
     await screen.findByText("weekly-report");
-    // arm via the trash button (renders "Confirm delete" once armed)
-    fireEvent.click(screen.getByLabelText("删除 weekly-report"));
+    fireEvent.click(screen.getByLabelText("weekly-report 更多操作"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "卸载" }));
     expect(calls.some((c) => c.method === "DELETE")).toBe(false);
-    const confirm = await screen.findByText("确认删除");
-    fireEvent.click(confirm);
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(screen.getByText(/确定要卸载“weekly-report”/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "确认卸载" }));
     await waitFor(() => {
       expect(calls.some((c) => c.method === "DELETE" && c.url.includes("weekly-report"))).toBe(true);
     });
   });
 
-  it("the enabled switch PATCHes {enabled} and teaches the off rule + physics footnote", async () => {
+  it("the automatic-trigger switch PATCHes {enabled} and shows the requested message", async () => {
     const calls = stubFetch([
       { match: "/v1/skills", method: "GET", json: LIST },
       { match: "/v1/skills/weekly-report", method: "PATCH", json: { ok: true } },
@@ -301,15 +344,13 @@ describe("SkillsTab", () => {
     render(<SkillsTab />);
     fireEvent.click(screen.getByRole("button", { name: "我的" }));
     await screen.findByText("weekly-report");
-    fireEvent.click(screen.getByLabelText("weekly-report enabled"));
+    fireEvent.click(screen.getByRole("switch", { name: "weekly-report 自动触发" }));
     await waitFor(() => {
       const patch = calls.find((c) => c.method === "PATCH");
       expect(patch?.body).toMatchObject({ enabled: false });
     });
     const status = await screen.findByRole("status");
-    expect(status.textContent).toContain("weekly-report"); // name-first — WHICH skill
-    expect(status.textContent).toContain("已在所有位置关闭");
-    expect(status.textContent).toContain("完全干净的上下文"); // the guaranteed remedy, in place
+    expect(status.textContent).toContain("weekly-report 已关闭自动触发");
   });
 
   it("upload shows the parsed preview and installs nothing until confirmed", async () => {
@@ -420,8 +461,8 @@ describe("SkillsTab", () => {
   });
 });
 
-describe("SkillsTab — rich-skill disclosure (§6)", () => {
-  it("shows a file count only when a skill bundles resources", async () => {
+describe("SkillsTab — installed skill menu", () => {
+  it("offers use, open folder, and uninstall actions", async () => {
     stubFetch([
       {
         match: "/v1/skills",
@@ -436,9 +477,10 @@ describe("SkillsTab — rich-skill disclosure (§6)", () => {
     ]);
     render(<SkillsTab />);
     fireEvent.click(screen.getByRole("button", { name: "我的" }));
-    const note = await screen.findByTitle("显示文件夹");
-    expect(note.textContent).toContain("3 个文件");
-    // The one-file skill carries no count at all — only rich skills are marked.
-    expect(screen.getAllByTitle("显示文件夹")).toHaveLength(1);
+    await screen.findByText("rich");
+    fireEvent.click(screen.getByLabelText("rich 更多操作"));
+    expect(screen.getByRole("menuitem", { name: "去对话" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "打开文件夹" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "卸载" })).toBeTruthy();
   });
 });

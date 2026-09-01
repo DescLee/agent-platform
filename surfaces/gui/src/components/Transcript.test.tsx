@@ -37,7 +37,7 @@ describe("TurnGroup (Transcript §33)", () => {
     expect(screen.getByTestId("turn-narration").textContent).toContain("Checking what merged");
     expect(screen.getByText("runbook.md")).toBeTruthy();
     expect(screen.getByText(/已通过 Slack 向/)).toBeTruthy();
-    expect(screen.getByText("✓ user-approved")).toBeTruthy();
+    expect(screen.getByText("✓ 用户已批准")).toBeTruthy();
     expect(screen.queryByText("send_message approval")).toBeNull();
 
     // Raw stays one click away: the row's raw toggle reveals args + result verbatim.

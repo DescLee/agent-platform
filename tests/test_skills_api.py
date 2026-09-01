@@ -65,15 +65,43 @@ def test_install_skillhub_skill_uses_validated_upload_flow(tmp_path, monkeypatch
     client, _m, _p = _client(tmp_path)
     archive = _zip_bytes({"smart-charts/SKILL.md": "---\nname: smart-charts\ndescription: Charts\n---\n\nUse charts."})
     monkeypatch.setattr("coworker.skillhub.skillhub_skill_archive", lambda slug, namespace, version: archive)
+    monkeypatch.setattr(
+        "coworker.skillhub.skillhub_skill_detail",
+        lambda slug, namespace: {
+            "ok": True,
+            "skill": {"publisher": "detail-owner", "version": "1.2.3"},
+        },
+    )
 
     result = client.post(
         "/v1/skillhub/skills/smart-charts/install",
-        json={"namespace": "publisher", "version": "1.2.3"},
+        json={
+            "namespace": "publisher",
+            "version": "1.2.3",
+            "card": {
+                "display_name": "Smart Charts",
+                "description": "Catalog description",
+                "icon_url": "https://cdn.example/icon.png",
+                "publisher": "catalog-publisher",
+                "tags": ["Charts"],
+                "category": "data-analysis",
+                "category_name": "数据分析",
+                "verified": True,
+            },
+        },
     ).json()
 
     assert result["ok"] is True
     assert result["name"] == "smart-charts"
-    assert client.get("/v1/skills").json()["skills"][0]["name"] == "smart-charts"
+    row = client.get("/v1/skills").json()["skills"][0]
+    assert row["name"] == "smart-charts"
+    assert row["display_name"] == "Smart Charts"
+    assert row["description"] == "Catalog description"
+    assert row["icon_url"] == "https://cdn.example/icon.png"
+    assert row["publisher"] == "catalog-publisher"
+    assert row["category_name"] == "数据分析"
+    assert row["verified"] is True
+    assert row["source"] == "skillhub"
 
 
 def test_create_then_list_enriched(tmp_path):

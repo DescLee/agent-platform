@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import { useEffect } from "react";
 import {
   createSkill,
@@ -22,6 +22,7 @@ import {
 } from "../api";
 import { Icon } from "./Icon";
 import { Markdown } from "./Markdown";
+import { Toggle } from "./Toggle";
 
 // Settings ▸ Skills (SKILLS-SPEC §5/§6) — the management home: the LIST is the page; every
 // add-surface appears only when summoned from the single "Add skill" menu (the three doors:
@@ -42,7 +43,19 @@ const BTN_BORDERED =
 const BADGE =
   "text-[11px] px-2 py-0.5 rounded-full border border-line bg-paper text-muted shrink-0";
 
-function skillCardName(row: Pick<SkillRow, "name" | "description">): string {
+function SkillToast({ children }: { children: ReactNode }) {
+  return (
+    <div className="pointer-events-none fixed left-1/2 top-7 z-[70] -translate-x-1/2" role="status">
+      <div className="flex min-w-[260px] max-w-[min(520px,calc(100vw-32px))] items-center gap-2.5 rounded-xl border border-line bg-panel px-4 py-3 text-[13px] text-ink shadow-xl">
+        <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-ok text-[12px] font-semibold text-white" aria-hidden>✓</span>
+        <span className="min-w-0">{children}</span>
+      </div>
+    </div>
+  );
+}
+
+function skillCardName(row: Pick<SkillRow, "name" | "description" | "display_name">): string {
+  if (row.display_name?.trim()) return row.display_name.trim();
   const fromDescription = row.description.match(/^(.+?\.Skill)\b/i)?.[1]?.trim();
   return fromDescription || row.name;
 }
@@ -56,14 +69,12 @@ function skillCardTags(row: Pick<SkillRow, "name" | "description" | "source">): 
 }
 
 type Editor = {
-  mode: "new" | "edit";
   name: string;
   description: string;
   instructions: string;
 };
 
 const emptyEditor = (): Editor => ({
-  mode: "new",
   name: "",
   description: "",
   instructions: "",
@@ -107,7 +118,8 @@ export function SkillsTab({
   const [editor, setEditor] = useState<Editor | null>(null);
   const [upload, setUpload] = useState<SkillUploadPreview | null>(null);
   const [addOpen, setAddOpen] = useState(false);
-  const [armedDelete, setArmedDelete] = useState<string | null>(null);
+  const [skillMenu, setSkillMenu] = useState<string | null>(null);
+  const [confirmUninstall, setConfirmUninstall] = useState<SkillRow | null>(null);
   const [error, setError] = useState("");
   // The state-change callout (SKILLS-SPEC §4.1 #2): name-first so the user knows WHICH
   // skill, and visually distinct so it can't be skimmed past (tester ask 2026-07-27).
@@ -115,6 +127,7 @@ export function SkillsTab({
     null,
   );
   const fileInput = useRef<HTMLInputElement>(null);
+  const openInstalledSkillRef = useRef<(row: SkillRow) => void>(() => {});
 
   // Confirmation copy (SKILLS-SPEC §4.1 #2): name-first, outcome + remedy only, in words a
   // person already owns — now / everywhere / off / start a new one. Never mechanism ("the
@@ -122,10 +135,8 @@ export function SkillsTab({
   // review rounds, 2026-07-27. The engine countermands disabled-but-loaded skills silently;
   // the copy promises only the guaranteed part.
   const CONFIRMATION = "— 协作助手现在可在所有会话中使用此技能。";
-  const OFF_NOTE =
-    "已在所有位置关闭。如果已有会话使用过此技能，请新建会话以获得完全干净的上下文。";
   const DELETE_NOTE =
-    "已移除。如果已有会话使用过此技能，请新建会话以获得完全干净的上下文。";
+    "已卸载。如果已有会话使用过此技能，请新建会话以获得完全干净的上下文。";
 
   const refresh = () => listSkills().then(setRows);
   const useSkill = async (name: string, label: string) => {
@@ -140,6 +151,11 @@ export function SkillsTab({
   useEffect(() => {
     refresh();
   }, []);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(null), 3000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
   useEffect(() => {
     const openAddMenu = () => {
       setShowMine(true);
@@ -161,21 +177,14 @@ export function SkillsTab({
 
   const save = async () => {
     if (!editor) return;
-    const res =
-      editor.mode === "new"
-        ? await createSkill({
-            name: editor.name.trim(),
-            description: editor.description.trim(),
-            instructions: editor.instructions,
-          })
-        : await updateSkill(editor.name, {
-            description: editor.description.trim(),
-            instructions: editor.instructions,
-          });
+    const res = await createSkill({
+      name: editor.name.trim(),
+      description: editor.description.trim(),
+      instructions: editor.instructions,
+    });
     if (fail(res)) return;
     setEditor(null);
-    if (editor.mode === "new")
-      setNotice({ name: editor.name.trim(), text: CONFIRMATION, tone: "ok" });
+    setNotice({ name: editor.name.trim(), text: CONFIRMATION, tone: "ok" });
     refresh();
   };
 
@@ -196,14 +205,10 @@ export function SkillsTab({
   };
 
   const remove = async (row: SkillRow) => {
-    if (armedDelete !== row.name) {
-      setArmedDelete(row.name);
-      return;
-    }
-    setArmedDelete(null);
+    setConfirmUninstall(null);
     const res = await deleteSkill(row.name);
     if (fail(res)) return;
-    setNotice({ name: row.name, text: DELETE_NOTE, tone: "warn" });
+    setNotice({ name: skillCardName(row), text: DELETE_NOTE, tone: "warn" });
     refresh();
   };
 
@@ -295,8 +300,10 @@ export function SkillsTab({
         onShowMine={setShowMine}
         onDetailChange={onDetailChange}
         installedSkills={new Set(rows.map((row) => row.name))}
+        installedRows={rows}
         onInstalled={refresh}
         onUseSkill={(name, label) => void useSkill(name, label)}
+        openInstalledSkillRef={openInstalledSkillRef}
       >
 
       {error ? (
@@ -304,28 +311,7 @@ export function SkillsTab({
           {error}
         </div>
       ) : null}
-      {notice ? (
-        <div
-          role="status"
-          className={
-            "mb-3 flex items-start gap-2 rounded-lg border px-3 py-2 text-[13px] " +
-            (notice.tone === "ok"
-              ? "bg-tealSoft/70 text-tealInk border-tealInk/20"
-              : "bg-warnSoft/70 text-warnInk border-warnInk/20")
-          }
-        >
-          <span className="min-w-0">
-            <b>{notice.name}</b> {notice.text}
-          </span>
-          <button
-            className="ml-auto shrink-0 opacity-60 hover:opacity-100"
-            aria-label="关闭"
-            onClick={() => setNotice(null)}
-          >
-            ✕
-          </button>
-        </div>
-      ) : null}
+      {notice ? <SkillToast><b>{notice.name}</b> {notice.text}</SkillToast> : null}
 
       {upload ? (
         <div className={`${CARD} p-4 mb-4`}>
@@ -359,7 +345,7 @@ export function SkillsTab({
       {editor ? (
         <div className={`${CARD} p-4 mb-4`}>
           <div className="text-[13px] font-medium mb-3">
-            {editor.mode === "new" ? "新建技能" : `编辑 ${editor.name}`}
+            新建技能
           </div>
           <label className={FIELD_LABEL} htmlFor="skill-name">
             名称
@@ -368,7 +354,6 @@ export function SkillsTab({
             id="skill-name"
             className={`${INPUT} mt-1 mb-3`}
             value={editor.name}
-            disabled={editor.mode === "edit"}
             placeholder="weekly-report"
             onChange={(e) => setEditor({ ...editor, name: e.target.value })}
           />
@@ -414,69 +399,134 @@ export function SkillsTab({
           </div>
         ) : null}
         {rows.length > 0 && <div className="expert-grid">
-          {rows.map((row) => (
-            <article key={row.name} className={`${CARD} expert-card group ${row.enabled ? "" : "opacity-60"}`}>
+          {rows.map((row) => {
+            const opensDetail = Boolean(row.slug);
+            return (
+            <article
+              key={row.name}
+              className={`${CARD} expert-card group ${row.enabled ? "" : "opacity-60"} ${opensDetail ? "cursor-pointer" : ""}`}
+              data-testid={`installed-skill-card-${row.name}`}
+              tabIndex={opensDetail ? 0 : undefined}
+              title={opensDetail ? "查看技能详情" : undefined}
+              onClick={() => { if (opensDetail) openInstalledSkillRef.current(row); }}
+              onKeyDown={(event) => {
+                if (opensDetail && (event.key === "Enter" || event.key === " ")) {
+                  event.preventDefault();
+                  openInstalledSkillRef.current(row);
+                }
+              }}
+            >
               <div className="flex items-start gap-3.5">
                 <div className="w-10 h-10 rounded-xl bg-accentSoft text-accent flex items-center justify-center shrink-0 overflow-hidden font-semibold">
                   {row.icon_url ? <img src={row.icon_url} alt="" className="w-full h-full object-cover" /> : skillCardName(row).slice(0, 1).toUpperCase()}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-[15px] font-semibold truncate" title={skillCardName(row)}>{skillCardName(row)}</h3>
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="text-[15px] font-semibold truncate" title={skillCardName(row)}>{skillCardName(row)}</h3>
+                    {row.verified && <span className="text-[13px] shrink-0" role="img" aria-label="已认证" title="已认证">🛡️</span>}
+                  </div>
                   <p className="text-[12px] text-muted truncate">{row.publisher || (row.source === "uploaded" ? "uploaded" : "user_" + row.name.slice(0, 8))}</p>
                 </div>
-                <div className="expert-card-actions shrink-0">
+                <div className="relative z-10 flex shrink-0 items-center gap-2" onClick={(event) => event.stopPropagation()}>
                   <button
-                    className="w-7 h-7 grid place-items-center rounded-md border border-line bg-paper hover:border-lineStrong"
-                    title="编辑"
-                    onClick={() => setEditor({ mode: "edit", name: row.name, description: row.description, instructions: row.instructions })}
+                    type="button"
+                    className={`expert-card-more w-8 h-8 grid place-items-center rounded-lg ${skillMenu === row.name ? "is-open" : ""}`}
+                    aria-label={`${row.name} 更多操作`}
+                    aria-haspopup="menu"
+                    aria-expanded={skillMenu === row.name}
+                    onClick={() => setSkillMenu((current) => current === row.name ? null : row.name)}
                   >
-                    <Icon name="pencil" size={13} />
+                    <Icon name="moreHorizontal" size={16} />
                   </button>
-                  <button
-                    className={`${armedDelete === row.name ? "h-7 px-2" : "w-7 h-7"} grid place-items-center rounded-md border border-line bg-paper hover:border-lineStrong`}
-                    aria-label={`删除 ${row.name}`}
-                    onClick={() => remove(row)}
-                    onBlur={() => setArmedDelete(null)}
-                  >
-                    {armedDelete === row.name ? <span className="text-[10px] whitespace-nowrap">确认删除</span> : <Icon name="trash" size={13} />}
-                  </button>
-                </div>
-              </div>
-              <p className="text-[13px] text-muted leading-[21px] line-clamp-3 break-words mt-2 mb-3" title={row.description}>
-                {row.description || "暂无介绍"}
-              </p>
-              <div className="mt-auto flex items-center gap-2 text-[11px] text-muted">
-                {(row.tags?.filter(Boolean).length ? row.tags : skillCardTags(row)).map((tag) => <span key={tag} className="rounded-md bg-paper px-2 py-1">{tag}</span>)}
-                {row.files ? (
-                  <button className="hidden inline-flex items-center gap-1 rounded-md bg-paper px-2 py-1 hover:text-ink" title="显示文件夹" onClick={() => revealSkill(row.name)}>
-                    <Icon name="folder" size={11} /> {row.files} 个文件
-                  </button>
-                ) : null}
-                <label className="ml-auto inline-flex items-center gap-1.5 text-[12px] text-muted">
-                  <input
-                    type="checkbox"
-                    role="switch"
-                    aria-label={`${row.name} enabled`}
+                  <Toggle
                     checked={row.enabled}
-                    onChange={(e) => {
-                      const on = e.target.checked;
+                    title={`${skillCardName(row)} 自动触发`}
+                    ariaLabel={`${row.name} 自动触发`}
+                    onChange={(on) => {
                       updateSkill(row.name, { enabled: on }).then((res) => {
                         if (!fail(res)) setNotice({
-                          name: row.name,
-                          text: on ? CONFIRMATION : OFF_NOTE,
+                          name: skillCardName(row),
+                          text: on ? "已开启自动触发" : "已关闭自动触发",
                           tone: on ? "ok" : "warn",
                         });
                         refresh();
                       });
                     }}
                   />
-                  启用
-                </label>
+                  {skillMenu === row.name && (
+                    <>
+                      <button
+                        type="button"
+                        className="fixed inset-0 z-20 cursor-default"
+                        aria-label="关闭技能操作菜单"
+                        onClick={() => setSkillMenu(null)}
+                      />
+                      <div className="absolute right-0 top-10 z-30 w-40 rounded-xl border border-line bg-panel p-1.5 shadow-xl" role="menu">
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[13px] hover:bg-paper"
+                          onClick={() => { setSkillMenu(null); void useSkill(row.name, skillCardName(row)); }}
+                        >
+                          <Icon name="chat" size={16} /> 去对话
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[13px] hover:bg-paper"
+                          onClick={() => { setSkillMenu(null); revealSkill(row.name); }}
+                        >
+                          <Icon name="folder" size={16} /> 打开文件夹
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[13px] text-danger hover:bg-danger/5"
+                          onClick={() => { setSkillMenu(null); setConfirmUninstall(row); }}
+                        >
+                          <Icon name="trash" size={16} /> 卸载
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+              <p className="text-[13px] text-muted leading-[21px] line-clamp-3 break-words mt-2 mb-3" title={row.description}>
+                {row.description || "暂无介绍"}
+              </p>
+              <div className="mt-auto flex items-center gap-2 text-[11px] text-muted">
+                {(row.category_name ? [row.category_name] : skillCardTags(row)).map((tag) => <span key={tag} className="rounded-md bg-paper px-2 py-1">{tag}</span>)}
               </div>
             </article>
-          ))}
+            );
+          })}
         </div>}
       </div>
+
+      {confirmUninstall && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/30 px-4" role="dialog" aria-modal="true" aria-labelledby="skill-uninstall-title">
+          <div className="w-full max-w-sm rounded-xl border border-line bg-panel p-5 shadow-xl">
+            <h2 id="skill-uninstall-title" className="text-[15px] font-semibold text-ink">确认卸载</h2>
+            <p className="mt-2 text-[13px] text-muted">确定要卸载“{skillCardName(confirmUninstall)}”吗？卸载后该技能将无法使用。</p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                className="rounded-lg border border-line px-3 py-1.5 text-[13px] text-muted hover:border-lineStrong"
+                onClick={() => setConfirmUninstall(null)}
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                className="rounded-lg bg-danger px-3 py-1.5 text-[13px] text-white hover:brightness-105"
+                onClick={() => void remove(confirmUninstall)}
+              >
+                确认卸载
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       </SkillHubCatalog>
     </section>
@@ -520,16 +570,20 @@ function SkillHubCatalog({
   onShowMine,
   onDetailChange,
   installedSkills,
+  installedRows,
   onInstalled,
   onUseSkill,
+  openInstalledSkillRef,
   children,
 }: {
   showMine: boolean;
   onShowMine: (show: boolean) => void;
   onDetailChange?: (open: boolean) => void;
   installedSkills: Set<string>;
+  installedRows: SkillRow[];
   onInstalled: () => void;
   onUseSkill: (name: string, label: string) => void;
+  openInstalledSkillRef: MutableRefObject<(row: SkillRow) => void>;
   children: ReactNode;
 }) {
   const [categories, setCategories] = useState<SkillHubCategory[]>([]);
@@ -540,6 +594,7 @@ function SkillHubCatalog({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedSkill, setSelectedSkill] = useState<SkillHubSkillDetail | null>(null);
+  const [selectedCatalogSkill, setSelectedCatalogSkill] = useState<SkillHubSkill | null>(null);
   const [detailTab, setDetailTab] = useState<"overview" | "evaluation">("overview");
   const [overviewLoading, setOverviewLoading] = useState(false);
   const [overviewLoaded, setOverviewLoaded] = useState(false);
@@ -550,7 +605,16 @@ function SkillHubCatalog({
   const [installedNames, setInstalledNames] = useState<Record<string, string>>({});
   const [installing, setInstalling] = useState(false);
   const [installError, setInstallError] = useState("");
+  const [detailMenuOpen, setDetailMenuOpen] = useState(false);
+  const [detailConfirmUninstall, setDetailConfirmUninstall] = useState(false);
+  const [detailNotice, setDetailNotice] = useState("");
   const detailRequestRef = useRef(0);
+
+  useEffect(() => {
+    if (!detailNotice) return;
+    const timer = window.setTimeout(() => setDetailNotice(""), 3000);
+    return () => window.clearTimeout(timer);
+  }, [detailNotice]);
 
   useEffect(() => () => onDetailChange?.(false), [onDetailChange]);
 
@@ -596,6 +660,7 @@ function SkillHubCatalog({
   const selectCategory = (next: string) => {
     detailRequestRef.current += 1;
     setSelectedSkill(null);
+    setSelectedCatalogSkill(null);
     onDetailChange?.(false);
     onShowMine(false);
     setSkills([]);
@@ -646,6 +711,7 @@ function SkillHubCatalog({
     detailRequestRef.current += 1;
     const requestId = detailRequestRef.current;
     setSelectedSkill(skill);
+    setSelectedCatalogSkill(skill);
     setDetailTab("overview");
     setOverviewLoaded(false);
     setEvaluationLoaded(false);
@@ -663,9 +729,45 @@ function SkillHubCatalog({
       .catch(() => { if (requestId === detailRequestRef.current) setOverviewError("技能详情暂时无法加载"); });
   };
 
+  openInstalledSkillRef.current = (row) => {
+    const slug = row.slug || row.name;
+    const namespace = row.namespace || "";
+    setInstalledNames((current) => ({ ...current, [`${namespace}/${slug}`]: row.name }));
+    openSkill({
+      slug,
+      namespace,
+      name: skillCardName(row),
+      description: row.description,
+      category: row.category || "",
+      downloads: 0,
+      stars: 0,
+      verified: Boolean(row.verified),
+      icon_url: row.icon_url || "",
+      publisher: row.publisher || "",
+      tags: row.tags?.filter(Boolean) || [],
+      overview: "",
+      rating: 0,
+      evaluation_report: "",
+      url: "",
+    });
+  };
+
   if (selectedSkill) {
+    const catalogCard = selectedCatalogSkill || selectedSkill;
     const coordinate = `${selectedSkill.namespace}/${selectedSkill.slug}`;
     const installedName = installedNames[coordinate] || (installedSkills.has(selectedSkill.slug) ? selectedSkill.slug : "");
+    const installedRow = installedRows.find((row) => row.name === installedName || row.slug === selectedSkill.slug) || (installedName ? {
+      name: installedName,
+      display_name: selectedSkill.name,
+      description: selectedSkill.description || "",
+      instructions: "",
+      scope: "global" as const,
+      source: "skillhub",
+      enabled: true,
+      path: "",
+      slug: selectedSkill.slug,
+      namespace: selectedSkill.namespace,
+    } : undefined);
     const tags = selectedSkill.tags?.filter(Boolean) || [];
     const rating = Number(selectedSkill.rating || 0);
     const evaluation = selectedSkill.evaluation;
@@ -679,30 +781,66 @@ function SkillHubCatalog({
     const traceRating = dimensionRows.length ? dimensionRows.reduce((sum, item) => sum + item.score, 0) / dimensionRows.length : rating;
     return (
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden" data-testid="skill-detail-page">
+        {detailNotice && <SkillToast>{detailNotice}</SkillToast>}
         <button
           type="button"
           className="mb-4 self-start inline-flex items-center gap-1.5 text-[13px] text-muted hover:text-ink shrink-0"
-          onClick={() => { detailRequestRef.current += 1; setSelectedSkill(null); onDetailChange?.(false); }}
+          onClick={() => { detailRequestRef.current += 1; setSelectedSkill(null); setSelectedCatalogSkill(null); onDetailChange?.(false); }}
         >
           <span aria-hidden>←</span> 返回技能列表
         </button>
         <div className="flex-1 min-h-0 overflow-y-auto pr-1" data-testid="skill-detail-scroll-region">
         <article className={`${CARD} w-full p-6`}>
-          <div className="flex items-start gap-4 border-b border-line pb-5">
+          <div className="relative flex items-start gap-4 border-b border-line pb-5">
             <div className="w-14 h-14 rounded-xl bg-accentSoft text-accent flex items-center justify-center shrink-0 overflow-hidden text-xl font-semibold">
               {selectedSkill.icon_url ? <img src={selectedSkill.icon_url} alt="" className="w-full h-full object-cover" /> : selectedSkill.name.slice(0, 1)}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
+              <div className={`flex min-h-8 items-center gap-2 ${installedName && installedRow ? "pr-64" : "pr-24"}`}>
                 <h2 className="text-xl font-semibold text-ink">{selectedSkill.name}</h2>
                 {selectedSkill.verified && <span role="img" aria-label="已认证" title="已认证">🛡️</span>}
               </div>
               <p className="mt-1 text-[13px] leading-5 text-muted">{selectedSkill.description || "暂无描述"}</p>
               {tags.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5" aria-label="标签">{tags.map((tag) => <span key={tag} className={BADGE}>{tag}</span>)}</div>}
             </div>
-            <div className="shrink-0 text-right">
-              {installedName ? (
-                <button className={BTN_ACCENT} onClick={() => onUseSkill(installedName, selectedSkill.name)}>使用</button>
+            <div className="absolute right-0 top-0 text-right">
+              {installedName && installedRow ? (
+                <div className="relative z-10 flex items-center gap-2">
+                  <button className="shrink-0 rounded-lg bg-accent px-2.5 py-1.5 text-[12px] text-white" onClick={() => onUseSkill(installedName, selectedSkill.name)}>去对话</button>
+                  <Toggle
+                    checked={installedRow.enabled}
+                    title={`${selectedSkill.name} 自动触发`}
+                    ariaLabel={`${installedRow.name} 自动触发`}
+                    onChange={(enabled) => {
+                      updateSkill(installedRow.name, { enabled }).then((result) => {
+                        if (!result.ok) return setInstallError(result.error || "操作失败");
+                        setDetailNotice(`${selectedSkill.name} ${enabled ? "已开启自动触发" : "已关闭自动触发"}`);
+                        onInstalled();
+                      });
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="w-8 h-8 grid place-items-center rounded-lg hover:bg-chromeHover"
+                    aria-label={`${installedRow.name} 更多操作`}
+                    aria-haspopup="menu"
+                    aria-expanded={detailMenuOpen}
+                    onClick={() => setDetailMenuOpen((open) => !open)}
+                  >
+                    <Icon name="moreHorizontal" size={16} />
+                  </button>
+                  {detailMenuOpen && <>
+                    <div className="fixed inset-0 z-20" onClick={() => setDetailMenuOpen(false)} />
+                    <div role="menu" className="absolute right-0 top-full z-30 mt-1.5 w-44 rounded-xl border border-line bg-panel p-1.5 text-left shadow-xl">
+                      <button role="menuitem" className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] hover:bg-paper" onClick={() => { setDetailMenuOpen(false); revealSkill(installedRow.name); }}>
+                        <Icon name="folder" size={16} /> 打开文件夹
+                      </button>
+                      <button role="menuitem" className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-danger hover:bg-paper" onClick={() => { setDetailMenuOpen(false); setDetailConfirmUninstall(true); }}>
+                        <Icon name="trash" size={16} /> 卸载
+                      </button>
+                    </div>
+                  </>}
+                </div>
               ) : (
                 <button
                   className={BTN_ACCENT}
@@ -710,7 +848,16 @@ function SkillHubCatalog({
                   onClick={() => {
                     setInstalling(true);
                     setInstallError("");
-                    installSkillHubSkill(selectedSkill.slug, selectedSkill.namespace, selectedSkill.version)
+                    installSkillHubSkill(selectedSkill.slug, selectedSkill.namespace, selectedSkill.version, {
+                      display_name: catalogCard.name,
+                      description: catalogCard.description,
+                      icon_url: catalogCard.icon_url,
+                      publisher: catalogCard.publisher,
+                      tags: catalogCard.tags?.filter(Boolean) || [],
+                      category: catalogCard.category,
+                      category_name: categoryNames.get(catalogCard.category) || catalogCard.category,
+                      verified: catalogCard.verified,
+                    })
                       .then((result) => {
                         if (!result.ok || !result.name) return setInstallError(result.error || "技能安装失败");
                         setInstalledNames((current) => ({ ...current, [coordinate]: result.name! }));
@@ -752,6 +899,26 @@ function SkillHubCatalog({
           )}
         </article>
         </div>
+        {detailConfirmUninstall && installedRow && (
+          <div className="fixed inset-0 z-50 grid place-items-center bg-black/30 px-4" role="dialog" aria-modal="true" aria-labelledby="detail-skill-uninstall-title">
+            <div className="w-full max-w-sm rounded-xl border border-line bg-panel p-5 shadow-xl text-left">
+              <h2 id="detail-skill-uninstall-title" className="text-[15px] font-semibold text-ink">确认卸载</h2>
+              <p className="mt-2 text-[13px] text-muted">确定要卸载“{selectedSkill.name}”吗？卸载后该技能将无法使用。</p>
+              <div className="mt-5 flex justify-end gap-2">
+                <button type="button" className="rounded-lg border border-line px-3 py-1.5 text-[13px] text-muted hover:border-lineStrong" onClick={() => setDetailConfirmUninstall(false)}>取消</button>
+                <button type="button" className="rounded-lg bg-danger px-3 py-1.5 text-[13px] text-white hover:brightness-105" onClick={() => {
+                  deleteSkill(installedRow.name).then((result) => {
+                    if (!result.ok) return setInstallError(result.error || "卸载失败");
+                    setDetailConfirmUninstall(false);
+                    setInstalledNames((current) => { const next = { ...current }; delete next[coordinate]; return next; });
+                    setDetailNotice(`${selectedSkill.name} 已卸载`);
+                    onInstalled();
+                  });
+                }}>确认卸载</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

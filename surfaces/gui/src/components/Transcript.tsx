@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ApprovalDecision, Item } from "../types";
+import { sessionSkills } from "../api";
 import { shortArgs } from "./ApprovalCard";
 import { humanizeAsk, humanizeTool, type HumanLine } from "../humanize";
 import { Markdown } from "./Markdown";
@@ -168,7 +169,7 @@ function originChip(origin: string | undefined, note: string | undefined, grant?
           (note ? ` — reviewer wasn't sure: ${note}` : "")
         }
       >
-        ✓ user-approved
+        ✓ 用户已批准
       </span>
     );
   }
@@ -192,7 +193,7 @@ function approvalChip(resolved: ApprovalDecision | undefined) {
       className="text-[11px] px-1.5 rounded-full bg-okSoft text-ok shrink-0"
       title={resolved ? `由你批准 · ${resolved.replace(/_/g, " ")}` : "由你批准"}
     >
-      ✓ user-approved
+      ✓ 用户已批准
     </span>
   );
 }
@@ -211,10 +212,12 @@ function StepRow({
   tool,
   approval,
   onAllowAnyway,
+  skillNames,
 }: {
   tool: ToolItem;
   approval?: ApprovalItem;
   onAllowAnyway?: (name: string, args: any) => void;
+  skillNames?: Record<string, string>;
 }) {
   // A reviewer deny (spec §8.4) renders as a card under the step: the FULL reason (the
   // agent only got a terse refusal) plus the one-shot "Allow anyway" override.
@@ -233,8 +236,10 @@ function StepRow({
             // A refused load must not read as a success — "Used skill:" is the trust line
             // (SKILLS-SPEC §4.1 #4), so a blocked attempt gets honest wording instead.
             tool.name === "load_skill" && tool.preview?.includes('"error"')
-              ? { pre: "尝试使用技能：", obj: String(tool.args?.name ?? ""), post: " — 不可用" }
-              : humanizeTool(tool.name, tool.args)
+              ? { pre: "尝试使用技能：", obj: skillNames?.[String(tool.args?.name ?? "")] || String(tool.args?.name ?? ""), post: " — 不可用" }
+              : tool.name === "load_skill"
+                ? { ...humanizeTool(tool.name, tool.args), obj: skillNames?.[String(tool.args?.name ?? "")] || String(tool.args?.name ?? "") }
+                : humanizeTool(tool.name, tool.args)
           }
         />
         {approval && approvalChip(approval.resolved)}
@@ -313,6 +318,7 @@ function TurnGroup({
   answerVisible = false,
   streamingText,
   onAllowAnyway,
+  skillNames,
 }: {
   items: TurnItem[];
   live?: boolean;
@@ -321,6 +327,7 @@ function TurnGroup({
   // the header as the live line; expanded → the small quiet line under the steps.
   streamingText?: string;
   onAllowAnyway?: (name: string, args: any) => void;
+  skillNames?: Record<string, string>;
 }) {
   // Show progress until answer prose is displayed. Latch this across the handoff
   // from streamed prose to the persisted answer so the steps do not flash open.
@@ -388,7 +395,7 @@ function TurnGroup({
                 {approvalChip(row.approval.resolved)}
               </div>
             ) : (
-              <StepRow tool={row.tool} approval={row.approval} onAllowAnyway={onAllowAnyway} key={i} />
+              <StepRow tool={row.tool} approval={row.approval} onAllowAnyway={onAllowAnyway} skillNames={skillNames} key={i} />
             ),
           )}
           {streamingText && (
@@ -428,6 +435,8 @@ interface Props {
   onUndoMemory?: (id: number, previous?: string) => void;
   // §8.4 "Allow anyway" on a reviewer-denied tool: one-shot exact-action override.
   onAllowAnyway?: (name: string, args: any) => void;
+  sessionId?: string;
+  workspace?: string;
 }
 
 // The transcript index whose notice gets the Retry button: the tail error notice, looking
@@ -486,7 +495,22 @@ function McpNotice({
 }
 
 
-export function Transcript({ items, running, streamingText, streamingAnswerVisible, onRetry, onOpenConnectors, onUndoMemory, onAllowAnyway }: Props) {
+export function Transcript({ items, running, streamingText, streamingAnswerVisible, onRetry, onOpenConnectors, onUndoMemory, onAllowAnyway, sessionId, workspace }: Props) {
+  const [skillNames, setSkillNames] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!sessionId) return;
+    let current = true;
+    sessionSkills(sessionId, workspace || "")
+      .then((skills) => {
+        if (!current) return;
+        setSkillNames(Object.fromEntries(skills.map((skill) => [
+          skill.name,
+          skill.description.match(/^(.+?\.Skill)(?:\s|$)/i)?.[1]?.trim() || skill.name,
+        ])));
+      })
+      .catch(() => {});
+    return () => { current = false; };
+  }, [sessionId, workspace]);
   // §33 grouping: a turn = the maximal run of assistant/tool/resolved-approval items between
   // breakers (user, connector, notices, plan/dir requests…). Trailing assistant texts are the
   // ANSWER and render as bubbles after the group; interior assistant texts are narration and
@@ -539,6 +563,7 @@ export function Transcript({ items, running, streamingText, streamingAnswerVisib
               answerVisible={block.answerVisible || !!(block.live && bi === lastTurnIndex && streamingAnswerVisible)}
               streamingText={block.live && bi === lastTurnIndex ? streamingText : undefined}
               onAllowAnyway={onAllowAnyway}
+              skillNames={skillNames}
               key={bi}
             />
           );

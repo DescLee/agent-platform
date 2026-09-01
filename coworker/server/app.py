@@ -713,8 +713,9 @@ def create_app(manager: SessionManager) -> FastAPI:
     def skillhub_skill_install(slug: str, body: dict) -> dict[str, Any]:
         from ..skillhub import skillhub_skill_archive, skillhub_skill_detail
 
-        namespace = str((body or {}).get("namespace", ""))
-        version = str((body or {}).get("version", ""))
+        body = body or {}
+        namespace = str(body.get("namespace", ""))
+        version = str(body.get("version", ""))
         try:
             archive = skillhub_skill_archive(slug, namespace, version)
         except (httpx.HTTPError, ValueError, TypeError) as exc:
@@ -730,7 +731,27 @@ def create_app(manager: SessionManager) -> FastAPI:
         skill = installed.get("skill") or {}
         try:
             detail = skillhub_skill_detail(slug, namespace).get("skill") or {}
-            manager.skill_store.save_skillhub_metadata(str(skill.get("name") or preview.get("name") or slug), detail)
+            card = body.get("card") if isinstance(body.get("card"), dict) else {}
+            # Preserve the exact catalog card the user installed. SkillHub's detail API
+            # uses a different publisher field from its catalog API (owner display name
+            # vs publisher/namespace), so rebuilding the card from detail data changes it
+            # as soon as it appears under "Mine".
+            metadata = dict(detail)
+            for key in (
+                "display_name",
+                "description",
+                "icon_url",
+                "publisher",
+                "tags",
+                "category",
+                "category_name",
+                "verified",
+            ):
+                if key in card:
+                    metadata[key] = card[key]
+            metadata["slug"] = slug
+            metadata["namespace"] = namespace
+            manager.skill_store.save_skillhub_metadata(str(skill.get("name") or preview.get("name") or slug), metadata)
             md_path = manager.skill_store.global_dir / str(skill.get("name") or preview.get("name") or slug) / "SKILL.md"
             if md_path.is_file():
                 text = md_path.read_text(encoding="utf-8").replace("source: uploaded", "source: skillhub")

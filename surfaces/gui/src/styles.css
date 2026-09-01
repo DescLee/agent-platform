@@ -2097,6 +2097,25 @@ html[data-theme="dark"] .hiw-sticky { background: #eab308; color: #3d2c05; }
   box-shadow: 0 4px 16px rgb(0 0 0 / 4%);
 }
 
+.expert-card-more {
+  opacity: 0;
+  background: transparent;
+  transition: opacity 150ms ease, background-color 150ms ease;
+}
+.expert-card:hover .expert-card-more,
+.expert-card:focus-within .expert-card-more,
+.expert-card-more.is-open {
+  opacity: 1;
+}
+.expert-card-more:hover,
+.expert-card-more:focus-visible,
+.expert-card-more.is-open {
+  background: var(--chrome-hover);
+}
+@media (hover: none) {
+  .expert-card-more { opacity: 1; }
+}
+
 .expert-card-actions {
   display: flex;
   align-items: center;

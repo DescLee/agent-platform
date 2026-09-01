@@ -1440,6 +1440,7 @@ export async function setSessionConnection(
 
 export interface SkillRow {
   name: string;
+  display_name?: string;
   description: string;
   instructions: string;
   scope: "global" | "project";
@@ -1451,6 +1452,10 @@ export interface SkillRow {
   publisher?: string;
   tags?: string[];
   category?: string;
+  category_name?: string;
+  verified?: boolean;
+  slug?: string;
+  namespace?: string;
 }
 
 export interface SessionSkillRow {
@@ -1566,10 +1571,24 @@ export async function getSkillHubSkillEvaluation(slug: string, namespace?: strin
   return res.json();
 }
 
-export async function installSkillHubSkill(slug: string, namespace?: string, version?: string): Promise<{ ok: boolean; error?: string; name?: string }> {
+export async function installSkillHubSkill(
+  slug: string,
+  namespace?: string,
+  version?: string,
+  card?: {
+    display_name: string;
+    description: string;
+    icon_url: string;
+    publisher: string;
+    tags: string[];
+    category: string;
+    category_name: string;
+    verified: boolean;
+  },
+): Promise<{ ok: boolean; error?: string; name?: string }> {
   const res = await fetch(
     `${httpBase()}/v1/skillhub/skills/${encodeURIComponent(slug)}/install`,
-    jsonPost({ namespace, version }),
+    jsonPost({ namespace, version, card }),
   );
   return res.json();
 }

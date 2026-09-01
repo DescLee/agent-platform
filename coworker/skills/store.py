@@ -172,7 +172,7 @@ class SkillStore:
                     "files": max(bundled, 0),
                 }
                 if isinstance(hub_index, dict) and skill.name in hub_index and isinstance(hub_index[skill.name], dict):
-                    row.update({k: v for k, v in hub_index[skill.name].items() if k in {"icon_url", "publisher", "tags", "category", "slug", "namespace", "verified", "description"}})
+                    row.update({k: v for k, v in hub_index[skill.name].items() if k in {"display_name", "icon_url", "publisher", "tags", "category", "category_name", "slug", "namespace", "verified", "description"}})
                 if skill.name in seen:  # project copy shadows the global one
                     out[seen[skill.name]] = row
                 else:
@@ -187,7 +187,7 @@ class SkillStore:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             data = {}
-        data[name] = {k: metadata[k] for k in ("icon_url", "publisher", "tags", "category", "slug", "namespace", "verified", "description") if k in metadata}
+        data[name] = {k: metadata[k] for k in ("display_name", "icon_url", "publisher", "tags", "category", "category_name", "slug", "namespace", "verified", "description") if k in metadata}
         path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
     # -- mutations ----------------------------------------------------------------

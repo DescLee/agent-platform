@@ -6,6 +6,9 @@ from coworker.personas import catalog
 
 def test_catalog_exposes_agents_only_and_maps_lazy_install_source(monkeypatch):
     payload = {
+        "categories": [
+            {"id": "06-ContentCreative", "name": {"zh": "内容创作"}, "description": {"zh": "内容专家"}}
+        ],
         "experts": [
             {
                 "plugin": "writer",
@@ -17,6 +20,7 @@ def test_catalog_exposes_agents_only_and_maps_lazy_install_source(monkeypatch):
                 "description": {"zh": "撰写内容"},
                 "tags": [{"zh": "写作"}],
                 "quickPrompts": [{"zh": "写一篇文章"}],
+                "categoryId": "06-ContentCreative",
             },
             {"plugin": "writer-team", "expertType": "team", "profession": {"zh": "写作团队"}},
         ]
@@ -38,3 +42,6 @@ def test_catalog_exposes_agents_only_and_maps_lazy_install_source(monkeypatch):
     assert experts[0]["source"].endswith("/experts/writer-agent")
     assert experts[0]["avatar_url"].endswith("/experts/writer-agent/avatars/Writer.png")
     assert experts[0]["fallback_avatar_url"].endswith("/experts/writer-agent/avatars/expert.png")
+    assert catalog.workbuddy_categories() == [
+        {"id": "06-ContentCreative", "name": "内容创作", "description": "内容专家"}
+    ]

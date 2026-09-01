@@ -373,14 +373,16 @@ function VoiceInputSection() {
 // The Gallery entry point is GONE (owner 2026-08-21) — coworkers install from
 // GitHub / folder / zip only. GalleryModal stays in the tree for the gallery's
 // possible return as a first-class distribution surface, but nothing mounts it.
-export function PersonasSection({ onOpenPersona, onSummonPersona }: { onOpenPersona?: (id: string) => void; onSummonPersona?: (id: string) => void }) {
+export function PersonasSection({ onOpenPersona, onSummonPersona }: { onOpenPersona?: (id: string) => void; onSummonPersona?: (id: string, prompt?: string) => void }) {
   return (
-    <section>
-      <div className="flex items-center justify-between mb-6">
+    <section className="h-full min-h-0 flex flex-col">
+      <div className="flex items-center justify-between mb-6 shrink-0">
         <PanelHead title="专家" sub="" />
         <button className="text-[13px] px-3 py-2 rounded-lg border border-line bg-paper hover:border-lineStrong" onClick={() => window.dispatchEvent(new Event("ocw-focus-import"))}>导入专家</button>
       </div>
-      <PersonasTab onOpenPersona={onOpenPersona} onSummonPersona={onSummonPersona} />
+      <div className="flex-1 min-h-0 flex flex-col">
+        <PersonasTab onOpenPersona={onOpenPersona} onSummonPersona={onSummonPersona} />
+      </div>
     </section>
   );
 }

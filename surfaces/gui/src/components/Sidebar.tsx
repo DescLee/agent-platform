@@ -119,7 +119,7 @@ interface Props {
   projects: RecentWorkspace[];
   activeSession: string;
   activeRunning?: boolean;
-  completedSessionId?: string | null;
+  unreadCompletedSessions?: ReadonlySet<string>;
   onSwitchAgent: (agent: string) => void;
   onNewSession: (agent: string) => void;
   onSelectSession: (id: string, workspace: string, agent: string) => void;
@@ -285,8 +285,8 @@ export function Sidebar(props: Props) {
     if (s.liveness === "working" || (s.session_id === props.activeSession && props.activeRunning)) {
       return <span className="waiting-spinner" title="思考中" />;
     }
-    if (s.session_id === props.completedSessionId) {
-      return <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" title="已完成" />;
+    if (props.unreadCompletedSessions?.has(s.session_id)) {
+      return <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" title="已完成，尚未查看" />;
     }
     return <LiveDot state={s.liveness} />;
   };

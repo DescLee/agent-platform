@@ -14,6 +14,7 @@ CATALOG_URL = (
 EXPERT_TREE_URL = "https://github.com/infometa/workbuddyskills/tree/main/experts/{plugin}"
 EXPERT_RAW_URL = "https://raw.githubusercontent.com/infometa/workbuddyskills/refs/heads/main/experts/{agent}"
 _cache: tuple[float, list[dict]] | None = None
+_categories: list[dict] = []
 
 
 def _localized(value) -> str:
@@ -24,13 +25,22 @@ def _localized(value) -> str:
 
 def workbuddy_catalog(*, max_age: float = 3600) -> list[dict]:
     """Fetch metadata only. Expert bundles are downloaded later when summoned."""
-    global _cache
+    global _cache, _categories
     now = time.monotonic()
     if _cache and now - _cache[0] < max_age:
         return _cache[1]
     req = Request(CATALOG_URL, headers={"User-Agent": "OpenWorker/desktop"})
     with urlopen(req, timeout=15) as response:
         body = json.load(response)
+    _categories = [
+        {
+            "id": str(raw.get("id", "")),
+            "name": _localized(raw.get("name")),
+            "description": _localized(raw.get("description")),
+        }
+        for raw in body.get("categories", [])
+        if raw.get("id") and _localized(raw.get("name"))
+    ]
     experts = []
     for raw in body.get("experts", []):
         # The catalogue mirrors .codebuddy-plugin/plugin.json. Teams are intentionally
@@ -75,3 +85,9 @@ def workbuddy_catalog(*, max_age: float = 3600) -> list[dict]:
         )
     _cache = (now, experts)
     return experts
+
+
+def workbuddy_categories() -> list[dict]:
+    if not _cache:
+        workbuddy_catalog()
+    return _categories

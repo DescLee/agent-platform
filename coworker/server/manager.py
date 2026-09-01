@@ -892,6 +892,7 @@ class SessionManager:
             "avatar": self.personas.avatar_name(entry.id),
             "tagline": entry.tagline,
             "tags": manifest.tags if manifest else [],
+            "quick_prompts": manifest.quick_prompts if manifest else [],
             "description": manifest.description if manifest else "",
             "media": media,
             "builtin": entry.builtin,

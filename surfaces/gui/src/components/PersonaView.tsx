@@ -11,20 +11,16 @@
 
 import { useEffect, useState } from "react";
 import {
-  deletePersona,
-  exportPersona,
   getConnectors,
   getPersonaDetail,
   getPersonaMediaUrl,
   getPersonaAvatarUrl,
+  getPersonaCatalog,
   setPersonaConnection,
-  updatePersona,
   type PersonaDetail,
 } from "../api";
-import { chooseFolder } from "../tauri";
 import { ConnectorBadge } from "../connectors/ConnectorIcon";
 import { fullPersonaName } from "../personaScope";
-import { Icon } from "./Icon";
 import { Markdown } from "./Markdown";
 import { Toggle } from "./Toggle";
 import { indexConnectors, labelFor, visualFor, type ConnectorMap } from "../connectors/visuals";
@@ -42,22 +38,21 @@ const COL_ENABLE = "w-[64px] flex justify-center items-center shrink-0";
 
 export function PersonaView({
   personaId,
-  onBack,
   onOpenIntegrations,
+  onQuickPrompt,
 }: {
   personaId: string;
   onBack?: () => void;
   onOpenIntegrations?: () => void;
+  onQuickPrompt?: (prompt: string) => void;
 }) {
   const [detail, setDetail] = useState<PersonaDetail | null>(null);
   const [byName, setByName] = useState<ConnectorMap>({});
   const [error, setError] = useState<string | null>(null);
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [catalogPrompts, setCatalogPrompts] = useState<string[]>([]);
   const [shot, setShot] = useState(0);
-  const [showTools, setShowTools] = useState(false);
-  const [confirmDel, setConfirmDel] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -65,6 +60,7 @@ export function PersonaView({
     setDetail(null);
     setError(null);
     setMediaUrls([]);
+    setCatalogPrompts([]);
     setShot(0);
     getPersonaDetail(personaId)
       .then(async (d) => {
@@ -76,6 +72,20 @@ export function PersonaView({
         );
         urls = loaded.filter(Boolean) as string[];
         if (live) setMediaUrls(urls);
+        if (!d.quick_prompts?.length) {
+          getPersonaCatalog().then((catalog) => {
+            if (!live || !catalog.ok) return;
+            const expert = catalog.experts.find((item) =>
+              item.id === personaId ||
+              item.plugin === personaId ||
+              item.agent_name === personaId ||
+              item.name === d.name ||
+              item.display_name === d.name ||
+              item.display_name === d.tagline
+            );
+            if (expert?.quick_prompts?.length) setCatalogPrompts(expert.quick_prompts);
+          }).catch(() => {});
+        }
       })
       .catch(() => live && setError("无法加载此专家。"));
     getConnectors()
@@ -94,18 +104,6 @@ export function PersonaView({
     } else {
       getPersonaDetail(personaId).then(setDetail).catch(() => {});
     }
-  };
-
-  const patch = async (body: { surfaced?: boolean; default?: boolean }) => {
-    await updatePersona(personaId, body);
-    getPersonaDetail(personaId).then(setDetail).catch(() => {});
-  };
-
-  const exportBundle = async () => {
-    const dir = await chooseFolder();
-    if (!dir) return;
-    const r = await exportPersona(personaId, dir);
-    setMsg(r.ok ? `已导出至 ${r.path}` : r.error || "导出失败");
   };
 
   const header = null;
@@ -226,6 +224,17 @@ export function PersonaView({
             </section>
           )}
 
+          {!!(detail.quick_prompts?.length || catalogPrompts.length) && (
+            <section>
+              <div className={`${SEC_H} mb-2`}>试试这些任务</div>
+              <div className={`${GRP}`}>
+                {(detail.quick_prompts?.length ? detail.quick_prompts : catalogPrompts).map((prompt) => (
+                  <button key={prompt} className="block w-full px-4 py-3 text-left text-[13px] text-ink hover:bg-chromeHover" onClick={() => onQuickPrompt?.(prompt)}>{prompt}</button>
+                ))}
+              </div>
+            </section>
+          )}
+
           {/* connectors — one table, Status | Enable columns */}
           {rows.length > 0 && (
             <section>
@@ -291,101 +300,6 @@ export function PersonaView({
             </section>
           )}
 
-          {/* advanced: tool calls, collapsed by default (everyday users don't need these) */}
-          {detail.tools.length > 0 && (
-            <section>
-              <div className={`${SEC_H} mb-1.5`}>高级设置</div>
-              <div className="rounded-xl2 border border-line bg-panel">
-                <button
-                  className="w-full flex items-center gap-2 px-4 py-2.5 text-left"
-                  data-testid="tool-calls-disclosure"
-                  onClick={() => setShowTools((v) => !v)}
-                >
-                  <Icon
-                    name="chevronRight"
-                    size={12}
-                    className={"text-faint transition-transform" + (showTools ? " rotate-90" : "")}
-                  />
-                  <span className="text-[13px]">工具调用</span>
-                  <span className="ml-auto text-[12px] text-faint">{detail.tools.length}</span>
-                </button>
-                {showTools && (
-                  <div className="px-4 pb-3 font-mono text-[12px] text-muted">
-                    {detail.tools.join(" · ")}
-                  </div>
-                )}
-              </div>
-            </section>
-          )}
-
-          {/* defaults footer */}
-          <section className="flex flex-wrap gap-x-8 gap-y-2 text-[13px]">
-            {detail.recommended_models.length > 0 && (
-              <div>
-                <span className="text-faint">Models</span> ·{" "}
-                {detail.recommended_models.map((m, i) => (
-                  <span key={m}>
-                    <span className="font-mono">{m}</span>
-                    {i < detail.recommended_models.length - 1 ? ", " : ""}
-                  </span>
-                ))}
-              </div>
-            )}
-            {detail.default_permission_mode && (
-              <div>
-                <span className="text-faint">默认模式</span> · {detail.default_permission_mode}
-              </div>
-            )}
-            <div>
-              <span className="text-faint">工作区</span> ·{" "}
-              {detail.requires_folder ? "picked folder" : "scratch"}
-            </div>
-          </section>
-
-          {/* management — the controls that left the list page (UX-035) */}
-          <section className="border-t border-line pt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px]">
-            <button
-              className={BTN_BORDERED}
-              disabled={detail.default}
-              data-testid="persona-make-default"
-              onClick={() => patch({ default: true })}
-            >
-              {detail.default ? "新会话默认专家" : "设为默认"}
-            </button>
-            {!detail.builtin && (
-              <button className={BTN_BORDERED} data-testid="persona-export" onClick={exportBundle}>
-                    导出…
-              </button>
-            )}
-            {!detail.builtin &&
-              (confirmDel ? (
-                <span className="flex items-center gap-1.5">
-                  <button
-                    className="text-[12px] px-2.5 py-1.5 rounded-lg bg-danger text-white"
-                    data-testid="persona-delete-confirm"
-                    onClick={async () => {
-                      const r = await deletePersona(personaId);
-                      if (r.ok) onBack?.();
-                      else setMsg(r.error || "delete failed");
-                    }}
-                  >
-                    删除
-                  </button>
-                  <button className={BTN_BORDERED} onClick={() => setConfirmDel(false)}>
-                    Keep
-                  </button>
-                </span>
-              ) : (
-                <button
-                  className="text-[13px] text-danger/80 hover:text-danger"
-                  data-testid="persona-delete"
-                  onClick={() => setConfirmDel(true)}
-                >
-                    删除…
-                </button>
-              ))}
-            {msg && <span className="text-muted">{msg}</span>}
-          </section>
         </div>
       </div>
     </main>

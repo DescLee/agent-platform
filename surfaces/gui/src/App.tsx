@@ -214,7 +214,7 @@ export function App() {
   const [connected, setConnected] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
   const [running, setRunning] = useState(false);
-  const [completedSessionId, setCompletedSessionId] = useState<string | null>(null);
+  const [unreadCompletedSessions, setUnreadCompletedSessions] = useState<Set<string>>(() => new Set());
   // Transient "Compacting context…" indicator (OPE-27): set by the `compacting` event,
   // cleared by whatever the engine emits next — the summarizer call is otherwise a
   // multi-second silent stall mid-turn.
@@ -278,6 +278,15 @@ export function App() {
   const [surface, setSurface] = useState<
     "session" | "coworkers" | "scheduled" | "integrations" | "audit" | "inbox" | "persona" | "settings"
   >("session");
+  useEffect(() => {
+    if (surface !== "session") return;
+    setUnreadCompletedSessions((current) => {
+      if (!current.has(sessionId)) return current;
+      const next = new Set(current);
+      next.delete(sessionId);
+      return next;
+    });
+  }, [surface, sessionId, unreadCompletedSessions]);
   // A remembered Scheduled-detail target must not outlive the surface (see the
   // scheduledOpenId comment above): nav re-entry lands on the list, never a
   // possibly-deleted automation's dead detail.
@@ -911,7 +920,11 @@ export function App() {
           break;
         case "turn_done":
           setRunning(false);
-          setCompletedSessionId(sessionId);
+          setUnreadCompletedSessions((current) => {
+            const next = new Set(current);
+            next.add(sessionId);
+            return next;
+          });
           setReviewerPaused(false); // the pause is scoped to the turn
           refreshSessions();
           // Catch-all artifact refresh: files created via shell or on a brand-new session (whose
@@ -1090,7 +1103,12 @@ export function App() {
     // Force-run shows exactly what the user typed: "/name rest". Must match the server's
     // `display` sidecar formula so the turn_start dedupe recognizes the local echo.
     const shown = skill ? `/${skill}${text ? ` ${text}` : ""}` : text;
-    setCompletedSessionId(null);
+    setUnreadCompletedSessions((current) => {
+      if (!current.has(sessionId)) return current;
+      const next = new Set(current);
+      next.delete(sessionId);
+      return next;
+    });
     setItems((p) => [...p, { kind: "user", text: shown, attachments, ts: Date.now() / 1000 }]);
     // The visible model rides along with the message (single source of truth per turn).
     sessionRef.current?.userMessage(text, attachments, model, skill);
@@ -1154,7 +1172,12 @@ export function App() {
   const retry = () => {
     // Optimistic running: turn_start confirms; a rejected retry still ends in turn_done.
     setRunning(true);
-    setCompletedSessionId(null);
+    setUnreadCompletedSessions((current) => {
+      if (!current.has(sessionId)) return current;
+      const next = new Set(current);
+      next.delete(sessionId);
+      return next;
+    });
     sessionRef.current?.retry();
   };
   const changeMode = (m: string) => {
@@ -1225,9 +1248,13 @@ export function App() {
     setTempWorkspace(false);
     setSessionId(newId());
   };
-  const summonPersona = (id: string) => {
+  const summonPersona = async (id: string, prompt?: string) => {
     setPersonaModalOpen(false);
-    void startNewSession(id);
+    await startNewSession(id);
+    // Installing a remote expert updates the persona registry at the same time as the
+    // session switch. Let that render finish before applying the draft, otherwise the
+    // new Composer's reset effect can clear the prompt that was just supplied.
+    if (prompt) window.setTimeout(() => prefillComposer(prompt), 0);
   };
   // UX-029: re-target the DRAFT session (no messages yet) to another coworker. Unlike
   // switchAgent this never resumes that coworker's last conversation — the user is
@@ -1374,6 +1401,12 @@ export function App() {
   };
 
   const selectSession = async (id: string, ws: string, ag: string) => {
+    setUnreadCompletedSessions((current) => {
+      if (!current.has(id)) return current;
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
     setSurface("session"); // selecting a conversation always returns to the conversation view
     setTodo([]);
     setStreaming("");
@@ -1589,6 +1622,15 @@ export function App() {
     if (target?.closest("button, input, textarea, select, a, [role=button]")) return;
     void startWindowDrag();
   };
+  const beginPageHeaderDrag = (event: PointerEvent) => {
+    if (!desktop || event.button !== 0 || event.clientY > 88) return;
+    const target = event.target as HTMLElement | null;
+    // Existing title bars already own their drag gesture. This fallback makes the
+    // top strip of every full-page surface draggable without covering its controls.
+    if (target?.closest(".main-topbar, [data-tauri-drag-region]")) return;
+    if (target?.closest("button, input, textarea, select, a, [role=button]")) return;
+    void startWindowDrag();
+  };
 
   if (booting || !uiReady) {
     return (
@@ -1628,6 +1670,7 @@ export function App() {
         (navCollapsed ? " nav-collapsed" : "") +
         (navCollapsed && navPeek ? " nav-peek" : "")
       }
+      onPointerDown={beginPageHeaderDrag}
     >
       {/* Dev-only fake traffic lights so ?overlay=1 previews the real desktop top-left. */}
       {simOverlay && (
@@ -1727,7 +1770,7 @@ export function App() {
         projects={projects}
         activeSession={sessionId}
         activeRunning={running}
-        completedSessionId={completedSessionId}
+        unreadCompletedSessions={unreadCompletedSessions}
         onSwitchAgent={switchAgent}
         onNewSession={startNewSession}
         onSelectSession={selectSession}
@@ -1759,11 +1802,11 @@ export function App() {
         onPeekLeave={() => setNavPeek(false)}
       />
       {surface === "coworkers" ? (
-        <main className="flex-1 min-w-0 min-h-0 overflow-auto bg-paper hairline-scroll">
-          <div className="experts-content mx-auto px-7 py-6">
+        <main className="flex-1 min-w-0 min-h-0 overflow-hidden bg-paper">
+          <div className="experts-content mx-auto px-7 py-6 h-full flex flex-col min-h-0">
             <PersonasSection onOpenPersona={(id) => openPersona(id, "coworkers")} onSummonPersona={summonPersona} />
           </div>
-          {personaModalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-6" onClick={() => setPersonaModalOpen(false)}><div className="relative w-full max-w-[580px] max-h-[85vh] overflow-hidden rounded-2xl shadow-2xl" onClick={(e) => e.stopPropagation()}><button className="absolute right-14 top-3 z-10 rounded-lg bg-accent px-3 py-1.5 text-[13px] text-white" onClick={() => summonPersona(personaViewId || agent)}>召唤</button><button className="absolute right-4 top-3 z-10 text-xl text-muted" onClick={() => setPersonaModalOpen(false)}>×</button><PersonaView personaId={personaViewId} onBack={() => setPersonaModalOpen(false)} /></div></div>}
+          {personaModalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-6" onClick={() => setPersonaModalOpen(false)}><div className="relative w-full max-w-[580px] max-h-[85vh] overflow-hidden rounded-2xl shadow-2xl" onClick={(e) => e.stopPropagation()}><button className="absolute right-14 top-3 z-10 rounded-lg bg-accent px-3 py-1.5 text-[13px] text-white" onClick={() => void summonPersona(personaViewId || agent)}>召唤</button><button className="absolute right-4 top-3 z-10 text-xl text-muted" onClick={() => setPersonaModalOpen(false)}>×</button><PersonaView personaId={personaViewId} onBack={() => setPersonaModalOpen(false)} onQuickPrompt={(prompt) => void summonPersona(personaViewId || agent, prompt)} /></div></div>}
         </main>
       ) : surface === "scheduled" ? (
         <ScheduledView
@@ -1965,10 +2008,24 @@ export function App() {
                         {(personaOf(agent)?.quick_prompts?.length
                           ? personaOf(agent)!.quick_prompts!.map((text) => ({ text, ico: "✦" }))
                           : SUGGESTIONS).map((s, i) => (
-                          <div className="suggest" key={`${i}:${s.text}`} style={{ animationDelay: `${0.1 + i * 0.12}s` }} onClick={() => personaOf(agent)?.quick_prompts?.length ? prefillComposer(s.text) : workspace && send(s.text)}>
+                          <button
+                            type="button"
+                            className="suggest w-full text-left"
+                            key={`${i}:${s.text}`}
+                            style={{ animationDelay: `${0.1 + i * 0.12}s` }}
+                            onPointerDown={(event) => {
+                              if (event.button !== 0) return;
+                              event.preventDefault();
+                              prefillComposer(s.text);
+                            }}
+                            onClick={(event) => {
+                              // Keyboard activation has no preceding pointer event.
+                              if (event.detail === 0) prefillComposer(s.text);
+                            }}
+                          >
                             <span className="ico">{s.ico}</span>
                             {s.text}
-                          </div>
+                          </button>
                         ))}
                       </div>
                     )}

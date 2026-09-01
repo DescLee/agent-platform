@@ -520,7 +520,7 @@ def create_app(manager: SessionManager) -> FastAPI:
     @app.get("/v1/personas/catalog")
     def persona_catalog() -> dict[str, Any]:
         """Metadata-only public catalogue. No expert package is installed here."""
-        from ..personas.catalog import workbuddy_catalog
+        from ..personas.catalog import workbuddy_catalog, workbuddy_categories
 
         try:
             experts = workbuddy_catalog()
@@ -529,6 +529,7 @@ def create_app(manager: SessionManager) -> FastAPI:
         installed = set(manager.personas.ids())
         return {
             "ok": True,
+            "categories": workbuddy_categories(),
             "experts": [{**expert, "installed": expert["id"] in installed} for expert in experts],
         }
 

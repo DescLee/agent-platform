@@ -11,8 +11,9 @@ it("falls back to the public metadata index when the running sidecar lacks the c
     return {
       ok: true,
       json: async () => ({
+        categories: [{ id: "06-ContentCreative", name: { zh: "内容创作" } }],
         experts: [
-          { plugin: "writer", expertType: "agent", profession: { zh: "写作专家" } },
+          { plugin: "writer", expertType: "agent", profession: { zh: "写作专家" }, categoryId: "06-ContentCreative" },
           { plugin: "writers", expertType: "team", profession: { zh: "写作团队" } },
         ],
       }),
@@ -24,5 +25,6 @@ it("falls back to the public metadata index when the running sidecar lacks the c
 
   expect(result.ok).toBe(true);
   expect(result.experts.map((expert) => expert.id)).toEqual(["wb-writer"]);
+  expect(result.categories).toEqual([{ id: "06-ContentCreative", name: "内容创作", description: "" }]);
   expect(request).toHaveBeenCalledTimes(2);
 });

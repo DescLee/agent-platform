@@ -1135,15 +1135,22 @@ export interface CatalogPersona {
   installed: boolean;
 }
 
+export interface CatalogCategory {
+  id: string;
+  name: string;
+  description: string;
+}
+
 export async function getPersonaCatalog(): Promise<{
   ok: boolean;
   experts: CatalogPersona[];
+  categories: CatalogCategory[];
   error?: string;
 }> {
   try {
     const res = await fetch(`${httpBase()}/v1/personas/catalog`);
     const body = await res.json();
-    if (body.ok && Array.isArray(body.experts)) return body;
+    if (body.ok && Array.isArray(body.experts) && Array.isArray(body.categories)) return body;
   } catch {
     // A running desktop sidecar may be one revision behind the hot-reloaded GUI.
   }
@@ -1152,7 +1159,7 @@ export async function getPersonaCatalog(): Promise<{
   const raw = await globalThis.fetch(
     "https://raw.githubusercontent.com/infometa/workbuddyskills/main/experts/expert_center.json",
   );
-  if (!raw.ok) return { ok: false, experts: [], error: `专家目录加载失败（${raw.status}）` };
+  if (!raw.ok) return { ok: false, experts: [], categories: [], error: `专家目录加载失败（${raw.status}）` };
   const body = await raw.json();
   const localized = (value: unknown): string => {
     if (typeof value === "string") return value.trim();
@@ -1182,7 +1189,14 @@ export async function getPersonaCatalog(): Promise<{
       fallback_avatar_url: `https://raw.githubusercontent.com/infometa/workbuddyskills/refs/heads/main/experts/${item.agentName || item.plugin}/avatars/expert.png`,
       installed: false,
     }));
-  return { ok: true, experts };
+  const categories: CatalogCategory[] = (Array.isArray(body.categories) ? body.categories : [])
+    .filter((item: any) => typeof item?.id === "string" && localized(item.name))
+    .map((item: any) => ({
+      id: item.id,
+      name: localized(item.name),
+      description: localized(item.description),
+    }));
+  return { ok: true, experts, categories };
 }
 
 export async function updatePersona(
@@ -1310,6 +1324,7 @@ export interface PersonaDefaultConnection {
 export interface PersonaDetail {
   avatar?: string | null;
   tags?: string[];
+  quick_prompts: string[];
   id: string;
   name: string;
   icon: string;

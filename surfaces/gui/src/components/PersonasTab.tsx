@@ -5,6 +5,7 @@ import {
   getPersonaAvatarUrl,
   installPersona,
   type Persona,
+  type CatalogCategory,
   type CatalogPersona,
   type PersonaConsent,
 } from "../api";
@@ -50,11 +51,16 @@ function RemoteExpertAvatar({ expert }: { expert: CatalogPersona }) {
   );
 }
 
-export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?: (id: string) => void; onSummonPersona?: (id: string) => void }) {
+export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?: (id: string) => void; onSummonPersona?: (id: string, prompt?: string) => void }) {
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [catalog, setCatalog] = useState<CatalogPersona[]>([]);
+  const [categories, setCategories] = useState<CatalogCategory[]>([]);
+  const [category, setCategory] = useState("all");
+  const categoryScrollRef = useRef<HTMLDivElement | null>(null);
+  const [categoryEdges, setCategoryEdges] = useState({ left: false, right: false });
   const [catalogError, setCatalogError] = useState("");
   const [summoning, setSummoning] = useState<CatalogPersona | null>(null);
+  const [selectedRemote, setSelectedRemote] = useState<CatalogPersona | null>(null);
   const [summonError, setSummonError] = useState("");
   const [internal, setInternal] = useState(false);
   const [mode, setMode] = useState<"git" | "dir" | "zip">("git");
@@ -90,9 +96,29 @@ export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?
   useEffect(() => {
     reload();
     getPersonaCatalog()
-      .then((r) => r.ok ? setCatalog(r.experts) : setCatalogError(r.error || "专家目录加载失败"))
+      .then((r) => {
+        if (!r.ok) return setCatalogError(r.error || "专家目录加载失败");
+        setCatalog(r.experts);
+        setCategories(r.categories);
+      })
       .catch(() => setCatalogError("专家目录加载失败"));
   }, []);
+  const updateCategoryEdges = () => {
+    const el = categoryScrollRef.current;
+    if (!el) return;
+    setCategoryEdges({
+      left: el.scrollLeft > 2,
+      right: el.scrollLeft + el.clientWidth < el.scrollWidth - 2,
+    });
+  };
+  useEffect(() => {
+    const frame = requestAnimationFrame(updateCategoryEdges);
+    window.addEventListener("resize", updateCategoryEdges);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", updateCategoryEdges);
+    };
+  }, [categories]);
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
@@ -169,8 +195,14 @@ export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?
   const unshipped = available.filter((p) => p.ships === false);
   const installedIds = new Set(personas.map((p) => p.id));
   const remoteExperts = catalog.filter((p) => !installedIds.has(p.id));
+  const visibleRemoteExperts = category === "all"
+    ? remoteExperts
+    : category === "mine"
+      ? []
+      : remoteExperts.filter((p) => p.category === category);
+  const downloadedExperts = available.filter((p) => !p.builtin);
 
-  const summonRemote = async (expert: CatalogPersona) => {
+  const summonRemote = async (expert: CatalogPersona, prompt?: string) => {
     setSummoning(expert);
     setSummonError("");
     try {
@@ -181,7 +213,7 @@ export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?
       if (!result.ok) throw new Error(result.error || "专家下载失败");
       if (result.personas) setPersonas(result.personas);
       const installedId = result.consent?.[0]?.id || expert.id;
-      onSummonPersona?.(installedId);
+      onSummonPersona?.(installedId, prompt);
     } catch (error) {
       setSummonError(error instanceof Error ? error.message : "专家下载失败");
     } finally {
@@ -244,17 +276,69 @@ export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?
   };
 
   return (
-    <div>
-      {/* Every expert shown here is immediately available; ★ marks the default. */}
-      {group(null, available.filter((p) => p.ships !== false))}
-      {remoteExperts.length > 0 && (
-        <div className="mt-7">
-          <div className="text-[12px] font-semibold text-muted px-4 mb-1.5">
-            更多专家 · {remoteExperts.length}
+    <div className="flex-1 min-h-0 flex flex-col">
+      {categories.length > 0 && (
+        <div className="relative mb-2 shrink-0" data-testid="expert-categories">
+          <div
+            ref={categoryScrollRef}
+            className="category-tabs-scroll flex items-center gap-1.5 overflow-x-auto"
+            onScroll={updateCategoryEdges}
+          >
+            <button
+              className={`shrink-0 rounded-lg px-3 py-1.5 text-[13px] ${category === "all" ? "bg-chromeHover text-ink font-medium" : "text-muted hover:bg-chromeHover hover:text-ink"}`}
+              onClick={() => setCategory("all")}
+            >
+              全部
+            </button>
+            <button
+              className={`shrink-0 rounded-lg px-3 py-1.5 text-[13px] ${category === "mine" ? "bg-chromeHover text-ink font-medium" : "text-muted hover:bg-chromeHover hover:text-ink"}`}
+              onClick={() => setCategory("mine")}
+            >
+              我的
+            </button>
+            {categories.map((item) => (
+              <button
+                key={item.id}
+                className={`shrink-0 rounded-lg px-3 py-1.5 text-[13px] ${category === item.id ? "bg-chromeHover text-ink font-medium" : "text-muted hover:bg-chromeHover hover:text-ink"}`}
+                title={item.description}
+                onClick={() => setCategory(item.id)}
+              >
+                {item.name}
+              </button>
+            ))}
           </div>
+          {categoryEdges.left && (
+            <button
+              className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-panel border border-line shadow-sm text-muted hover:text-ink grid place-items-center"
+              aria-label="向左查看更多分类"
+              onClick={() => categoryScrollRef.current?.scrollBy({ left: -320, behavior: "smooth" })}
+            >
+              <Icon name="chevronRight" size={15} className="rotate-180" />
+            </button>
+          )}
+          {categoryEdges.right && (
+            <button
+              className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-panel border border-line shadow-sm text-muted hover:text-ink grid place-items-center"
+              aria-label="向右查看更多分类"
+              onClick={() => categoryScrollRef.current?.scrollBy({ left: 320, behavior: "smooth" })}
+            >
+              <Icon name="chevronRight" size={15} />
+            </button>
+          )}
+        </div>
+      )}
+      <div className="expert-list-scroll flex-1 min-h-0 overflow-y-auto pr-1 pb-6" data-testid="expert-list-scroll">
+      {/* Every expert shown here is immediately available; ★ marks the default. */}
+      {category === "all" && group(null, available.filter((p) => p.ships !== false && p.id !== "cowork" && p.id !== "code"))}
+      {category === "mine" && group(null, downloadedExperts)}
+      {visibleRemoteExperts.length > 0 && (
+        <div className={category === "all" ? "mt-2" : "mt-1.5"}>
+          {category !== "all" && <div className="text-[12px] font-semibold text-muted px-4 mb-1.5">
+            {categories.find((item) => item.id === category)?.name} · {visibleRemoteExperts.length}
+          </div>}
           <div className="expert-grid" data-testid="remote-expert-grid">
-            {remoteExperts.map((p) => (
-              <article key={p.id} className={CARD + " expert-card group"} data-testid={`remote-expert-${p.plugin}`}>
+            {visibleRemoteExperts.map((p) => (
+              <article key={p.id} className={CARD + " expert-card cursor-pointer group"} data-testid={`remote-expert-${p.plugin}`} onClick={() => setSelectedRemote(p)}>
                 <div className="flex items-start gap-3.5">
                   <div className="w-10 h-10 rounded-full bg-accentSoft text-accent flex items-center justify-center shrink-0 overflow-hidden" aria-hidden="true">
                     <RemoteExpertAvatar expert={p} />
@@ -265,7 +349,7 @@ export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?
                   </div>
                   <button
                     className="hidden group-hover:inline-flex text-[12px] px-2 py-1 rounded-md bg-accent text-white"
-                    onClick={() => void summonRemote(p)}
+                    onClick={(event) => { event.stopPropagation(); void summonRemote(p); }}
                   >
                     召唤
                   </button>
@@ -281,7 +365,45 @@ export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?
           </div>
         </div>
       )}
+      {category !== "all" && visibleRemoteExperts.length === 0 && (category !== "mine" || downloadedExperts.length === 0) && (
+        <div className="py-16 text-center text-[13px] text-muted">{category === "mine" ? "暂无已下载的专家" : "该分类暂无专家"}</div>
+      )}
       {catalogError && <div className="text-[13px] text-muted mt-4">{catalogError}</div>}
+      {selectedRemote && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/20 p-6" onClick={() => setSelectedRemote(null)}>
+          <div className="relative w-full max-w-[580px] max-h-[85vh] overflow-hidden rounded-2xl bg-paper shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <button className="absolute right-14 top-3 z-10 rounded-lg bg-accent px-3 py-1.5 text-[13px] text-white" onClick={() => void summonRemote(selectedRemote)}>召唤</button>
+            <button className="absolute right-4 top-3 z-10 text-xl text-muted" aria-label="关闭" onClick={() => setSelectedRemote(null)}>×</button>
+            <main className="flex min-h-0 flex-col bg-paper">
+              <div className="hairline-scroll max-h-[85vh] overflow-y-auto">
+                <div className="mx-auto max-w-3xl space-y-6 px-7 py-6">
+                  <header className="flex items-start gap-3.5 pr-28">
+                    <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-accentSoft text-accent grid place-items-center">
+                      <RemoteExpertAvatar expert={selectedRemote} />
+                    </div>
+                    <div className="min-w-0">
+                      <h1 className="text-[20px] font-semibold tracking-tight">{selectedRemote.name}</h1>
+                      {selectedRemote.display_name && <p className="mt-0.5 text-[13px] text-muted">{selectedRemote.display_name}</p>}
+                    </div>
+                  </header>
+                  {selectedRemote.description && <section>
+                    <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-faint">能力介绍</div>
+                    <p className="text-[14px] leading-relaxed text-ink/90">{selectedRemote.description}</p>
+                  </section>}
+                  {!!selectedRemote.tags.length && <section>
+                    <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-faint">擅长领域</div>
+                    <div className="flex flex-wrap gap-2">{selectedRemote.tags.map((tag) => <span key={tag} className="whitespace-nowrap rounded-lg border border-line bg-paper px-2.5 py-1 text-[12px] text-muted">{tag}</span>)}</div>
+                  </section>}
+                  {!!selectedRemote.quick_prompts.length && <section>
+                    <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-faint">试试这些任务</div>
+                    <div className="rounded-xl2 border border-line bg-panel divide-y divide-line overflow-hidden">{selectedRemote.quick_prompts.map((prompt) => <button key={prompt} className="block w-full px-4 py-3 text-left text-[13px] text-ink hover:bg-chromeHover" onClick={() => void summonRemote(selectedRemote, prompt)}>{prompt}</button>)}</div>
+                  </section>}
+                </div>
+              </div>
+            </main>
+          </div>
+        </div>
+      )}
       {(summoning || summonError) && (
         <div className="fixed inset-0 z-[70] bg-paper flex items-center justify-center" data-testid="expert-install-loading">
           <div className="text-center max-w-sm px-6">
@@ -302,7 +424,7 @@ export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?
         </div>
       )}
 
-      {unshipped.length > 0 && (
+      {category === "all" && unshipped.length > 0 && (
         <>
           <button
             className={QUIET_ROW}
@@ -415,6 +537,7 @@ export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

@@ -418,11 +418,11 @@ export function SkillsTab({
             <article key={row.name} className={`${CARD} expert-card group ${row.enabled ? "" : "opacity-60"}`}>
               <div className="flex items-start gap-3.5">
                 <div className="w-10 h-10 rounded-xl bg-accentSoft text-accent flex items-center justify-center shrink-0 overflow-hidden font-semibold">
-                  {skillCardName(row).slice(0, 1).toUpperCase()}
+                  {row.icon_url ? <img src={row.icon_url} alt="" className="w-full h-full object-cover" /> : skillCardName(row).slice(0, 1).toUpperCase()}
                 </div>
                 <div className="min-w-0 flex-1">
                   <h3 className="text-[15px] font-semibold truncate" title={skillCardName(row)}>{skillCardName(row)}</h3>
-                  <p className="text-[12px] text-muted truncate">{row.source === "uploaded" ? "uploaded" : "user_" + row.name.slice(0, 8)}</p>
+                  <p className="text-[12px] text-muted truncate">{row.publisher || (row.source === "uploaded" ? "uploaded" : "user_" + row.name.slice(0, 8))}</p>
                 </div>
                 <div className="expert-card-actions shrink-0">
                   <button
@@ -446,7 +446,7 @@ export function SkillsTab({
                 {row.description || "暂无介绍"}
               </p>
               <div className="mt-auto flex items-center gap-2 text-[11px] text-muted">
-                {skillCardTags(row).map((tag) => <span key={tag} className="rounded-md bg-paper px-2 py-1">{tag}</span>)}
+                {(row.tags?.filter(Boolean).length ? row.tags : skillCardTags(row)).map((tag) => <span key={tag} className="rounded-md bg-paper px-2 py-1">{tag}</span>)}
                 {row.files ? (
                   <button className="hidden inline-flex items-center gap-1 rounded-md bg-paper px-2 py-1 hover:text-ink" title="显示文件夹" onClick={() => revealSkill(row.name)}>
                     <Icon name="folder" size={11} /> {row.files} 个文件

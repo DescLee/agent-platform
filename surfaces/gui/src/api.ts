@@ -1447,6 +1447,10 @@ export interface SkillRow {
   enabled: boolean;
   path: string;
   files?: number; // bundled resources beyond SKILL.md (§6 — rich skills are visible)
+  icon_url?: string;
+  publisher?: string;
+  tags?: string[];
+  category?: string;
 }
 
 export interface SessionSkillRow {

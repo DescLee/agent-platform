@@ -711,7 +711,7 @@ def create_app(manager: SessionManager) -> FastAPI:
 
     @app.post("/v1/skillhub/skills/{slug}/install")
     def skillhub_skill_install(slug: str, body: dict) -> dict[str, Any]:
-        from ..skillhub import skillhub_skill_archive
+        from ..skillhub import skillhub_skill_archive, skillhub_skill_detail
 
         namespace = str((body or {}).get("namespace", ""))
         version = str((body or {}).get("version", ""))
@@ -728,6 +728,16 @@ def create_app(manager: SessionManager) -> FastAPI:
             manager.skill_store.discard_upload(token)
             return installed
         skill = installed.get("skill") or {}
+        try:
+            detail = skillhub_skill_detail(slug, namespace).get("skill") or {}
+            manager.skill_store.save_skillhub_metadata(str(skill.get("name") or preview.get("name") or slug), detail)
+            md_path = manager.skill_store.global_dir / str(skill.get("name") or preview.get("name") or slug) / "SKILL.md"
+            if md_path.is_file():
+                text = md_path.read_text(encoding="utf-8").replace("source: uploaded", "source: skillhub")
+                md_path.write_text(text, encoding="utf-8")
+                skill["source"] = "skillhub"
+        except (OSError, ValueError, TypeError):
+            pass
         return {"ok": True, "name": str(skill.get("name") or preview.get("name") or slug), "skill": skill}
 
     @app.patch("/v1/skills/{name}")

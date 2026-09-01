@@ -34,6 +34,7 @@ _NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 _MAX_NAME = 64
 GLOBAL_SCOPE = "global"
 PROJECT_SCOPE = "project"
+SKILLHUB_INDEX = "skillhub.json"
 
 
 def validate_name(name: str) -> str:
@@ -137,6 +138,10 @@ class SkillStore:
         """Enriched listing for the Settings screen: scope, source, enabled. Global first,
         then project (a project row with a colliding name is the effective copy)."""
         disabled = self.disabled_names()
+        try:
+            hub_index = json.loads((self.global_dir / SKILLHUB_INDEX).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            hub_index = {}
         out: list[dict[str, Any]] = []
         seen: dict[str, int] = {}
         scopes: list[tuple[Path, str]] = [(self.global_dir, GLOBAL_SCOPE)]
@@ -166,12 +171,24 @@ class SkillStore:
                     "path": str(sub),
                     "files": max(bundled, 0),
                 }
+                if isinstance(hub_index, dict) and skill.name in hub_index and isinstance(hub_index[skill.name], dict):
+                    row.update({k: v for k, v in hub_index[skill.name].items() if k in {"icon_url", "publisher", "tags", "category", "slug", "namespace", "verified"}})
                 if skill.name in seen:  # project copy shadows the global one
                     out[seen[skill.name]] = row
                 else:
                     seen[skill.name] = len(out)
                     out.append(row)
         return out
+
+    def save_skillhub_metadata(self, name: str, metadata: dict[str, Any]) -> None:
+        self.global_dir.mkdir(parents=True, exist_ok=True)
+        path = self.global_dir / SKILLHUB_INDEX
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            data = {}
+        data[name] = {k: metadata[k] for k in ("icon_url", "publisher", "tags", "category", "slug", "namespace", "verified") if k in metadata}
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
     # -- mutations ----------------------------------------------------------------
     def create(

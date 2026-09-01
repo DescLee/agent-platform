@@ -169,8 +169,8 @@ def test_gallery_install_runs_consent_flow(client, monkeypatch):
     assert body["ok"], body
     assert body["consent"][0]["id"] == "sales"
     installed = {p["id"]: p for p in body["personas"]}
-    # lands disabled + unsurfaced pending explicit user approval (trust model)
-    assert installed["sales"]["enabled"] is False
+    # The install action itself makes the expert available; it is only active once selected.
+    assert installed["sales"]["enabled"] is True
     assert events == ["sales"]  # install event fired
 
 

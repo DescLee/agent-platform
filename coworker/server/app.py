@@ -458,8 +458,8 @@ def create_app(manager: SessionManager) -> FastAPI:
 
     @app.post("/v1/personas/install")
     def install_persona(body: dict) -> dict[str, Any]:
-        # Returns a consent summary per persona; they land disabled pending the user's approval
-        # (then POST /v1/personas/{id} {enabled:true, surfaced:true}).
+        # Import is an explicit user action. Every installed expert is immediately available;
+        # selecting/summoning it still scopes it to that one session.
         reg = manager.personas
         try:
             if body.get("git_url"):
@@ -480,8 +480,7 @@ def create_app(manager: SessionManager) -> FastAPI:
                 # Gallery install = fetch the manifest markdown from the cloud
                 # (sign-in required), verify its hash, then reuse the exact
                 # same parser + consent path as a local/Git install. The
-                # gallery never changes the trust model: no executable code,
-                # lands disabled pending consent.
+                # gallery never changes the trust model: no executable code.
                 import hashlib
                 import tempfile
 
@@ -513,7 +512,25 @@ def create_app(manager: SessionManager) -> FastAPI:
                 }
         except Exception as e:  # surface manifest/clone errors to the caller
             return {"ok": False, "error": str(e)}
+        for summary in summaries:
+            reg.set_enabled(summary["id"], True)
+            reg.set_surfaced(summary["id"], True)
         return {"ok": True, "consent": summaries, "personas": reg.list_all()}
+
+    @app.get("/v1/personas/catalog")
+    def persona_catalog() -> dict[str, Any]:
+        """Metadata-only public catalogue. No expert package is installed here."""
+        from ..personas.catalog import workbuddy_catalog
+
+        try:
+            experts = workbuddy_catalog()
+        except Exception as exc:
+            return {"ok": False, "experts": [], "error": str(exc)}
+        installed = set(manager.personas.ids())
+        return {
+            "ok": True,
+            "experts": [{**expert, "installed": expert["id"] in installed} for expert in experts],
+        }
 
     @app.post("/v1/personas/{persona_id}/export")
     def export_persona(persona_id: str, body: dict) -> dict[str, Any]:

@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import {
   getPersonasIndex,
+  getPersonaCatalog,
   getPersonaAvatarUrl,
   installPersona,
   type Persona,
+  type CatalogPersona,
   type PersonaConsent,
 } from "../api";
 import { chooseFolder } from "../tauri";
@@ -25,8 +27,35 @@ const BTN_BORDERED =
 const QUIET_ROW =
   "w-full flex items-center gap-2 px-4 pt-2 mt-6 text-[13px] text-muted select-none";
 
+function RemoteExpertAvatar({ expert }: { expert: CatalogPersona }) {
+  const primary = expert.fallback_avatar_url || expert.avatar_url;
+  const [src, setSrc] = useState(primary);
+  useEffect(() => setSrc(primary), [primary]);
+
+  if (!src) return <PersonaGlyph icon="sparkle" size={22} />;
+  return (
+    <img
+      src={src}
+      alt=""
+      className="w-full h-full object-cover"
+      loading="lazy"
+      onError={() => {
+        if (src !== expert.avatar_url && expert.avatar_url) {
+          setSrc(expert.avatar_url);
+        } else {
+          setSrc("");
+        }
+      }}
+    />
+  );
+}
+
 export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?: (id: string) => void; onSummonPersona?: (id: string) => void }) {
   const [personas, setPersonas] = useState<Persona[]>([]);
+  const [catalog, setCatalog] = useState<CatalogPersona[]>([]);
+  const [catalogError, setCatalogError] = useState("");
+  const [summoning, setSummoning] = useState<CatalogPersona | null>(null);
+  const [summonError, setSummonError] = useState("");
   const [internal, setInternal] = useState(false);
   const [mode, setMode] = useState<"git" | "dir" | "zip">("git");
   const [src, setSrc] = useState("");
@@ -60,6 +89,9 @@ export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?
       .catch(() => {});
   useEffect(() => {
     reload();
+    getPersonaCatalog()
+      .then((r) => r.ok ? setCatalog(r.experts) : setCatalogError(r.error || "专家目录加载失败"))
+      .catch(() => setCatalogError("专家目录加载失败"));
   }, []);
   useEffect(() => {
     let cancelled = false;
@@ -135,6 +167,27 @@ export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?
 
   const available = personas.filter((p) => p.group !== "security");
   const unshipped = available.filter((p) => p.ships === false);
+  const installedIds = new Set(personas.map((p) => p.id));
+  const remoteExperts = catalog.filter((p) => !installedIds.has(p.id));
+
+  const summonRemote = async (expert: CatalogPersona) => {
+    setSummoning(expert);
+    setSummonError("");
+    try {
+      // WorkBuddy catalogue directories follow /experts/{agentName}; construct the
+      // canonical URL here rather than trusting a stale or relative catalogue source.
+      const gitUrl = `https://github.com/infometa/workbuddyskills/tree/main/experts/${expert.agent_name}`;
+      const result = await installPersona({ git_url: gitUrl });
+      if (!result.ok) throw new Error(result.error || "专家下载失败");
+      if (result.personas) setPersonas(result.personas);
+      const installedId = result.consent?.[0]?.id || expert.id;
+      onSummonPersona?.(installedId);
+    } catch (error) {
+      setSummonError(error instanceof Error ? error.message : "专家下载失败");
+    } finally {
+      setSummoning(null);
+    }
+  };
 
   const group = (title: string | null, list: Persona[]) => {
     if (list.length === 0) return null;
@@ -194,6 +247,60 @@ export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?
     <div>
       {/* Every expert shown here is immediately available; ★ marks the default. */}
       {group(null, available.filter((p) => p.ships !== false))}
+      {remoteExperts.length > 0 && (
+        <div className="mt-7">
+          <div className="text-[12px] font-semibold text-muted px-4 mb-1.5">
+            更多专家 · {remoteExperts.length}
+          </div>
+          <div className="expert-grid" data-testid="remote-expert-grid">
+            {remoteExperts.map((p) => (
+              <article key={p.id} className={CARD + " expert-card group"} data-testid={`remote-expert-${p.plugin}`}>
+                <div className="flex items-start gap-3.5">
+                  <div className="w-10 h-10 rounded-full bg-accentSoft text-accent flex items-center justify-center shrink-0 overflow-hidden" aria-hidden="true">
+                    <RemoteExpertAvatar expert={p} />
+                  </div>
+                  <div className="min-w-0 flex-1 h-10 flex flex-col justify-center">
+                    <h3 className="text-[16px] font-semibold leading-[20px] truncate" title={p.name}>{p.name}</h3>
+                    {p.display_name && <p className="text-[13px] text-muted leading-[18px] truncate">{p.display_name}</p>}
+                  </div>
+                  <button
+                    className="hidden group-hover:inline-flex text-[12px] px-2 py-1 rounded-md bg-accent text-white"
+                    onClick={() => void summonRemote(p)}
+                  >
+                    召唤
+                  </button>
+                </div>
+                <p className="text-[13px] text-muted leading-[22px] line-clamp-2 break-words mt-1 mb-3" title={p.description}>
+                  {p.description || "暂无介绍"}
+                </p>
+                <div className="mt-auto flex items-center gap-2 text-[12px] overflow-hidden">
+                  {p.tags.slice(0, 4).map((tag) => <span key={tag} className="rounded-md bg-paper px-2.5 py-1 text-muted whitespace-nowrap">{tag}</span>)}
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      )}
+      {catalogError && <div className="text-[13px] text-muted mt-4">{catalogError}</div>}
+      {(summoning || summonError) && (
+        <div className="fixed inset-0 z-[70] bg-paper flex items-center justify-center" data-testid="expert-install-loading">
+          <div className="text-center max-w-sm px-6">
+            {summoning ? (
+              <>
+                <div className="spinner mx-auto mb-4" aria-hidden="true" />
+                <div className="text-[18px] font-semibold">正在联系{summoning.name}</div>
+                <div className="text-[13px] text-muted mt-2">联系成功将自动进入新会话</div>
+              </>
+            ) : (
+              <>
+                <div className="text-[18px] font-semibold">专家联系失败</div>
+                <div className="text-[13px] text-muted mt-2 break-words">{summonError}</div>
+                <button className={BTN_BORDERED + " mt-4"} onClick={() => setSummonError("")}>返回专家列表</button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {unshipped.length > 0 && (
         <>

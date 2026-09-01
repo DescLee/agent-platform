@@ -1118,6 +1118,73 @@ export async function getPersonasIndex(): Promise<{ personas: Persona[]; interna
   return { personas: (body.personas ?? []).filter((p: Persona) => p.group !== "security"), internal: !!body.internal };
 }
 
+export interface CatalogPersona {
+  id: string;
+  plugin: string;
+  agent_name: string;
+  name: string;
+  display_name: string;
+  description: string;
+  tags: string[];
+  quick_prompts: string[];
+  category: string;
+  source: string;
+  avatar: string;
+  avatar_url: string;
+  fallback_avatar_url: string;
+  installed: boolean;
+}
+
+export async function getPersonaCatalog(): Promise<{
+  ok: boolean;
+  experts: CatalogPersona[];
+  error?: string;
+}> {
+  try {
+    const res = await fetch(`${httpBase()}/v1/personas/catalog`);
+    const body = await res.json();
+    if (body.ok && Array.isArray(body.experts)) return body;
+  } catch {
+    // A running desktop sidecar may be one revision behind the hot-reloaded GUI.
+  }
+
+  // Metadata-only fallback: reading this index does not download any expert package.
+  const raw = await globalThis.fetch(
+    "https://raw.githubusercontent.com/infometa/workbuddyskills/main/experts/expert_center.json",
+  );
+  if (!raw.ok) return { ok: false, experts: [], error: `专家目录加载失败（${raw.status}）` };
+  const body = await raw.json();
+  const localized = (value: unknown): string => {
+    if (typeof value === "string") return value.trim();
+    if (value && typeof value === "object") {
+      const map = value as Record<string, unknown>;
+      return [map.zh, map["zh-CN"], map.en].find((v) => typeof v === "string")?.toString().trim() || "";
+    }
+    return "";
+  };
+  const experts: CatalogPersona[] = (Array.isArray(body.experts) ? body.experts : [])
+    .filter((item: any) => item?.expertType === "agent" && /^[a-z0-9][a-z0-9_-]{0,60}$/.test(item?.plugin || ""))
+    .map((item: any) => ({
+      id: `wb-${item.plugin}`,
+      plugin: item.plugin,
+      agent_name: typeof item.agentName === "string" ? item.agentName : item.plugin,
+      name: localized(item.profession) || localized(item.displayName) || item.plugin,
+      display_name: localized(item.displayName),
+      description: localized(item.description),
+      tags: (Array.isArray(item.tags) ? item.tags : []).map(localized).filter(Boolean),
+      quick_prompts: (Array.isArray(item.quickPrompts) ? item.quickPrompts : []).map(localized).filter(Boolean).slice(0, 6),
+      category: typeof item.categoryId === "string" ? item.categoryId : "",
+      source: `https://github.com/infometa/workbuddyskills/tree/main/experts/${item.agentName || item.plugin}`,
+      avatar: typeof item.avatar === "string" ? item.avatar : "",
+      avatar_url: typeof item.avatar === "string" && item.avatar
+        ? `https://raw.githubusercontent.com/infometa/workbuddyskills/refs/heads/main/experts/${item.agentName || item.plugin}${item.avatar.startsWith("/") ? item.avatar : `/${item.avatar}`}`
+        : "",
+      fallback_avatar_url: `https://raw.githubusercontent.com/infometa/workbuddyskills/refs/heads/main/experts/${item.agentName || item.plugin}/avatars/expert.png`,
+      installed: false,
+    }));
+  return { ok: true, experts };
+}
+
 export async function updatePersona(
   id: string,
   body: { enabled?: boolean; surfaced?: boolean; default?: boolean },

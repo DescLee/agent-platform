@@ -628,7 +628,7 @@ class PersonaRegistry:
         self, url: str, *, cache_base: Optional[str | Path] = None, clone=None
     ) -> list[dict]:
         """Clone a persona repo and install its personas (disabled pending consent)."""
-        from .loading import clone_persona_repo, git_clone
+        from .loading import clone_persona_repo, git_clone, git_clone_subdir
         from .loading import cache_dir_for
         from .workbuddy import github_source, checked_path
 
@@ -642,12 +642,16 @@ class PersonaRegistry:
         )
         repo_url, ref, subdir = github_source(url)
         if subdir is not None:
-            dest = cache_dir_for(repo_url + "#" + ref, base)
+            dest = cache_dir_for(repo_url + "#" + ref + ":" + subdir, base)
+            # A failed/interrupted sparse checkout, or an older shared-repository cache,
+            # may leave the cache directory present without the requested expert.
+            if dest.is_dir() and not (dest / subdir).is_dir():
+                shutil.rmtree(dest)
             if not dest.is_dir():
                 if clone:
                     clone(repo_url, dest)
                 else:
-                    git_clone(repo_url, dest, ref=ref)
+                    git_clone_subdir(repo_url, dest, ref=ref, subdir=subdir)
             summaries = self.install_from_dir(checked_path(dest, subdir))
         else:
             dest = clone_persona_repo(url, base, clone=clone or git_clone)

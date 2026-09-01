@@ -10,6 +10,7 @@ before the persona is enabled. Loading never writes risk overrides or elevates a
 from __future__ import annotations
 
 import subprocess
+import shutil
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -81,6 +82,36 @@ def git_clone(
         capture_output=True,
         timeout=180,
     )
+
+
+def git_clone_subdir(url: str, dest: Path, *, ref: str, subdir: str) -> None:
+    """Fetch only one expert directory from a large catalogue repository."""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        subprocess.run(
+            [
+                "git", "clone", "--depth", "1", "--filter=blob:none", "--no-checkout",
+                "--branch", ref, "--", url, str(dest),
+            ],
+            check=True,
+            capture_output=True,
+            timeout=180,
+        )
+        subprocess.run(
+            ["git", "-C", str(dest), "sparse-checkout", "set", "--no-cone", f"/{subdir}/"],
+            check=True,
+            capture_output=True,
+            timeout=30,
+        )
+        subprocess.run(
+            ["git", "-C", str(dest), "checkout", ref],
+            check=True,
+            capture_output=True,
+            timeout=180,
+        )
+    except Exception:
+        shutil.rmtree(dest, ignore_errors=True)
+        raise
 
 
 def cache_dir_for(url: str, base: Path) -> Path:

@@ -18,6 +18,18 @@ _cache: dict[tuple[Any, ...], tuple[float, Any]] = {}
 _lock = threading.Lock()
 
 
+def _strip_front_matter(text: str) -> str:
+    """Remove a leading YAML front matter block delimited by standalone `---` lines."""
+    normalized = text.lstrip("\ufeff")
+    lines = normalized.splitlines(keepends=True)
+    if not lines or lines[0].strip() != "---":
+        return normalized
+    for index in range(1, len(lines)):
+        if lines[index].strip() == "---":
+            return "".join(lines[index + 1:]).lstrip("\r\n")
+    return normalized
+
+
 def _cached(key: tuple[Any, ...], ttl: float, load):
     now = time.monotonic()
     with _lock:
@@ -170,7 +182,8 @@ def skillhub_skill_overview(slug: str, namespace: str = "") -> dict[str, Any]:
         params: dict[str, Any] = {"path": "SKILL.md"}
         if namespace:
             params["namespace"] = namespace
-        return {"ok": True, "overview": _get_text(f"/api/v1/skills/{slug}/file", params)}
+        overview = _get_text(f"/api/v1/skills/{slug}/file", params)
+        return {"ok": True, "overview": _strip_front_matter(overview)}
 
     try:
         return _cached(("skill-overview", slug, namespace), _CACHE_TTL, load)

@@ -126,7 +126,7 @@ describe("SkillsTab", () => {
       } } } },
       { match: "/v1/skillhub/skills/docs?namespace=tester", json: { ok: true, skill: {
         name: "文档助手.Skill 后面是不应展示的冗长描述，覆盖多项能力", slug: "docs", namespace: "tester", publisher: "tester", description: "处理文档",
-        category: "", icon_url: "", url: "https://skillhub.cn/skills/docs", verified: false,
+        category: "", icon_url: "", url: "https://skillhub.cn/skills/docs", verified: true,
         stars: 12, downloads: 34, tags: ["办公", "文档"], rating: 0, evaluation_report: "",
       } } },
       { match: "/v1/skillhub/skills", json: { ok: true, total: 1, skills: [{
@@ -142,6 +142,8 @@ describe("SkillsTab", () => {
     render(<SkillsTab onDetailChange={onDetailChange} onUseSkill={onUseSkill} />);
 
     fireEvent.click(await screen.findByRole("button", { name: /文档助手/ }));
+    expect((await screen.findByRole("img", { name: "已认证" })).textContent).toBe("🛡️");
+    expect(screen.getByTitle("已认证")).toBeTruthy();
     expect(onDetailChange).toHaveBeenCalledWith(true);
     const detailPage = screen.getByTestId("skill-detail-page");
     const backButton = screen.getByRole("button", { name: "返回技能列表" });

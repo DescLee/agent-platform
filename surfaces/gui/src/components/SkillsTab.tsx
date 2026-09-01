@@ -689,7 +689,7 @@ function SkillHubCatalog({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <h2 className="text-xl font-semibold text-ink">{selectedSkill.name}</h2>
-                {selectedSkill.verified && <span className="text-accent" title="已认证">✓</span>}
+                {selectedSkill.verified && <span role="img" aria-label="已认证" title="已认证">🛡️</span>}
               </div>
               <p className="mt-1 text-[13px] leading-5 text-muted">{selectedSkill.description || "暂无描述"}</p>
               {tags.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5" aria-label="标签">{tags.map((tag) => <span key={tag} className={BADGE}>{tag}</span>)}</div>}
@@ -812,7 +812,7 @@ function SkillHubCatalog({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                       <h3 className="text-[15px] font-semibold truncate">{skill.name}</h3>
-                      {skill.verified && <span className="text-[11px] text-accent shrink-0" title="已认证">✓</span>}
+                      {skill.verified && <span className="text-[13px] shrink-0" role="img" aria-label="已认证" title="已认证">🛡️</span>}
                     </div>
                     <p className="text-[12px] text-muted truncate">{skill.publisher || "SkillHub"}</p>
                   </div>

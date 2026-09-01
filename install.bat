@@ -5,7 +5,8 @@ rem Install the Green Giant source workspace on Windows and verify that it can b
 set "ROOT=%~dp0"
 set "GUI=%ROOT%surfaces\gui"
 set "TAURI_MANIFEST=%GUI%\src-tauri\Cargo.toml"
-set "VENV_PYTHON=%ROOT%.venv\Scripts\python.exe"
+set "VENV=%ROOT%.venv"
+set "VENV_PYTHON=%VENV%\Scripts\python.exe"
 
 echo ==^> Checking system requirements
 where py >nul 2>nul
@@ -41,9 +42,13 @@ if %RUST_MINOR% lss 77 (
 
 echo ==^> Preparing Python environment
 if not exist "%VENV_PYTHON%" (
-  %PYTHON_CMD% -m venv "%ROOT%.venv"
+  %PYTHON_CMD% -m venv "%VENV%"
   if errorlevel 1 goto :failed
 )
+set "VIRTUAL_ENV=%VENV%"
+set "PATH=%VENV%\Scripts;%PATH%"
+set "PYTHONHOME="
+
 "%VENV_PYTHON%" -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)"
 if errorlevel 1 (
   echo ERROR: The existing .venv uses an unsupported Python. Recreate it with Python 3.10+.

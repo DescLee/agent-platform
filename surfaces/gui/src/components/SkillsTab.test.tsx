@@ -101,6 +101,7 @@ describe("SkillsTab", () => {
     render(<SkillsTab />);
 
     expect(await screen.findByText("第一页技能")).toBeTruthy();
+    expect(screen.queryByText(/收藏|下载/)).toBeNull();
     const region = screen.getByTestId("skills-scroll-region");
     Object.defineProperties(region, {
       scrollHeight: { configurable: true, value: 1_000 },
@@ -153,6 +154,7 @@ describe("SkillsTab", () => {
     expect(await screen.findByText("4.7")).toBeTruthy();
     expect(screen.getByText("安全性与可用性评测通过")).toBeTruthy();
     expect(screen.getByText("办公")).toBeTruthy();
+    expect(screen.queryByText(/收藏|下载/)).toBeNull();
     expect(screen.getByRole("img", { name: "TRACE 五维评分雷达图" })).toBeTruthy();
     expect(screen.getByTestId("trace-dimension-details")).toBeTruthy();
     expect(screen.getByText("T · 可信任度")).toBeTruthy();

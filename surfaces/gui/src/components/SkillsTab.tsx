@@ -458,11 +458,6 @@ export function SkillsTab({
   );
 }
 
-function compactCount(value: number): string {
-  if (value >= 10_000) return `${(value / 10_000).toFixed(value >= 100_000 ? 1 : 2)} 万`;
-  return String(value);
-}
-
 type TraceRow = { key: string; letter: string; name: string; score: number; reason: string };
 
 const TRACE_META = [
@@ -685,12 +680,11 @@ function SkillHubCatalog({
                   <div className="flex items-baseline gap-2"><span className="text-4xl font-semibold text-ink">{traceRating.toFixed(1)}</span><span className="text-[15px] text-muted">/ 5</span></div>
                   <div className="mt-3 inline-flex rounded-full bg-accentSoft px-2.5 py-1 text-[12px] text-accent">综合评级：{traceRating >= 4.5 ? "优秀" : traceRating >= 4 ? "良好" : "合格"}</div>
                   <p className="mt-3 text-[13px] text-muted leading-6">{evaluation.userSummary || evaluation.summary}</p>
-                  <p className="mt-3 text-[12px] text-faint">☆ {compactCount(selectedSkill.stars)} 人收藏 · ↓ {compactCount(selectedSkill.downloads)} 次下载</p>
                 </div>
               </div>
               <h3 className="text-[14px] font-semibold mt-6 mb-3">评价详情</h3>
               <div className="rounded-xl border border-line bg-paper px-4 divide-y divide-line" data-testid="trace-dimension-details">{dimensionRows.map((item) => { const meta = TRACE_META.find((entry) => entry.key === item.key)!; return <div key={item.key} className="py-4"><div className="flex items-center gap-2.5"><span className="w-8 h-8 rounded-full grid place-items-center" style={{ color: meta.color, backgroundColor: meta.soft }}><Icon name={meta.icon} size={16} /></span><span className="text-[13px] font-semibold">{item.letter} · {item.name}</span></div><div className="mt-3 flex items-center gap-3"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-chromeHover"><div className="h-full rounded-full transition-[width] duration-500" style={{ width: `${Math.max(0, Math.min(100, item.score / 5 * 100))}%`, backgroundColor: meta.color }} /></div><span className="w-12 text-right text-[12px] font-medium text-muted">{item.score.toFixed(1)} /5</span></div><p className="mt-2 text-[12px] text-muted leading-5">{item.reason}</p></div>; })}</div>
-            </> : <div className="flex items-baseline gap-3"><span className="text-2xl font-semibold text-ink">暂无</span><span className="text-[13px] text-muted">☆ {compactCount(selectedSkill.stars)} 人收藏 · ↓ {compactCount(selectedSkill.downloads)} 次下载</span></div>}
+            </> : <div className="text-2xl font-semibold text-ink">暂无</div>}
             </section>
           )}
         </article>
@@ -771,8 +765,6 @@ function SkillHubCatalog({
                 </p>
                 <div className="mt-auto flex items-center gap-2 text-[11px] text-muted">
                   {skill.category && <span className="rounded-md bg-paper px-2 py-1">{categoryNames.get(skill.category) || skill.category}</span>}
-                  <span className="ml-auto">☆ {compactCount(skill.stars)}</span>
-                  <span>↓ {compactCount(skill.downloads)}</span>
                 </div>
               </article>
             ))}

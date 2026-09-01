@@ -75,14 +75,15 @@ describe("Composer / skills popup", () => {
     expect(screen.queryByTestId("skill-popup")).toBeNull();
   });
 
-  it("selecting inserts /name inline; the send strips the prefix and carries the skill field", async () => {
+  it("selecting shows a removable skill chip and carries the skill field", async () => {
     stubFetch();
     const p = props();
     render(<Composer {...p} />);
     fireEvent.change(box(), { target: { value: "/gr" } });
     fireEvent.click(await screen.findByRole("option", { name: /greet/ }));
-    expect((box() as HTMLTextAreaElement).value).toBe("/greet "); // inline, no chip
-    fireEvent.change(box(), { target: { value: "/greet say hi to the team" } });
+    expect((box() as HTMLTextAreaElement).value).toBe("");
+    expect(screen.getByTestId("selected-skill").textContent).toContain("says hello");
+    fireEvent.change(box(), { target: { value: "say hi to the team" } });
     fireEvent.keyDown(box(), { key: "Enter" });
     await waitFor(() => expect(p.onSend).toHaveBeenCalled());
     expect(p.onSend).toHaveBeenCalledWith("say hi to the team", [], "greet");
@@ -96,18 +97,19 @@ describe("Composer / skills popup", () => {
     await screen.findByText("/weekly-report");
     fireEvent.keyDown(box(), { key: "Enter" }); // selects, does not send
     expect(p.onSend).not.toHaveBeenCalled();
-    expect((box() as HTMLTextAreaElement).value).toBe("/weekly-report ");
+    expect((box() as HTMLTextAreaElement).value).toBe("");
     fireEvent.keyDown(box(), { key: "Enter" }); // now sends, skill-only
     await waitFor(() => expect(p.onSend).toHaveBeenCalledWith("", [], "weekly-report"));
   });
 
-  it("editing the /name prefix away un-picks the skill", async () => {
+  it("the chip close button un-picks the skill", async () => {
     stubFetch();
     const p = props();
     render(<Composer {...p} />);
     fireEvent.change(box(), { target: { value: "/gr" } });
     fireEvent.click(await screen.findByRole("option", { name: /greet/ }));
-    fireEvent.change(box(), { target: { value: "hello plain" } }); // prefix gone
+    fireEvent.click(screen.getByRole("button", { name: "移除技能 greet" }));
+    fireEvent.change(box(), { target: { value: "hello plain" } });
     fireEvent.keyDown(box(), { key: "Enter" });
     await waitFor(() => expect(p.onSend).toHaveBeenCalledWith("hello plain", [], undefined));
   });
@@ -146,5 +148,18 @@ describe("Composer — the doorway prefill (SKILLS-SPEC §5.2)", () => {
         "Build a new skill for me: release procedure",
       );
     });
+  });
+
+  it("renders a prefilled skill with its Chinese label and allows removing it", async () => {
+    stubFetch();
+    const p = props({
+      prefill: { text: "", skill: { name: "dev-expert", label: "编程专家" }, nonce: 1 },
+    });
+    render(<Composer {...p} />);
+    expect(await screen.findByText("编程专家")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "移除技能 编程专家" }));
+    fireEvent.change(box(), { target: { value: "检查代码" } });
+    fireEvent.keyDown(box(), { key: "Enter" });
+    await waitFor(() => expect(p.onSend).toHaveBeenCalledWith("检查代码", [], undefined));
   });
 });

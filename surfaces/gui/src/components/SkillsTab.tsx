@@ -85,7 +85,7 @@ export function SkillsTab({
   // The doorway (SKILLS-SPEC §5.2): starts a new conversation with the description
   // prefilled in the composer — the worker builds the skill and proposes it via save_skill.
   onCreateSkill?: (description: string) => void;
-  onUseSkill?: (name: string) => void;
+  onUseSkill?: (name: string, label: string) => void;
   onDetailChange?: (open: boolean) => void;
   embedded?: boolean;
 }) {
@@ -115,14 +115,14 @@ export function SkillsTab({
     "已移除。如果已有会话使用过此技能，请新建会话以获得完全干净的上下文。";
 
   const refresh = () => listSkills().then(setRows);
-  const useSkill = async (name: string) => {
+  const useSkill = async (name: string, label: string) => {
     const installed = rows.find((row) => row.name === name);
     if (installed && !installed.enabled) {
       const result = await updateSkill(name, { enabled: true });
       if (!result.ok) return;
       await refresh();
     }
-    onUseSkill?.(name);
+    onUseSkill?.(name, label);
   };
   useEffect(() => {
     refresh();
@@ -283,7 +283,7 @@ export function SkillsTab({
         onDetailChange={onDetailChange}
         installedSkills={new Set(rows.map((row) => row.name))}
         onInstalled={refresh}
-        onUseSkill={(name) => void useSkill(name)}
+        onUseSkill={(name, label) => void useSkill(name, label)}
       >
 
       {error ? (
@@ -523,7 +523,7 @@ function SkillHubCatalog({
   onDetailChange?: (open: boolean) => void;
   installedSkills: Set<string>;
   onInstalled: () => void;
-  onUseSkill: (name: string) => void;
+  onUseSkill: (name: string, label: string) => void;
   children: ReactNode;
 }) {
   const [categories, setCategories] = useState<SkillHubCategory[]>([]);
@@ -696,7 +696,7 @@ function SkillHubCatalog({
             </div>
             <div className="shrink-0 text-right">
               {installedName ? (
-                <button className={BTN_ACCENT} onClick={() => onUseSkill(installedName)}>使用</button>
+                <button className={BTN_ACCENT} onClick={() => onUseSkill(installedName, selectedSkill.name)}>使用</button>
               ) : (
                 <button
                   className={BTN_ACCENT}

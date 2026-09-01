@@ -104,7 +104,7 @@ interface Props {
   onOpenMemory?: () => void;
   // Push text + attachments into the composer (e.g. a start-panel task card). The `nonce` makes
   // repeated identical prefills re-apply; the user can still edit before sending.
-  prefill?: { text: string; attachments?: Attachment[]; nonce: number };
+  prefill?: { text: string; attachments?: Attachment[]; skill?: { name: string; label?: string }; nonce: number };
   // Changes when the active conversation changes; clears any unsent draft.
   resetKey?: string;
   // Surface-specific hint shown in the empty textarea.
@@ -127,20 +127,12 @@ export function Composer(props: Props) {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   // "/" force-run (SKILLS-SPEC §4.1 #3). The popup derives from the draft: it is open while
   // the text is a bare "/query" (no whitespace yet) and no skill is picked. Selecting a row
-  // inserts "/name " INLINE in the box (Claude-Code style — the slash text IS the state);
-  // the user keeps typing after it, and on send the prefix is stripped while the skill name
-  // rides the user_message as its own field. Editing the prefix away un-picks the skill.
-  const [pendingSkill, setPendingSkill] = useState<SessionSkillRow | null>(null);
+  // pins the chosen skill above the textarea while the message body remains plain editable text.
+  const [pendingSkill, setPendingSkill] = useState<(SessionSkillRow & { label?: string }) | null>(null);
   const [slashSkills, setSlashSkills] = useState<SessionSkillRow[] | null>(null);
   const [slashIndex, setSlashIndex] = useState(0);
-  const prefixIntact =
-    pendingSkill !== null &&
-    (text === `/${pendingSkill.name}` || text.startsWith(`/${pendingSkill.name} `));
-  useEffect(() => {
-    if (pendingSkill && !prefixIntact) setPendingSkill(null);
-  }, [pendingSkill, prefixIntact]);
   const slashQuery =
-    !prefixIntact && props.sessionId && text.startsWith("/") && !/\s/.test(text.slice(1))
+    !pendingSkill && props.sessionId && text.startsWith("/") && !/\s/.test(text.slice(1))
       ? text.slice(1).toLowerCase()
       : null;
   const slashMatches = (slashSkills ?? []).filter((s) =>
@@ -162,7 +154,7 @@ export function Composer(props: Props) {
   }, [slashQuery === null]);
   const pickSkill = (s: SessionSkillRow) => {
     setPendingSkill(s);
-    setText(`/${s.name} `);
+    setText("");
     textareaRef.current?.focus();
   };
   const [dragging, setDragging] = useState(false);
@@ -237,6 +229,15 @@ export function Composer(props: Props) {
     if (!p || p.nonce === appliedNonce.current) return;
     appliedNonce.current = p.nonce;
     setText(p.text);
+    if (p.skill) {
+      setPendingSkill({
+        name: p.skill.name,
+        label: p.skill.label,
+        description: "",
+        scope: "global",
+        enabled: true,
+      });
+    }
     if (p.attachments?.length) setAttachments((cur) => mergeAttachments(cur, p.attachments!));
     textareaRef.current?.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -367,10 +368,8 @@ export function Composer(props: Props) {
   const submit = () => {
     // While the "/" popup is open the draft is a query, not a message — never send it.
     if (slashQuery !== null) return;
-    // The visible "/name " prefix is UI state, not message text — strip it for the send;
-    // the skill rides as its own field.
-    const skill = prefixIntact ? pendingSkill!.name : undefined;
-    const t = (skill ? text.slice(skill.length + 1) : text).trim();
+    const skill = pendingSkill?.name;
+    const t = text.trim();
     if (
       (!t && attachments.length === 0 && !skill) ||
       (props.running && !props.gateOpen) ||
@@ -579,6 +578,22 @@ export function Composer(props: Props) {
                 </button>
               ))
             )}
+          </div>
+        )}
+        {pendingSkill && (
+          <div className="px-3.5 pt-3" data-testid="selected-skill">
+            <span className="inline-flex items-center gap-2 rounded-lg bg-paper px-2.5 py-1.5 text-[13px] text-ink">
+              <span>{pendingSkill.label || pendingSkill.description || pendingSkill.name}</span>
+              <button
+                type="button"
+                className="text-muted hover:text-ink"
+                aria-label={`移除技能 ${pendingSkill.label || pendingSkill.name}`}
+                title="移除技能"
+                onClick={() => setPendingSkill(null)}
+              >
+                ×
+              </button>
+            </span>
           </div>
         )}
         <textarea

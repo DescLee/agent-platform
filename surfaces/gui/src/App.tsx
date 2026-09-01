@@ -409,7 +409,7 @@ export function App() {
   // A pending composer prefill (text + attachments) pushed from the session start panel.
   // Auto-Approve metering (§1.7): live reviewer counts for the composer badge. Polled with
   // the session inbox; null until the first fetch (badge hidden).
-  const [composerPrefill, setComposerPrefill] = useState<{ text: string; attachments?: Attachment[]; nonce: number }>();
+  const [composerPrefill, setComposerPrefill] = useState<{ text: string; attachments?: Attachment[]; skill?: { name: string; label?: string }; nonce: number }>();
 
   // Persona metadata drives workspace behavior by FAMILY, not by hardcoded id (so a DevOps/SecOps
   // code-family persona gates a folder like Code, and a knowledge persona starts orphan like Cowork).
@@ -1168,6 +1168,8 @@ export function App() {
   };
   const prefillComposer = (text: string, attachments?: Attachment[]) =>
     setComposerPrefill((p) => ({ text, attachments, nonce: (p?.nonce ?? 0) + 1 }));
+  const prefillComposerSkill = (name: string, label: string) =>
+    setComposerPrefill((p) => ({ text: "", skill: { name, label }, nonce: (p?.nonce ?? 0) + 1 }));
   const interrupt = () => sessionRef.current?.interrupt();
   const retry = () => {
     // Optimistic running: turn_start confirms; a rejected retry still ends in turn_done.
@@ -1809,8 +1811,8 @@ export function App() {
           <div className="experts-content mx-auto px-7 py-6 h-full flex flex-col min-h-0">
             <PersonasSection onOpenPersona={(id) => openPersona(id, "coworkers")} onSummonPersona={summonPersona} onCreateSkill={(description) => {
               void startNewSession().then(() => prefillComposer(description ? `帮我创建一个新技能：${description}` : "帮我创建一个新技能：（请描述这个技能需要完成什么）"));
-            }} onUseSkill={(name) => {
-              void startNewSession().then(() => window.setTimeout(() => prefillComposer(`/${name} `), 0));
+            }} onUseSkill={(name, label) => {
+              void startNewSession().then(() => window.setTimeout(() => prefillComposerSkill(name, label), 0));
             }} />
           </div>
           {personaModalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-6" onClick={() => setPersonaModalOpen(false)}><div className="relative w-full max-w-[580px] max-h-[85vh] overflow-hidden rounded-2xl shadow-2xl" onClick={(e) => e.stopPropagation()}><button className="absolute right-14 top-3 z-10 rounded-lg bg-accent px-3 py-1.5 text-[13px] text-white" onClick={() => void summonPersona(personaViewId || agent)}>召唤</button><button className="absolute right-4 top-3 z-10 text-xl text-muted" onClick={() => setPersonaModalOpen(false)}>×</button><PersonaView personaId={personaViewId} onBack={() => setPersonaModalOpen(false)} onQuickPrompt={(prompt) => void summonPersona(personaViewId || agent, prompt)} /></div></div>}

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   getPersonasIndex,
   getPersonaCatalog,
@@ -59,6 +59,8 @@ export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?
   const categoryScrollRef = useRef<HTMLDivElement | null>(null);
   const [categoryEdges, setCategoryEdges] = useState({ left: false, right: false });
   const [catalogError, setCatalogError] = useState("");
+  const [indexLoaded, setIndexLoaded] = useState(false);
+  const [catalogLoaded, setCatalogLoaded] = useState(false);
   const [summoning, setSummoning] = useState<CatalogPersona | null>(null);
   const [selectedRemote, setSelectedRemote] = useState<CatalogPersona | null>(null);
   const [summonError, setSummonError] = useState("");
@@ -86,22 +88,22 @@ export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?
     return () => window.removeEventListener("ocw-focus-import", focus);
   }, []);
 
-  const reload = () =>
+  useEffect(() => {
     getPersonasIndex()
       .then((r) => {
         setPersonas(r.personas);
         setInternal(r.internal);
       })
-      .catch(() => {});
-  useEffect(() => {
-    reload();
+      .catch(() => {})
+      .finally(() => setIndexLoaded(true));
     getPersonaCatalog()
       .then((r) => {
         if (!r.ok) return setCatalogError(r.error || "专家目录加载失败");
         setCatalog(r.experts);
         setCategories(r.categories);
       })
-      .catch(() => setCatalogError("专家目录加载失败"));
+      .catch(() => setCatalogError("专家目录加载失败"))
+      .finally(() => setCatalogLoaded(true));
   }, []);
   const updateCategoryEdges = () => {
     const el = categoryScrollRef.current;
@@ -221,8 +223,34 @@ export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?
     }
   };
 
-  const group = (title: string | null, list: Persona[]) => {
-    if (list.length === 0) return null;
+  const remoteCards = visibleRemoteExperts.map((p) => (
+    <article key={p.id} className={CARD + " expert-card cursor-pointer group"} data-testid={`remote-expert-${p.plugin}`} onClick={() => setSelectedRemote(p)}>
+      <div className="flex items-start gap-3.5">
+        <div className="w-10 h-10 rounded-full bg-accentSoft text-accent flex items-center justify-center shrink-0 overflow-hidden" aria-hidden="true">
+          <RemoteExpertAvatar expert={p} />
+        </div>
+        <div className="min-w-0 flex-1 h-10 flex flex-col justify-center">
+          <h3 className="text-[16px] font-semibold leading-[20px] truncate" title={p.name}>{p.name}</h3>
+          {p.display_name && <p className="text-[13px] text-muted leading-[18px] truncate">{p.display_name}</p>}
+        </div>
+        <button
+          className="hidden group-hover:inline-flex text-[12px] px-2 py-1 rounded-md bg-accent text-white"
+          onClick={(event) => { event.stopPropagation(); void summonRemote(p); }}
+        >
+          召唤
+        </button>
+      </div>
+      <p className="text-[13px] text-muted leading-[22px] line-clamp-2 break-words mt-1 mb-3" title={p.description}>
+        {p.description || "暂无介绍"}
+      </p>
+      <div className="mt-auto flex items-center gap-2 text-[12px] overflow-hidden">
+        {p.tags.slice(0, 4).map((tag) => <span key={tag} className="rounded-md bg-paper px-2.5 py-1 text-muted whitespace-nowrap">{tag}</span>)}
+      </div>
+    </article>
+  ));
+
+  const group = (title: string | null, list: Persona[], trailingCards?: ReactNode) => {
+    if (list.length === 0 && !trailingCards) return null;
     return (
       <div className={title ? "mt-7" : "mt-1.5"}>
         {title && (
@@ -270,6 +298,7 @@ export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?
               </div>
             </article>
           ))}
+          {trailingCards}
         </div>
       </div>
     );
@@ -277,6 +306,13 @@ export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
+      {(!indexLoaded || !catalogLoaded) ? (
+        <div className="flex-1 min-h-0 flex flex-col items-center justify-center text-center" data-testid="experts-initial-loading">
+          <div className="spinner mb-4" aria-hidden="true" />
+          <div className="text-[15px] font-medium text-ink">正在翻找通讯库..</div>
+        </div>
+      ) : (
+      <>
       {categories.length > 0 && (
         <div className="relative mb-2 shrink-0" data-testid="expert-categories">
           <div
@@ -329,39 +365,15 @@ export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?
       )}
       <div className="expert-list-scroll flex-1 min-h-0 overflow-y-auto pr-1 pb-6" data-testid="expert-list-scroll">
       {/* Every expert shown here is immediately available; ★ marks the default. */}
-      {category === "all" && group(null, available.filter((p) => p.ships !== false && p.id !== "cowork" && p.id !== "code"))}
+      {category === "all" && group(null, available.filter((p) => p.ships !== false && p.id !== "cowork" && p.id !== "code"), remoteCards)}
       {category === "mine" && group(null, downloadedExperts)}
-      {visibleRemoteExperts.length > 0 && (
-        <div className={category === "all" ? "mt-2" : "mt-1.5"}>
-          {category !== "all" && <div className="text-[12px] font-semibold text-muted px-4 mb-1.5">
+      {category !== "all" && visibleRemoteExperts.length > 0 && (
+        <div className="mt-1.5">
+          <div className="text-[12px] font-semibold text-muted px-4 mb-1.5">
             {categories.find((item) => item.id === category)?.name} · {visibleRemoteExperts.length}
-          </div>}
+          </div>
           <div className="expert-grid" data-testid="remote-expert-grid">
-            {visibleRemoteExperts.map((p) => (
-              <article key={p.id} className={CARD + " expert-card cursor-pointer group"} data-testid={`remote-expert-${p.plugin}`} onClick={() => setSelectedRemote(p)}>
-                <div className="flex items-start gap-3.5">
-                  <div className="w-10 h-10 rounded-full bg-accentSoft text-accent flex items-center justify-center shrink-0 overflow-hidden" aria-hidden="true">
-                    <RemoteExpertAvatar expert={p} />
-                  </div>
-                  <div className="min-w-0 flex-1 h-10 flex flex-col justify-center">
-                    <h3 className="text-[16px] font-semibold leading-[20px] truncate" title={p.name}>{p.name}</h3>
-                    {p.display_name && <p className="text-[13px] text-muted leading-[18px] truncate">{p.display_name}</p>}
-                  </div>
-                  <button
-                    className="hidden group-hover:inline-flex text-[12px] px-2 py-1 rounded-md bg-accent text-white"
-                    onClick={(event) => { event.stopPropagation(); void summonRemote(p); }}
-                  >
-                    召唤
-                  </button>
-                </div>
-                <p className="text-[13px] text-muted leading-[22px] line-clamp-2 break-words mt-1 mb-3" title={p.description}>
-                  {p.description || "暂无介绍"}
-                </p>
-                <div className="mt-auto flex items-center gap-2 text-[12px] overflow-hidden">
-                  {p.tags.slice(0, 4).map((tag) => <span key={tag} className="rounded-md bg-paper px-2.5 py-1 text-muted whitespace-nowrap">{tag}</span>)}
-                </div>
-              </article>
-            ))}
+            {remoteCards}
           </div>
         </div>
       )}
@@ -538,6 +550,8 @@ export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?
         </div>
       )}
       </div>
+      </>
+      )}
     </div>
   );
 }

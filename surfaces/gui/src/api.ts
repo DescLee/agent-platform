@@ -1466,6 +1466,46 @@ export interface SkillUploadPreview {
   files?: string[];
 }
 
+export interface SkillHubCategory {
+  key: string;
+  name: string;
+}
+
+export interface SkillHubSkill {
+  slug: string;
+  name: string;
+  description: string;
+  category: string;
+  downloads: number;
+  stars: number;
+  verified: boolean;
+  icon_url: string;
+  publisher: string;
+  namespace: string;
+  tags: string[];
+  overview: string;
+  rating: number;
+  evaluation_report: string;
+  url: string;
+}
+
+export interface SkillHubEvaluationDimension {
+  userReason?: string;
+  reason?: string;
+  items?: Record<string, { score?: number; userReason?: string; reason?: string }>;
+}
+
+export interface SkillHubEvaluation {
+  userSummary?: string;
+  summary?: string;
+  dimensions?: Record<string, SkillHubEvaluationDimension>;
+}
+
+export interface SkillHubSkillDetail extends SkillHubSkill {
+  version?: string;
+  evaluation?: SkillHubEvaluation | null;
+}
+
 const skillUrl = (path = "") => `${httpBase()}/v1/skills${path}`;
 const jsonPost = (body: unknown, method = "POST") => ({
   method,
@@ -1477,6 +1517,49 @@ export async function listSkills(workspace?: string): Promise<SkillRow[]> {
   const qs = workspace ? `?workspace=${encodeURIComponent(workspace)}` : "";
   const res = await fetch(skillUrl(qs));
   return (await res.json()).skills ?? [];
+}
+
+export async function listSkillHubCategories(): Promise<{ ok: boolean; error?: string; categories: SkillHubCategory[] }> {
+  const res = await fetch(`${httpBase()}/v1/skillhub/categories`);
+  return res.json();
+}
+
+export async function listSkillHubSkills(params: {
+  page?: number;
+  pageSize?: number;
+  category?: string;
+}): Promise<{ ok: boolean; error?: string; skills: SkillHubSkill[]; total: number; page?: number; page_size?: number }> {
+  const query = new URLSearchParams({
+    page: String(params.page || 1),
+    page_size: String(params.pageSize || 24),
+  });
+  if (params.category) query.set("category", params.category);
+  const res = await fetch(`${httpBase()}/v1/skillhub/skills?${query.toString()}`);
+  return res.json();
+}
+
+export async function getSkillHubSkill(slug: string, namespace?: string): Promise<{ ok: boolean; error?: string; skill?: SkillHubSkillDetail }> {
+  const query = new URLSearchParams();
+  if (namespace) query.set("namespace", namespace);
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  const res = await fetch(`${httpBase()}/v1/skillhub/skills/${encodeURIComponent(slug)}${suffix}`);
+  return res.json();
+}
+
+export async function getSkillHubSkillOverview(slug: string, namespace?: string): Promise<{ ok: boolean; error?: string; overview?: string }> {
+  const query = new URLSearchParams();
+  if (namespace) query.set("namespace", namespace);
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  const res = await fetch(`${httpBase()}/v1/skillhub/skills/${encodeURIComponent(slug)}/overview${suffix}`);
+  return res.json();
+}
+
+export async function getSkillHubSkillEvaluation(slug: string, namespace?: string): Promise<{ ok: boolean; error?: string; evaluation?: SkillHubEvaluation | null }> {
+  const query = new URLSearchParams();
+  if (namespace) query.set("namespace", namespace);
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  const res = await fetch(`${httpBase()}/v1/skillhub/skills/${encodeURIComponent(slug)}/evaluation${suffix}`);
+  return res.json();
 }
 
 export async function createSkill(body: {

@@ -1,17 +1,26 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useEffect } from "react";
 import {
   createSkill,
   deleteSkill,
   listSkills,
+  listSkillHubCategories,
+  listSkillHubSkills,
+  getSkillHubSkill,
+  getSkillHubSkillOverview,
+  getSkillHubSkillEvaluation,
   revealSkill,
   stageSkillUpload,
   confirmSkillUpload,
   updateSkill,
   type SkillRow,
+  type SkillHubCategory,
+  type SkillHubSkill,
+  type SkillHubSkillDetail,
   type SkillUploadPreview,
 } from "../api";
 import { Icon } from "./Icon";
+import { Markdown } from "./Markdown";
 
 // Settings ▸ Skills (SKILLS-SPEC §5/§6) — the management home: the LIST is the page; every
 // add-surface appears only when summoned from the single "Add skill" menu (the three doors:
@@ -68,14 +77,17 @@ async function fileToB64(file: File): Promise<string> {
 
 export function SkillsTab({
   onCreateSkill,
+  onDetailChange,
   embedded = false,
 }: {
   // The doorway (SKILLS-SPEC §5.2): starts a new conversation with the description
   // prefilled in the composer — the worker builds the skill and proposes it via save_skill.
   onCreateSkill?: (description: string) => void;
+  onDetailChange?: (open: boolean) => void;
   embedded?: boolean;
 }) {
   const [rows, setRows] = useState<SkillRow[]>([]);
+  const [showMine, setShowMine] = useState(false);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [upload, setUpload] = useState<SkillUploadPreview | null>(null);
   const [addOpen, setAddOpen] = useState(false);
@@ -102,6 +114,14 @@ export function SkillsTab({
   const refresh = () => listSkills().then(setRows);
   useEffect(() => {
     refresh();
+  }, []);
+  useEffect(() => {
+    const openAddMenu = () => {
+      setShowMine(true);
+      setAddOpen(true);
+    };
+    window.addEventListener("ocw-add-skill", openAddMenu);
+    return () => window.removeEventListener("ocw-add-skill", openAddMenu);
   }, []);
 
   const fail = (res: { ok?: boolean; error?: string }) => {
@@ -163,32 +183,29 @@ export function SkillsTab({
   };
 
   return (
-    <section>
-      <div className="flex items-start justify-between gap-3 mb-4">
-        <div>
-          {!embedded && <h2 className="text-[16px] font-semibold">技能</h2>}
-          <p className="text-[13px] text-muted mt-1 leading-relaxed">
-            可供协作助手在所有会话中遵循的复用指令；在此关闭后将全局停用。
-          </p>
-        </div>
+    <section className="h-full min-h-0 flex flex-col">
+      {!embedded && <h2 className="text-[16px] font-semibold mb-4">技能</h2>}
+      {showMine && <div className={embedded ? "relative h-0" : "flex justify-end mb-3"}>
         {/* One add-action, three doors behind it (SKILLS-SPEC §5): the list is the page. */}
         <div className="relative shrink-0">
-          <button
-            className={BTN_ACCENT}
-            aria-haspopup="menu"
-            aria-expanded={addOpen}
-            onClick={() => setAddOpen((v) => !v)}
-          >
-            <span className="inline-flex items-center gap-1.5">
-              <Icon name="plus" size={13} /> 添加技能
-            </span>
-          </button>
+          {!embedded && (
+            <button
+              className={BTN_ACCENT}
+              aria-haspopup="menu"
+              aria-expanded={addOpen}
+              onClick={() => setAddOpen((v) => !v)}
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <Icon name="plus" size={13} /> 添加技能
+              </span>
+            </button>
+          )}
           {addOpen ? (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setAddOpen(false)} />
               <div
                 role="menu"
-                className="absolute right-0 top-full mt-1.5 w-80 rounded-xl2 border border-line bg-panel shadow-xl z-20 p-1.5"
+                className={`absolute right-0 w-80 rounded-xl2 border border-line bg-panel shadow-xl z-20 p-1.5 ${embedded ? "top-0" : "top-full mt-1.5"}`}
                 onKeyDown={(e) => e.key === "Escape" && setAddOpen(false)}
               >
                 <button
@@ -235,7 +252,7 @@ export function SkillsTab({
             </>
           ) : null}
         </div>
-      </div>
+      </div>}
       <input
         ref={fileInput}
         type="file"
@@ -247,6 +264,8 @@ export function SkillsTab({
           e.target.value = "";
         }}
       />
+
+      <SkillHubCatalog showMine={showMine} onShowMine={setShowMine} onDetailChange={onDetailChange}>
 
       {error ? (
         <div className="text-[13px] text-red-500 mb-3" role="alert">
@@ -434,6 +453,334 @@ export function SkillsTab({
         ))}
       </div>
 
+      </SkillHubCatalog>
     </section>
+  );
+}
+
+function compactCount(value: number): string {
+  if (value >= 10_000) return `${(value / 10_000).toFixed(value >= 100_000 ? 1 : 2)} 万`;
+  return String(value);
+}
+
+type TraceRow = { key: string; letter: string; name: string; score: number; reason: string };
+
+const TRACE_META = [
+  { key: "trust", letter: "T", name: "可信任度", icon: "shield" as const, color: "#20b981", soft: "#eafaf5" },
+  { key: "reliability", letter: "R", name: "可靠性", icon: "refresh" as const, color: "#3b82f6", soft: "#eef5ff" },
+  { key: "adaptability", letter: "A", name: "适用性", icon: "sparkle" as const, color: "#f59e0b", soft: "#fff7e9" },
+  { key: "convention", letter: "C", name: "规范性", icon: "book" as const, color: "#8b5cf6", soft: "#f4efff" },
+  { key: "effectiveness", letter: "E", name: "有效性", icon: "code" as const, color: "#ef4444", soft: "#fff0f0" },
+];
+
+function radarPoint(index: number, radius: number): [number, number] {
+  const angle = -Math.PI / 2 + index * Math.PI * 2 / 5;
+  return [120 + Math.cos(angle) * radius, 105 + Math.sin(angle) * radius];
+}
+
+function RadarChart({ rows }: { rows: TraceRow[] }) {
+  const scoreByKey = new Map(rows.map((row) => [row.key, row.score]));
+  const polygon = (radius: number) => TRACE_META.map((_, index) => radarPoint(index, radius).join(",")).join(" ");
+  const scorePolygon = TRACE_META.map((item, index) => radarPoint(index, 72 * Math.max(0, Math.min(5, scoreByKey.get(item.key) || 0)) / 5).join(",")).join(" ");
+  return (
+    <svg viewBox="0 0 240 220" className="w-full max-w-[280px]" role="img" aria-label="TRACE 五维评分雷达图">
+      {[18, 36, 54, 72].map((radius) => <polygon key={radius} points={polygon(radius)} fill="none" stroke="var(--line)" strokeWidth="1" />)}
+      {TRACE_META.map((_, index) => { const [x, y] = radarPoint(index, 72); return <line key={index} x1="120" y1="105" x2={x} y2={y} stroke="var(--line)" strokeWidth="1" />; })}
+      <polygon points={scorePolygon} fill="rgba(76, 91, 255, 0.16)" stroke="#5965ff" strokeWidth="2" />
+      {TRACE_META.map((item, index) => {
+        const [x, y] = radarPoint(index, 94);
+        return <text key={item.key} x={x} y={y} textAnchor="middle" dominantBaseline="middle" fill="var(--muted)" fontSize="11">{item.letter} {item.name}</text>;
+      })}
+    </svg>
+  );
+}
+
+function SkillHubCatalog({
+  showMine,
+  onShowMine,
+  onDetailChange,
+  children,
+}: {
+  showMine: boolean;
+  onShowMine: (show: boolean) => void;
+  onDetailChange?: (open: boolean) => void;
+  children: ReactNode;
+}) {
+  const [categories, setCategories] = useState<SkillHubCategory[]>([]);
+  const [category, setCategory] = useState("all");
+  const [skills, setSkills] = useState<SkillHubSkill[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [selectedSkill, setSelectedSkill] = useState<SkillHubSkillDetail | null>(null);
+  const [detailTab, setDetailTab] = useState<"overview" | "evaluation">("overview");
+  const [overviewLoading, setOverviewLoading] = useState(false);
+  const [overviewLoaded, setOverviewLoaded] = useState(false);
+  const [overviewError, setOverviewError] = useState("");
+  const [evaluationLoading, setEvaluationLoading] = useState(false);
+  const [evaluationLoaded, setEvaluationLoaded] = useState(false);
+  const [evaluationError, setEvaluationError] = useState("");
+  const detailRequestRef = useRef(0);
+
+  useEffect(() => () => onDetailChange?.(false), [onDetailChange]);
+
+  useEffect(() => {
+    listSkillHubCategories()
+      .then((result) => {
+        if (result.ok) setCategories(result.categories || []);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (showMine) return;
+    let cancelled = false;
+    setLoading(true);
+    setError("");
+    listSkillHubSkills({ page, pageSize: 24, category: category === "all" ? "" : category })
+      .then((result) => {
+        if (cancelled) return;
+        if (!result.ok) {
+          setSkills([]);
+          setTotal(0);
+          setError(result.error || "SkillHub 技能暂时无法加载");
+          return;
+        }
+        const incoming = result.skills || [];
+        setSkills((current) => {
+          if (page === 1) return incoming;
+          const seen = new Set(current.map((skill) => `${skill.publisher}/${skill.slug}`));
+          return [...current, ...incoming.filter((skill) => !seen.has(`${skill.publisher}/${skill.slug}`))];
+        });
+        setTotal(result.total || 0);
+      })
+      .catch(() => {
+        if (!cancelled) setError("SkillHub 技能暂时无法加载");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [category, page, showMine]);
+
+  const selectCategory = (next: string) => {
+    detailRequestRef.current += 1;
+    setSelectedSkill(null);
+    onDetailChange?.(false);
+    onShowMine(false);
+    setSkills([]);
+    setTotal(0);
+    setCategory(next);
+    setPage(1);
+  };
+  const categoryNames = new Map(categories.map((item) => [item.key, item.name]));
+  const totalPages = Math.max(1, Math.ceil(total / 24));
+  const loadNextPage = (element: HTMLDivElement) => {
+    const distanceToBottom = element.scrollHeight - element.scrollTop - element.clientHeight;
+    if (distanceToBottom < 160 && !loading && page < totalPages) {
+      setPage((current) => current + 1);
+    }
+  };
+
+  const loadOverview = (skill: SkillHubSkillDetail, force = false) => {
+    if (!force && (overviewLoading || overviewLoaded)) return;
+    setOverviewLoading(true);
+    setOverviewError("");
+    const requestId = detailRequestRef.current;
+    getSkillHubSkillOverview(skill.slug, skill.namespace)
+      .then((result) => {
+        if (requestId !== detailRequestRef.current) return;
+        if (result.ok) setSelectedSkill((current) => current && current.slug === skill.slug && current.namespace === skill.namespace ? { ...current, overview: result.overview || "" } : current);
+        else setOverviewError(result.error || "技能概述暂时无法加载");
+      })
+      .catch(() => { if (requestId === detailRequestRef.current) setOverviewError("技能概述暂时无法加载"); })
+      .finally(() => { if (requestId === detailRequestRef.current) { setOverviewLoading(false); setOverviewLoaded(true); } });
+  };
+
+  const loadEvaluation = (skill: SkillHubSkillDetail) => {
+    if (evaluationLoading || evaluationLoaded) return;
+    setEvaluationLoading(true);
+    setEvaluationError("");
+    const requestId = detailRequestRef.current;
+    getSkillHubSkillEvaluation(skill.slug, skill.namespace)
+      .then((result) => {
+        if (requestId !== detailRequestRef.current) return;
+        if (result.ok) setSelectedSkill((current) => current && current.slug === skill.slug && current.namespace === skill.namespace ? { ...current, evaluation: result.evaluation || null } : current);
+        else setEvaluationError(result.error || "技能评测暂时无法加载");
+      })
+      .catch(() => { if (requestId === detailRequestRef.current) setEvaluationError("技能评测暂时无法加载"); })
+      .finally(() => { if (requestId === detailRequestRef.current) { setEvaluationLoading(false); setEvaluationLoaded(true); } });
+  };
+
+  const openSkill = (skill: SkillHubSkill) => {
+    detailRequestRef.current += 1;
+    const requestId = detailRequestRef.current;
+    setSelectedSkill(skill);
+    setDetailTab("overview");
+    setOverviewLoaded(false);
+    setEvaluationLoaded(false);
+    setEvaluationError("");
+    onDetailChange?.(true);
+    loadOverview(skill, true);
+    getSkillHubSkill(skill.slug, skill.namespace)
+      .then((result) => {
+        if (requestId !== detailRequestRef.current) return;
+        if (result.ok && result.skill) setSelectedSkill((current) => current && current.slug === skill.slug && current.namespace === skill.namespace ? { ...current, ...result.skill } : current);
+        else setOverviewError(result.error || "技能详情暂时无法加载");
+      })
+      .catch(() => { if (requestId === detailRequestRef.current) setOverviewError("技能详情暂时无法加载"); });
+  };
+
+  if (selectedSkill) {
+    const tags = selectedSkill.tags?.filter(Boolean) || [];
+    const rating = Number(selectedSkill.rating || 0);
+    const evaluation = selectedSkill.evaluation;
+    const dimensions = evaluation?.dimensions || {};
+    const dimensionRows: TraceRow[] = TRACE_META.flatMap((meta) => {
+      const value = dimensions[meta.key];
+      if (!value) return [];
+      const scores = Object.values(value.items || {}).map((item) => Number(item.score)).filter(Number.isFinite);
+      return [{ key: meta.key, letter: meta.letter, name: meta.name, score: scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : 0, reason: value.userReason || value.reason || "" }];
+    });
+    const traceRating = dimensionRows.length ? dimensionRows.reduce((sum, item) => sum + item.score, 0) / dimensionRows.length : rating;
+    return (
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden" data-testid="skill-detail-page">
+        <button
+          type="button"
+          className="mb-4 self-start inline-flex items-center gap-1.5 text-[13px] text-muted hover:text-ink shrink-0"
+          onClick={() => { detailRequestRef.current += 1; setSelectedSkill(null); onDetailChange?.(false); }}
+        >
+          <span aria-hidden>←</span> 返回技能列表
+        </button>
+        <div className="flex-1 min-h-0 overflow-y-auto pr-1" data-testid="skill-detail-scroll-region">
+        <article className={`${CARD} w-full p-6`}>
+          <div className="flex items-start gap-4 border-b border-line pb-5">
+            <div className="w-14 h-14 rounded-xl bg-accentSoft text-accent flex items-center justify-center shrink-0 overflow-hidden text-xl font-semibold">
+              {selectedSkill.icon_url ? <img src={selectedSkill.icon_url} alt="" className="w-full h-full object-cover" /> : selectedSkill.name.slice(0, 1)}
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-semibold text-ink">{selectedSkill.name}</h2>
+                {selectedSkill.verified && <span className="text-accent" title="已认证">✓</span>}
+              </div>
+              <p className="mt-1 text-[13px] leading-5 text-muted">{selectedSkill.description || "暂无描述"}</p>
+              {tags.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5" aria-label="标签">{tags.map((tag) => <span key={tag} className={BADGE}>{tag}</span>)}</div>}
+            </div>
+          </div>
+          <div className="flex items-center gap-6 border-b border-line mt-5" role="tablist" aria-label="技能详情">
+            <button role="tab" aria-selected={detailTab === "overview"} className={`px-1 pb-3 text-[14px] font-medium border-b-2 ${detailTab === "overview" ? "text-ink border-accent" : "text-muted border-transparent hover:text-ink"}`} onClick={() => { setDetailTab("overview"); loadOverview(selectedSkill); }}>概述</button>
+            <button role="tab" aria-selected={detailTab === "evaluation"} className={`px-1 pb-3 text-[14px] font-medium border-b-2 ${detailTab === "evaluation" ? "text-ink border-accent" : "text-muted border-transparent hover:text-ink"}`} onClick={() => { setDetailTab("evaluation"); loadEvaluation(selectedSkill); }}>评分</button>
+          </div>
+          {detailTab === "overview" ? (
+            <section className="py-5 min-h-[420px]" data-testid="skill-overview-panel">
+              {overviewLoading ? <p className="text-[13px] text-muted">正在加载概述…</p> : overviewError ? <p className="text-[13px] text-muted">{overviewError}</p> : <div className="text-[13px] text-muted leading-6"><Markdown text={selectedSkill.overview || selectedSkill.description || "暂无概述"} /></div>}
+            </section>
+          ) : (
+            <section className="py-5 min-h-[420px]" data-testid="skill-evaluation-panel">
+              {evaluationLoading ? <p className="text-[13px] text-muted">正在加载评分…</p> : evaluationError ? <p className="text-[13px] text-muted">{evaluationError}</p> : evaluation && dimensionRows.length ? <>
+              <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] items-center gap-6 rounded-xl border border-line bg-paper p-4" data-testid="trace-score-summary">
+                <RadarChart rows={dimensionRows} />
+                <div>
+                  <div className="flex items-baseline gap-2"><span className="text-4xl font-semibold text-ink">{traceRating.toFixed(1)}</span><span className="text-[15px] text-muted">/ 5</span></div>
+                  <div className="mt-3 inline-flex rounded-full bg-accentSoft px-2.5 py-1 text-[12px] text-accent">综合评级：{traceRating >= 4.5 ? "优秀" : traceRating >= 4 ? "良好" : "合格"}</div>
+                  <p className="mt-3 text-[13px] text-muted leading-6">{evaluation.userSummary || evaluation.summary}</p>
+                  <p className="mt-3 text-[12px] text-faint">☆ {compactCount(selectedSkill.stars)} 人收藏 · ↓ {compactCount(selectedSkill.downloads)} 次下载</p>
+                </div>
+              </div>
+              <h3 className="text-[14px] font-semibold mt-6 mb-3">评价详情</h3>
+              <div className="rounded-xl border border-line bg-paper px-4 divide-y divide-line" data-testid="trace-dimension-details">{dimensionRows.map((item) => { const meta = TRACE_META.find((entry) => entry.key === item.key)!; return <div key={item.key} className="py-4"><div className="flex items-center gap-2.5"><span className="w-8 h-8 rounded-full grid place-items-center" style={{ color: meta.color, backgroundColor: meta.soft }}><Icon name={meta.icon} size={16} /></span><span className="text-[13px] font-semibold">{item.letter} · {item.name}</span></div><div className="mt-3 flex items-center gap-3"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-chromeHover"><div className="h-full rounded-full transition-[width] duration-500" style={{ width: `${Math.max(0, Math.min(100, item.score / 5 * 100))}%`, backgroundColor: meta.color }} /></div><span className="w-12 text-right text-[12px] font-medium text-muted">{item.score.toFixed(1)} /5</span></div><p className="mt-2 text-[12px] text-muted leading-5">{item.reason}</p></div>; })}</div>
+            </> : <div className="flex items-baseline gap-3"><span className="text-2xl font-semibold text-ink">暂无</span><span className="text-[13px] text-muted">☆ {compactCount(selectedSkill.stars)} 人收藏 · ↓ {compactCount(selectedSkill.downloads)} 次下载</span></div>}
+            </section>
+          )}
+        </article>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 min-h-0 flex flex-col" data-testid="skillhub-catalog">
+      <div className="category-tabs-scroll flex items-center gap-1.5 overflow-x-auto mb-3 shrink-0" data-testid="skillhub-categories">
+        <button
+          className={`shrink-0 rounded-lg px-3 py-1.5 text-[13px] ${!showMine && category === "all" ? "bg-chromeHover text-ink font-medium" : "text-muted hover:bg-chromeHover hover:text-ink"}`}
+          onClick={() => selectCategory("all")}
+        >
+          全部
+        </button>
+        <button
+          className={`shrink-0 rounded-lg px-3 py-1.5 text-[13px] ${showMine ? "bg-chromeHover text-ink font-medium" : "text-muted hover:bg-chromeHover hover:text-ink"}`}
+          onClick={() => onShowMine(true)}
+        >
+          我的
+        </button>
+        {categories.map((item) => (
+          <button
+            key={item.key}
+            className={`shrink-0 rounded-lg px-3 py-1.5 text-[13px] ${!showMine && category === item.key ? "bg-chromeHover text-ink font-medium" : "text-muted hover:bg-chromeHover hover:text-ink"}`}
+            onClick={() => selectCategory(item.key)}
+          >
+            {item.name}
+          </button>
+        ))}
+      </div>
+
+      <div
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain"
+        data-testid="skills-scroll-region"
+        onScroll={(event) => loadNextPage(event.currentTarget)}
+      >
+        {showMine ? children : loading && skills.length === 0 ? (
+          <div className="py-16 text-center text-[13px] text-muted">正在加载技能</div>
+        ) : error ? (
+          <div className="py-16 text-center text-[13px] text-muted">{error}</div>
+        ) : skills.length === 0 ? (
+          <div className="py-16 text-center text-[13px] text-muted">该分类暂无技能</div>
+        ) : (
+          <>
+          <div className="expert-grid">
+            {skills.map((skill) => (
+              <article
+                key={`${skill.publisher}/${skill.slug}`}
+                className={`${CARD} expert-card cursor-pointer group`}
+                role="button"
+                tabIndex={0}
+                onClick={() => openSkill(skill)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    openSkill(skill);
+                  }
+                }}
+                title="查看技能详情"
+              >
+                <div className="flex items-start gap-3.5">
+                  <div className="w-10 h-10 rounded-xl bg-accentSoft text-accent flex items-center justify-center shrink-0 overflow-hidden font-semibold">
+                    {skill.icon_url ? <img src={skill.icon_url} alt="" className="w-full h-full object-cover" /> : skill.name.slice(0, 1)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <h3 className="text-[15px] font-semibold truncate">{skill.name}</h3>
+                      {skill.verified && <span className="text-[11px] text-accent shrink-0" title="已认证">✓</span>}
+                    </div>
+                    <p className="text-[12px] text-muted truncate">{skill.publisher || "SkillHub"}</p>
+                  </div>
+                </div>
+                <p className="text-[13px] text-muted leading-[21px] line-clamp-3 break-words mt-2 mb-3" title={skill.description}>
+                  {skill.description || "暂无介绍"}
+                </p>
+                <div className="mt-auto flex items-center gap-2 text-[11px] text-muted">
+                  {skill.category && <span className="rounded-md bg-paper px-2 py-1">{categoryNames.get(skill.category) || skill.category}</span>}
+                  <span className="ml-auto">☆ {compactCount(skill.stars)}</span>
+                  <span>↓ {compactCount(skill.downloads)}</span>
+                </div>
+              </article>
+            ))}
+          </div>
+            {loading && <div className="py-5 text-center text-[13px] text-muted">正在加载更多技能…</div>}
+          </>
+        )}
+      </div>
+    </div>
   );
 }

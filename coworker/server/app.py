@@ -678,6 +678,36 @@ def create_app(manager: SessionManager) -> FastAPI:
     def create_skill(body: dict) -> dict[str, Any]:
         return manager.create_skill(body or {})
 
+    @app.get("/v1/skillhub/categories")
+    def skillhub_category_list() -> dict[str, Any]:
+        from ..skillhub import skillhub_categories
+
+        return skillhub_categories()
+
+    @app.get("/v1/skillhub/skills")
+    def skillhub_skill_list(page: int = 1, page_size: int = 24, category: str = "") -> dict[str, Any]:
+        from ..skillhub import skillhub_skills
+
+        return skillhub_skills(page, page_size, category)
+
+    @app.get("/v1/skillhub/skills/{slug}")
+    def skillhub_skill_detail_view(slug: str, namespace: str = "") -> dict[str, Any]:
+        from ..skillhub import skillhub_skill_detail
+
+        return skillhub_skill_detail(slug, namespace)
+
+    @app.get("/v1/skillhub/skills/{slug}/overview")
+    def skillhub_skill_overview_view(slug: str, namespace: str = "") -> dict[str, Any]:
+        from ..skillhub import skillhub_skill_overview
+
+        return skillhub_skill_overview(slug, namespace)
+
+    @app.get("/v1/skillhub/skills/{slug}/evaluation")
+    def skillhub_skill_evaluation_view(slug: str, namespace: str = "") -> dict[str, Any]:
+        from ..skillhub import skillhub_skill_evaluation
+
+        return skillhub_skill_evaluation(slug, namespace)
+
     @app.patch("/v1/skills/{name}")
     def update_skill(name: str, body: dict) -> dict[str, Any]:
         return manager.update_skill(name, body or {})

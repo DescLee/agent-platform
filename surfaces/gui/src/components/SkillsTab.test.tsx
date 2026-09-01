@@ -50,14 +50,151 @@ afterEach(() => {
 
 // The single add-action: open the "Add skill" menu, pick a door (SKILLS-SPEC §5).
 const openWriteForm = async () => {
+  fireEvent.click(screen.getByRole("button", { name: "我的" }));
   fireEvent.click(await screen.findByRole("button", { name: /添加技能/ }));
   fireEvent.click(screen.getByText("自行编写"));
 };
 
 describe("SkillsTab", () => {
+  it("uses one filter row with 我的 immediately after 全部", async () => {
+    stubFetch([
+      { match: "/v1/skillhub/categories", json: { ok: true, categories: [] } },
+      { match: "/v1/skillhub/skills", json: { ok: true, skills: [], total: 0 } },
+      { match: "/v1/skills", method: "GET", json: LIST },
+    ]);
+    render(<SkillsTab />);
+    const filters = screen.getByTestId("skillhub-categories");
+    expect(filters.textContent).toBe("全部我的");
+    expect(screen.queryByText("我的技能")).toBeNull();
+    expect(screen.queryByText("可供协作助手在所有会话中遵循的复用指令；在此关闭后将全局停用。")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "我的" }));
+    expect(await screen.findByText("weekly-report")).toBeTruthy();
+  });
+
+  it("loads and appends the next SkillHub page when the content region reaches the bottom", async () => {
+    const skill = (name: string, slug: string) => ({
+      name,
+      slug,
+      publisher: "tester",
+      description: `${name} description`,
+      category: "",
+      icon_url: "",
+      url: `https://skillhub.cn/skills/${slug}`,
+      verified: false,
+      stars: 0,
+      downloads: 0,
+    });
+    const fetchMock = vi.fn(async (url: string) => {
+      let json: unknown;
+      if (url.includes("/v1/skillhub/categories")) {
+        json = { ok: true, categories: [] };
+      } else if (url.includes("/v1/skillhub/skills")) {
+        json = url.includes("page=2")
+          ? { ok: true, skills: [skill("第二页技能", "second")], total: 25 }
+          : { ok: true, skills: [skill("第一页技能", "first")], total: 25 };
+      } else {
+        json = { skills: [] };
+      }
+      return { ok: true, json: async () => json } as Response;
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SkillsTab />);
+
+    expect(await screen.findByText("第一页技能")).toBeTruthy();
+    const region = screen.getByTestId("skills-scroll-region");
+    Object.defineProperties(region, {
+      scrollHeight: { configurable: true, value: 1_000 },
+      clientHeight: { configurable: true, value: 500 },
+      scrollTop: { configurable: true, value: 450 },
+    });
+    fireEvent.scroll(region);
+
+    expect(await screen.findByText("第二页技能")).toBeTruthy();
+    expect(screen.getByText("第一页技能")).toBeTruthy();
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("page=2"))).toBe(true);
+    expect(screen.queryByText(/全部技能|第 1 \/|下一页/)).toBeNull();
+  });
+
+  it("opens a skill detail page from a catalog card and can return to the list", async () => {
+    const calls = stubFetch([
+      { match: "/v1/skillhub/categories", json: { ok: true, categories: [] } },
+      { match: "/v1/skillhub/skills/docs/overview?namespace=tester", json: { ok: true, overview: "完整的技能概述" } },
+      { match: "/v1/skillhub/skills/docs/evaluation?namespace=tester", json: { ok: true, evaluation: { userSummary: "安全性与可用性评测通过", dimensions: {
+        trust: { userReason: "安全可靠", items: { scan: { score: 4.7 } } },
+      } } } },
+      { match: "/v1/skillhub/skills/docs?namespace=tester", json: { ok: true, skill: {
+        name: "文档助手", slug: "docs", namespace: "tester", publisher: "tester", description: "处理文档",
+        category: "", icon_url: "", url: "https://skillhub.cn/skills/docs", verified: false,
+        stars: 12, downloads: 34, tags: ["办公", "文档"], rating: 0, evaluation_report: "",
+      } } },
+      { match: "/v1/skillhub/skills", json: { ok: true, total: 1, skills: [{
+        name: "文档助手", slug: "docs", namespace: "tester", publisher: "tester", description: "处理文档",
+        category: "", icon_url: "", url: "https://skillhub.cn/skills/docs", verified: false,
+        stars: 12, downloads: 34, tags: ["办公", "文档"], overview: "完整的技能概述",
+        rating: 4.7, evaluation_report: "安全性与可用性评测通过",
+      }] } },
+      { match: "/v1/skills", method: "GET", json: { skills: [] } },
+    ]);
+    const onDetailChange = vi.fn();
+    render(<SkillsTab onDetailChange={onDetailChange} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /文档助手/ }));
+    expect(onDetailChange).toHaveBeenCalledWith(true);
+    const detailPage = screen.getByTestId("skill-detail-page");
+    const backButton = screen.getByRole("button", { name: "返回技能列表" });
+    const scrollRegion = screen.getByTestId("skill-detail-scroll-region");
+    expect(backButton.parentElement).toBe(detailPage);
+    expect(scrollRegion.contains(backButton)).toBe(false);
+    expect(await screen.findByText("完整的技能概述")).toBeTruthy();
+    expect(screen.queryByTestId("trace-score-summary")).toBeNull();
+    expect(calls.some((call) => call.url.includes("/evaluation"))).toBe(false);
+
+    fireEvent.click(screen.getByRole("tab", { name: "评分" }));
+    expect(await screen.findByText("4.7")).toBeTruthy();
+    expect(screen.getByText("安全性与可用性评测通过")).toBeTruthy();
+    expect(screen.getByText("办公")).toBeTruthy();
+    expect(screen.getByRole("img", { name: "TRACE 五维评分雷达图" })).toBeTruthy();
+    expect(screen.getByTestId("trace-dimension-details")).toBeTruthy();
+    expect(screen.getByText("T · 可信任度")).toBeTruthy();
+    expect(screen.getByText("4.7 /5")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("tab", { name: "概述" }));
+    fireEvent.click(screen.getByRole("tab", { name: "评分" }));
+    expect(calls.filter((call) => call.url.includes("/evaluation")).length).toBe(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "返回技能列表" }));
+    expect(onDetailChange).toHaveBeenCalledWith(false);
+    expect(screen.getByTestId("skillhub-catalog")).toBeTruthy();
+  });
+
+  it("keeps the overview response when base detail finishes later", async () => {
+    let resolveDetail!: (value: Response) => void;
+    const delayedDetail = new Promise<Response>((resolve) => { resolveDetail = resolve; });
+    vi.stubGlobal("fetch", vi.fn((url: string) => {
+      if (url.includes("/v1/skillhub/categories")) return Promise.resolve({ json: async () => ({ ok: true, categories: [] }) } as Response);
+      if (url.includes("/docs/overview?namespace=tester")) return Promise.resolve({ json: async () => ({ ok: true, overview: "接口返回的完整概述正文" }) } as Response);
+      if (url.includes("/docs?namespace=tester")) return delayedDetail;
+      if (url.includes("/v1/skillhub/skills")) return Promise.resolve({ json: async () => ({ ok: true, total: 1, skills: [{
+        name: "文档助手", slug: "docs", namespace: "tester", publisher: "tester", description: "卡片短描述",
+        category: "", icon_url: "", url: "", verified: false, stars: 0, downloads: 0,
+        tags: [], overview: "卡片短描述", rating: 0, evaluation_report: "",
+      }] }) } as Response);
+      return Promise.resolve({ json: async () => ({ skills: [] }) } as Response);
+    }));
+    render(<SkillsTab />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /文档助手/ }));
+    expect(await screen.findByText("接口返回的完整概述正文")).toBeTruthy();
+    resolveDetail({ json: async () => ({ ok: true, skill: { description: "详情接口描述" } }) } as Response);
+    expect(await screen.findByText("详情接口描述")).toBeTruthy();
+    expect(screen.getByText("接口返回的完整概述正文")).toBeTruthy();
+    expect(screen.queryByText("卡片短描述", { selector: ".md *" })).toBeNull();
+  });
+
   it("renders rows with provenance badges and dims disabled skills", async () => {
     stubFetch([{ match: "/v1/skills", method: "GET", json: LIST }]);
     render(<SkillsTab />);
+    fireEvent.click(screen.getByRole("button", { name: "我的" }));
     expect(await screen.findByText("weekly-report")).toBeTruthy();
     expect(screen.getByText("Monday status report")).toBeTruthy();
     expect(screen.queryByText("global")).toBeNull(); // no scope badges — global-only (§4.7)
@@ -70,6 +207,7 @@ describe("SkillsTab", () => {
   it("blocks Save until name and instructions are filled", async () => {
     stubFetch([{ match: "/v1/skills", method: "GET", json: { skills: [] } }]);
     render(<SkillsTab />);
+    fireEvent.click(screen.getByRole("button", { name: "我的" }));
     await openWriteForm();
     const save = screen.getByText("保存技能") as HTMLButtonElement;
     expect(save.disabled).toBe(true);
@@ -87,6 +225,7 @@ describe("SkillsTab", () => {
       { match: "/v1/skills", method: "POST", json: { ok: true } },
     ]);
     render(<SkillsTab />);
+    fireEvent.click(screen.getByRole("button", { name: "我的" }));
     await openWriteForm();
     fireEvent.change(screen.getByLabelText("名称"), { target: { value: "greet" } });
     fireEvent.change(screen.getByLabelText("指令"), {
@@ -108,6 +247,7 @@ describe("SkillsTab", () => {
       { match: "/v1/skills/weekly-report", method: "PATCH", json: { ok: true } },
     ]);
     render(<SkillsTab />);
+    fireEvent.click(screen.getByRole("button", { name: "我的" }));
     await screen.findByText("weekly-report");
     fireEvent.click(screen.getAllByTitle("编辑")[0]);
     const name = screen.getByLabelText("名称") as HTMLInputElement;
@@ -130,6 +270,7 @@ describe("SkillsTab", () => {
       { match: "/v1/skills/weekly-report", method: "DELETE", json: { ok: true } },
     ]);
     render(<SkillsTab />);
+    fireEvent.click(screen.getByRole("button", { name: "我的" }));
     await screen.findByText("weekly-report");
     // arm via the trash button (renders "Confirm delete" once armed)
     fireEvent.click(screen.getByLabelText("删除 weekly-report"));
@@ -147,6 +288,7 @@ describe("SkillsTab", () => {
       { match: "/v1/skills/weekly-report", method: "PATCH", json: { ok: true } },
     ]);
     render(<SkillsTab />);
+    fireEvent.click(screen.getByRole("button", { name: "我的" }));
     await screen.findByText("weekly-report");
     fireEvent.click(screen.getByLabelText("weekly-report enabled"));
     await waitFor(() => {
@@ -177,6 +319,7 @@ describe("SkillsTab", () => {
       { match: "/v1/skills", method: "GET", json: { skills: [] } },
     ]);
     render(<SkillsTab />);
+    fireEvent.click(screen.getByRole("button", { name: "我的" }));
     const input = (await screen.findByLabelText("上传技能包")) as HTMLInputElement;
     const file = new File([new Uint8Array([80, 75, 3, 4])], "greet.zip", { type: "application/zip" });
     fireEvent.change(input, { target: { files: [file] } });
@@ -195,6 +338,7 @@ describe("SkillsTab", () => {
     const calls = stubFetch([{ match: "/v1/skills", method: "GET", json: { skills: [] } }]);
     const onCreateSkill = vi.fn();
     render(<SkillsTab onCreateSkill={onCreateSkill} />);
+    fireEvent.click(screen.getByRole("button", { name: "我的" }));
     fireEvent.click(await screen.findByRole("button", { name: /添加技能/ }));
     // The three doors (§5), each with its teaching subtitle.
     expect(screen.getByText("自行编写")).toBeTruthy();
@@ -236,6 +380,7 @@ describe("SkillsTab", () => {
   it("the list is the page: no standing add-surfaces, no drafting remnants", async () => {
     stubFetch([{ match: "/v1/skills", method: "GET", json: { skills: [] } }]);
     render(<SkillsTab onCreateSkill={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "我的" }));
     await screen.findByRole("button", { name: /添加技能/ });
     // No permanently-open description box or draft-era UI (§5.2/§9) — adding is menu-only.
     expect(screen.queryByLabelText("Describe the skill")).toBeNull();
@@ -254,6 +399,7 @@ describe("SkillsTab", () => {
       { match: "/v1/skills", method: "POST", json: { ok: false, error: "A skill named 'x' already exists in that scope." } },
     ]);
     render(<SkillsTab />);
+    fireEvent.click(screen.getByRole("button", { name: "我的" }));
     await openWriteForm();
     fireEvent.change(screen.getByLabelText("名称"), { target: { value: "x" } });
     fireEvent.change(screen.getByLabelText("指令"), { target: { value: "y" } });
@@ -278,6 +424,7 @@ describe("SkillsTab — rich-skill disclosure (§6)", () => {
       },
     ]);
     render(<SkillsTab />);
+    fireEvent.click(screen.getByRole("button", { name: "我的" }));
     const note = await screen.findByTitle("显示文件夹");
     expect(note.textContent).toContain("3 个文件");
     // The one-file skill carries no count at all — only rich skills are marked.

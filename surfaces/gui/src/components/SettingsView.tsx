@@ -368,6 +368,7 @@ function VoiceInputSection() {
 // possible return as a first-class distribution surface, but nothing mounts it.
 export function PersonasSection({ onOpenPersona, onSummonPersona, onCreateSkill }: { onOpenPersona?: (id: string) => void; onSummonPersona?: (id: string, prompt?: string) => void; onCreateSkill?: (description: string) => void }) {
   const [tab, setTab] = useState<"experts" | "skills">("experts");
+  const [skillDetailOpen, setSkillDetailOpen] = useState(false);
   return (
     <section className="h-full min-h-0 flex flex-col">
       <div className="flex items-center justify-between mb-6 shrink-0">
@@ -384,14 +385,18 @@ export function PersonasSection({ onOpenPersona, onSummonPersona, onCreateSkill 
             </button>
           ))}
         </div>
-        {tab === "experts" && <button className="text-[13px] px-3 py-2 rounded-lg border border-line bg-paper hover:border-lineStrong" onClick={() => window.dispatchEvent(new Event("ocw-focus-import"))}>导入专家</button>}
+        {tab === "experts" ? (
+          <button className="text-[13px] px-3 py-2 rounded-lg border border-line bg-paper hover:border-lineStrong" onClick={() => window.dispatchEvent(new Event("ocw-focus-import"))}>导入专家</button>
+        ) : !skillDetailOpen ? (
+          <button className="text-[13px] px-3 py-2 rounded-lg border border-line bg-paper hover:border-lineStrong" onClick={() => window.dispatchEvent(new Event("ocw-add-skill"))}>添加技能</button>
+        ) : null}
       </div>
       <div className="flex-1 min-h-0 flex flex-col">
         {tab === "experts" ? (
           <PersonasTab onOpenPersona={onOpenPersona} onSummonPersona={onSummonPersona} />
         ) : (
-          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
-            <SkillsTab onCreateSkill={onCreateSkill} embedded />
+          <div className="flex-1 min-h-0">
+            <SkillsTab onCreateSkill={onCreateSkill} onDetailChange={setSkillDetailOpen} embedded />
           </div>
         )}
       </div>

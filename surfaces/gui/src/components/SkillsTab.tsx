@@ -394,82 +394,74 @@ export function SkillsTab({
         </div>
       ) : null}
 
-      <div className={`${CARD} divide-y divide-line`}>
+      <div>
         {rows.length === 0 && !editor ? (
-          <div className="p-5 text-[13px] text-muted">
+          <div className={`${CARD} p-5 text-[13px] text-muted`}>
             暂无技能。点击<b>添加技能</b>，教会协作助手第一项能力，例如“准备周一工作周报”。
           </div>
         ) : null}
-        {rows.map((row) => (
-          <div key={row.name} className="flex items-center gap-3 px-4 py-3">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className={`text-[13px] font-medium ${row.enabled ? "" : "text-muted"}`}>
-                  {row.name}
-                </span>
-                {row.source !== "local" ? <span className={BADGE}>{row.source}</span> : null}
-                {/* §6: a rich skill must not look identical to a one-file one. Styled as a
-                    chip with a folder icon so it READS as clickable (live drive: plain
-                    text hid the affordance). */}
-                {row.files ? (
+        {rows.length > 0 && <div className="expert-grid">
+          {rows.map((row) => (
+            <article key={row.name} className={`${CARD} expert-card group ${row.enabled ? "" : "opacity-60"}`}>
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-accentSoft text-accent flex items-center justify-center shrink-0 font-semibold">
+                  {row.name.slice(0, 1).toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-[15px] font-semibold truncate" title={row.name}>{row.name}</h3>
+                  <p className="text-[12px] text-muted truncate">{row.source === "local" ? "本地技能" : row.source}</p>
+                </div>
+                <div className="expert-card-actions shrink-0">
                   <button
-                    className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded-md border border-line bg-paper text-muted hover:text-ink hover:border-lineStrong shrink-0"
-                    title="显示文件夹"
-                    onClick={() => revealSkill(row.name)}
+                    className="w-7 h-7 grid place-items-center rounded-md border border-line bg-paper hover:border-lineStrong"
+                    title="编辑"
+                    onClick={() => setEditor({ mode: "edit", name: row.name, description: row.description, instructions: row.instructions })}
                   >
+                    <Icon name="pencil" size={13} />
+                  </button>
+                  <button
+                    className={`${armedDelete === row.name ? "h-7 px-2" : "w-7 h-7"} grid place-items-center rounded-md border border-line bg-paper hover:border-lineStrong`}
+                    aria-label={`删除 ${row.name}`}
+                    onClick={() => remove(row)}
+                    onBlur={() => setArmedDelete(null)}
+                  >
+                    {armedDelete === row.name ? <span className="text-[10px] whitespace-nowrap">确认删除</span> : <Icon name="trash" size={13} />}
+                  </button>
+                </div>
+              </div>
+              <p className="text-[13px] text-muted leading-[21px] line-clamp-3 break-words mt-2 mb-3" title={row.description}>
+                {row.description || "暂无介绍"}
+              </p>
+              <div className="mt-auto flex items-center gap-2 text-[11px] text-muted">
+                {row.files ? (
+                  <button className="inline-flex items-center gap-1 rounded-md bg-paper px-2 py-1 hover:text-ink" title="显示文件夹" onClick={() => revealSkill(row.name)}>
                     <Icon name="folder" size={11} /> {row.files} 个文件
                   </button>
                 ) : null}
-              </div>
-              {/* Full description, wrapping — a skill's one-liner is its menu entry; cutting
-                  it mid-word hid what the skill does (live drive). */}
-              <div className="text-[12px] text-muted leading-relaxed">{row.description}</div>
-            </div>
-            <button
-              className={BTN_BORDERED}
-              title="编辑"
-              onClick={() =>
-                setEditor({
-                  mode: "edit",
-                  name: row.name,
-                  description: row.description,
-                  instructions: row.instructions,
-                })
-              }
-            >
-              <Icon name="pencil" size={13} />
-            </button>
-            <button
-              className={BTN_BORDERED}
-              aria-label={`删除 ${row.name}`}
-              onClick={() => remove(row)}
-              onBlur={() => setArmedDelete(null)}
-            >
-              {armedDelete === row.name ? "确认删除" : <Icon name="trash" size={13} />}
-            </button>
-            <label className="inline-flex items-center gap-1.5 text-[12px] text-muted">
-              <input
-                type="checkbox"
-                role="switch"
-                aria-label={`${row.name} enabled`}
-                checked={row.enabled}
-                onChange={(e) => {
-                  const on = e.target.checked;
-                  updateSkill(row.name, { enabled: on }).then((res) => {
-                    if (!fail(res))
-                      setNotice({
-                        name: row.name,
-                        text: on ? CONFIRMATION : OFF_NOTE,
-                        tone: on ? "ok" : "warn",
+                <label className="ml-auto inline-flex items-center gap-1.5 text-[12px] text-muted">
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    aria-label={`${row.name} enabled`}
+                    checked={row.enabled}
+                    onChange={(e) => {
+                      const on = e.target.checked;
+                      updateSkill(row.name, { enabled: on }).then((res) => {
+                        if (!fail(res)) setNotice({
+                          name: row.name,
+                          text: on ? CONFIRMATION : OFF_NOTE,
+                          tone: on ? "ok" : "warn",
+                        });
+                        refresh();
                       });
-                    refresh();
-                  });
-                }}
-              />
-              启用
-            </label>
-          </div>
-        ))}
+                    }}
+                  />
+                  启用
+                </label>
+              </div>
+            </article>
+          ))}
+        </div>}
       </div>
 
       </SkillHubCatalog>

@@ -44,6 +44,7 @@ import { ModelsTab } from "./ManageTabs";
 import { MemorySection } from "./MemorySection";
 import { PersonasTab } from "./PersonasTab";
 import { SkillsTab } from "./SkillsTab";
+import { ConnectorsSection } from "./connectors/ConnectorsSection";
 
 // Settings, restructured (Option 2) into a full-page surface that mirrors IntegrationsView's shell:
 // a left sub-nav (Appearance · Files · Models · Personas) + centered panel, replacing the old
@@ -366,14 +367,14 @@ function VoiceInputSection() {
 // The Gallery entry point is GONE (owner 2026-08-21) — coworkers install from
 // GitHub / folder / zip only. GalleryModal stays in the tree for the gallery's
 // possible return as a first-class distribution surface, but nothing mounts it.
-export function PersonasSection({ onOpenPersona, onSummonPersona, onCreateSkill, onUseSkill }: { onOpenPersona?: (id: string) => void; onSummonPersona?: (id: string, prompt?: string) => void; onCreateSkill?: (description: string) => void; onUseSkill?: (name: string, label: string) => void }) {
-  const [tab, setTab] = useState<"experts" | "skills">("experts");
+export function PersonasSection({ onOpenPersona, onSummonPersona, onCreateSkill, onUseSkill, initialTab = "experts" }: { onOpenPersona?: (id: string) => void; onSummonPersona?: (id: string, prompt?: string) => void; onCreateSkill?: (description: string) => void; onUseSkill?: (name: string, label: string) => void; initialTab?: "experts" | "skills" | "connectors" }) {
+  const [tab, setTab] = useState<"experts" | "skills" | "connectors">(initialTab);
   const [skillDetailOpen, setSkillDetailOpen] = useState(false);
   return (
     <section className="h-full min-h-0 flex flex-col">
       <div className="flex items-center justify-between mb-6 shrink-0">
-        <div className="flex items-center gap-5" role="tablist" aria-label="专家和技能">
-          {(["experts", "skills"] as const).map((key) => (
+        <div className="flex items-center gap-5" role="tablist" aria-label="专家、技能和连接器">
+          {(["experts", "skills", "connectors"] as const).map((key) => (
             <button
               key={key}
               role="tab"
@@ -381,22 +382,36 @@ export function PersonasSection({ onOpenPersona, onSummonPersona, onCreateSkill,
               className={"text-[20px] font-semibold pb-1 border-b-2 " + (tab === key ? "text-ink border-accent" : "text-muted border-transparent hover:text-ink")}
               onClick={() => setTab(key)}
             >
-              {key === "experts" ? "专家" : "技能"}
+              {key === "experts" ? "专家" : key === "skills" ? "技能" : "连接器"}
             </button>
           ))}
         </div>
         {tab === "experts" ? (
           <button className="text-[13px] px-3 py-2 rounded-lg border border-line bg-paper hover:border-lineStrong" onClick={() => window.dispatchEvent(new Event("ocw-focus-import"))}>导入专家</button>
-        ) : !skillDetailOpen ? (
+        ) : tab === "skills" && !skillDetailOpen ? (
           <button className="text-[13px] px-3 py-2 rounded-lg border border-line bg-paper hover:border-lineStrong" onClick={() => window.dispatchEvent(new Event("ocw-add-skill"))}>添加技能</button>
+        ) : tab === "connectors" ? (
+          <div className="flex items-center gap-3">
+            <input
+              aria-label="搜索连接器"
+              placeholder="搜索连接器"
+              className="w-44 px-3.5 py-2 rounded-full border border-line bg-panel text-[13px] outline-none focus:border-accent"
+              onChange={(e) => window.dispatchEvent(new CustomEvent("ocw-connector-search", { detail: e.target.value }))}
+            />
+            <button className="text-[13px] px-3 py-2 rounded-lg border border-line bg-paper hover:border-lineStrong" onClick={() => window.dispatchEvent(new Event("ocw-add-mcp"))}>添加自定义 MCP 服务</button>
+          </div>
         ) : null}
       </div>
       <div className="flex-1 min-h-0 flex flex-col">
         {tab === "experts" ? (
           <PersonasTab onOpenPersona={onOpenPersona} onSummonPersona={onSummonPersona} />
-        ) : (
+        ) : tab === "skills" ? (
           <div className="flex-1 min-h-0">
             <SkillsTab onCreateSkill={onCreateSkill} onUseSkill={onUseSkill} onDetailChange={setSkillDetailOpen} embedded />
+          </div>
+        ) : (
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain hairline-scroll pr-1" data-testid="connectors-tab-scroll">
+            <ConnectorsSection />
           </div>
         )}
       </div>

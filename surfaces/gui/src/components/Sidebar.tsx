@@ -1053,7 +1053,7 @@ export function Sidebar(props: Props) {
           data-testid="nav-coworkers"
           onClick={props.onOpenCoworkers}
         >
-          <Icon name="sparkle" size={15} className="shrink-0" /> 专家·技能
+          <Icon name="sparkle" size={15} className="shrink-0" /> 专家·技能·连接器
         </button>
       </div>
 

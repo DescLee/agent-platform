@@ -115,7 +115,7 @@ export function scopeNote(
 ): { text: string; external: boolean } {
   // save_skill's corner answers WHERE (SKILLS-SPEC §5.2): the exact place to find, edit,
   // or turn off the skill afterwards.
-  if (name === "save_skill") return { text: "保存至“专家·技能 ▸ 技能”", external: false };
+  if (name === "save_skill") return { text: "保存至“专家·技能·连接器 ▸ 技能”", external: false };
   if (category === "connector") return { text: "将在已连接的服务中操作", external: true };
   // Egress (§1.9): the request itself reaches the network — never "stays on this computer".
   if (name === "web_fetch")

@@ -483,7 +483,7 @@ export function ConnectSetup({
     const res = await connectConnector(c.name, values);
     setBusy(false);
     if (res.ok) onConnected();
-    else setError(res.error || "could not connect");
+    else setError(res.error || "无法连接");
   };
 
   const oneClick = async () => {
@@ -492,7 +492,7 @@ export function ConnectSetup({
     // Completion arrives via the tab's poll: the broker form-POSTs the profile
     // to the sidecar, the connector flips to connected, this card closes itself.
     if (res.ok) setWaiting(true);
-    else setError(res.error || "could not start managed connect");
+    else setError(res.error || "无法开始托管连接");
   };
 
   const mcpOneClick = async () => {
@@ -501,7 +501,7 @@ export function ConnectSetup({
     // Completion likewise arrives via the poll — the sidecar flips the connector
     // to connected once the local OAuth flow lands.
     if (res.ok) setWaiting(true);
-    else setError(res.error || "could not start the connect");
+    else setError(res.error || "无法开始连接");
   };
 
   return (
@@ -510,10 +510,10 @@ export function ConnectSetup({
         /* MCP-backed one-click needs no cloud sign-in — the OAuth flow is local. */
         <div className="space-y-2" data-testid="mcp-connect">
           <button className={BTN_ACCENT} onClick={mcpOneClick} disabled={waiting}>
-            {waiting ? "Check your browser…" : `Connect ${c.title} with one click`}
+            {waiting ? "请在浏览器中完成操作…" : `一键连接 ${c.title}`}
           </button>
           {c.fields.length > 0 && (
-            <div className="text-[12px] text-faint">or connect manually:</div>
+            <div className="text-[12px] text-faint">或手动连接：</div>
           )}
         </div>
       )}
@@ -524,22 +524,22 @@ export function ConnectSetup({
             // a visibly-parked button, and the manual path below stays fully live.
             <>
               <button className={BTN_ACCENT + " opacity-50"} disabled data-testid="managed-coming-soon">
-                {`Connect ${c.title} with one click`}
+                {`一键连接 ${c.title}`}
                 <span className="ml-2 text-[11px] font-medium px-1.5 py-0.5 rounded-full bg-white/25">
-                  Coming soon
+                  即将推出
                 </span>
               </button>
               <div className="text-[12px] text-faint">
-                One-click sign-in is coming soon — connect manually below for now:
+                一键登录即将推出，当前请在下方手动连接：
               </div>
             </>
           ) : cloud?.signed_in ? (
             <button className={BTN_ACCENT} onClick={oneClick} disabled={waiting}>
-              {waiting ? "Check your browser…" : `Connect ${c.title} with one click`}
+              {waiting ? "请在浏览器中完成操作…" : `一键连接 ${c.title}`}
             </button>
           ) : cloud ? (
             <CloudSignInInline
-              blurb={`Sign-in unlocks the one-click ${c.title} connect — or connect manually below.`}
+                blurb={`登录后可一键连接 ${c.title}，也可在下方手动连接。`}
             />
           ) : (
             // Status unknown (fetch pending/failed): never show the sign-in ask to a
@@ -547,22 +547,22 @@ export function ConnectSetup({
             <CloudStatusPending />
           )}
           {!c.managed_paused && cloud?.signed_in && (
-            <div className="text-[12px] text-faint">or connect manually:</div>
+            <div className="text-[12px] text-faint">或手动连接：</div>
           )}
         </div>
       )}
       {c.instructions.length > 0 && (
         <ol className="list-decimal pl-4 text-[13px] text-muted leading-relaxed space-y-1">
           {c.instructions.map((step, i) => (
-            <li key={i}>{step}</li>
+            <li key={i}>{localizedConnectorInstruction(c.name, step, i)}</li>
           ))}
         </ol>
       )}
       {c.fields.map((f) => (
         <label className="conn-field" key={f.key}>
           <span className="conn-field-label">
-            {f.label}
-            {!f.required && <em> (optional)</em>}
+            {localizedConnectorField(c.name, f.label)}
+            {!f.required && <em>（可选）</em>}
           </span>
           <input
             type={f.secret ? "password" : "text"}
@@ -576,10 +576,27 @@ export function ConnectSetup({
       ))}
       <div>
         <button className={BTN_ACCENT} onClick={submit} disabled={busy}>
-          {busy ? "Validating…" : "Connect"}
+          {busy ? "验证中…" : "连接"}
         </button>
       </div>
       {error && <div className="text-[13px] text-danger">{error}</div>}
     </div>
   );
+}
+
+function localizedConnectorField(name: string, label: string): string {
+  if (label === "Personal access token") return "个人访问令牌";
+  return name === "github" && label === "Repository" ? "仓库" : label;
+}
+
+function localizedConnectorInstruction(name: string, step: string, index: number): string {
+  if (name === "github") {
+    if (index === 0) return "创建一个可访问目标仓库的 GitHub 个人访问令牌。";
+    if (index === 1) return "如需写入操作，请按需开启 Issues 或 Pull Requests 的写入权限。";
+  }
+  if (name === "figma") {
+    if (index === 0) return "在 Figma 中打开设置 → 安全，生成个人访问令牌。";
+    if (index === 1) return "将令牌粘贴到下方。";
+  }
+  return step;
 }

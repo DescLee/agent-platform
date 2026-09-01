@@ -241,7 +241,7 @@ describe("ApprovalCard — save_skill (SKILLS-SPEC §5.2)", () => {
     expect(screen.getByText("weekly-github-report")).toBeTruthy(); // bold obj in the title
     expect(screen.getAllByText(/技能/).length).toBeGreaterThan(0); // title + footer
     // The corner answers WHERE; the footer answers what approving means (§5.2 review round).
-    expect(screen.getByText("保存至“专家·技能 ▸ 技能”")).toBeTruthy();
+    expect(screen.getByText("保存至“专家·技能·连接器 ▸ 技能”")).toBeTruthy();
     expect(screen.getByText(/所有会话均可使用/)).toBeTruthy();
     expect(
       screen.getByText("Create a concise Monday status report from GitHub activity."),
@@ -362,7 +362,7 @@ describe("InboxItemCard — parked save_skill proposals (SKILLS-SPEC §5.2)", ()
   it("wears the same review surface and button copy as the live card", () => {
     const onResolve = vi.fn();
     render(<InboxItemCard item={parked()} onResolve={onResolve} />);
-    expect(screen.getByText("保存至“专家·技能 ▸ 技能”")).toBeTruthy();
+    expect(screen.getByText("保存至“专家·技能·连接器 ▸ 技能”")).toBeTruthy();
     expect(
       screen.getByText("Create a concise Monday status report from GitHub activity."),
     ).toBeTruthy();

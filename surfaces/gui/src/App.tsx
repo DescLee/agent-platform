@@ -69,7 +69,6 @@ import { Onboarding } from "./components/Onboarding";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { ScheduledView } from "./components/ScheduledView";
 import { RightRail } from "./components/RightRail";
-import { IntegrationsView } from "./components/IntegrationsView";
 import { PersonasSection, SettingsView } from "./components/SettingsView";
 import { PersonaView } from "./components/PersonaView";
 import { PersonaGlyph } from "./components/personaIcon";
@@ -1797,7 +1796,7 @@ export function App() {
         onOpenIntegrations={() => setSurface("integrations")}
         onOpenAudit={() => setSurface("audit")}
         onOpenInbox={() => setSurface("inbox")}
-        coworkersActive={surface === "coworkers" || (surface === "persona" && personaViewReturn === "coworkers")}
+        coworkersActive={surface === "coworkers" || surface === "integrations" || (surface === "persona" && personaViewReturn === "coworkers")}
         scheduledActive={surface === "scheduled"}
         integrationsActive={surface === "integrations"}
         auditActive={surface === "audit"}
@@ -1806,10 +1805,10 @@ export function App() {
         onCollapse={toggleNav}
         onPeekLeave={() => setNavPeek(false)}
       />
-      {surface === "coworkers" ? (
+      {surface === "coworkers" || surface === "integrations" ? (
         <main className="flex-1 min-w-0 min-h-0 overflow-hidden bg-paper">
           <div className="experts-content mx-auto px-7 py-6 h-full flex flex-col min-h-0">
-            <PersonasSection onOpenPersona={(id) => openPersona(id, "coworkers")} onSummonPersona={summonPersona} onCreateSkill={(description) => {
+            <PersonasSection initialTab={surface === "integrations" ? "connectors" : "experts"} onOpenPersona={(id) => openPersona(id, "coworkers")} onSummonPersona={summonPersona} onCreateSkill={(description) => {
               void startNewSession().then(() => prefillComposer(description ? `帮我创建一个新技能：${description}` : "帮我创建一个新技能：（请描述这个技能需要完成什么）"));
             }} onUseSkill={(name, label) => {
               void startNewSession().then(() => window.setTimeout(() => prefillComposerSkill(name, label), 0));
@@ -1823,8 +1822,6 @@ export function App() {
           onRunNow={runTaskNow}
           initialOpenId={scheduledOpenId}
         />
-      ) : surface === "integrations" ? (
-        <IntegrationsView />
       ) : surface === "settings" ? (
         <SettingsView
           key={settingsTab}

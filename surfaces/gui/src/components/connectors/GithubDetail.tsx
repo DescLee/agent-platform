@@ -29,14 +29,14 @@ const LABEL = "text-[13px] text-muted w-24 shrink-0";
 
 /** The relay status line, one honest layer at a time (the Slack rule). */
 function relayHealth(gh: GithubStatus | null): { dot: string; text: string } {
-  if (!gh) return { dot: "bg-ok", text: "Live · managed relay" };
+  if (!gh) return { dot: "bg-ok", text: "在线 · 托管中继" };
   if (!gh.signed_in)
-    return { dot: "bg-warnInk", text: "Sign-in needed — relaying is paused" };
+    return { dot: "bg-warnInk", text: "需要登录，中继已暂停" };
   if (gh.relay.state === "offline")
-    return { dot: "bg-faint/60", text: "Offline — can't reach the relay" };
+    return { dot: "bg-faint/60", text: "离线，无法连接中继服务" };
   if (gh.relay.state === "reconnecting")
-    return { dot: "bg-warnInk", text: "Reconnecting to the relay…" };
-  return { dot: "bg-ok", text: "Live · managed relay" };
+    return { dot: "bg-warnInk", text: "正在重新连接中继服务…" };
+  return { dot: "bg-ok", text: "在线 · 托管中继" };
 }
 
 export function GithubDetail({ c, cloud, onChanged }: DetailProps) {
@@ -76,11 +76,11 @@ export function GithubDetail({ c, cloud, onChanged }: DetailProps) {
                 <span data-testid="github-mode-badge">
                   {relay
                     ? relayHealth(status).text
-                    : "Connected · personal access token"}
+                    : "已连接 · 个人访问令牌"}
                 </span>
               </>
             ) : (
-              <span>Not connected</span>
+              <span>未连接</span>
             )}
           </div>
         </div>
@@ -90,7 +90,7 @@ export function GithubDetail({ c, cloud, onChanged }: DetailProps) {
             data-testid="add-installation-btn"
             onClick={() => setAdding(true)}
           >
-            ＋ Add installation
+            ＋ 添加安装
           </button>
         )}
       </div>
@@ -98,9 +98,8 @@ export function GithubDetail({ c, cloud, onChanged }: DetailProps) {
       {!c.connected && (
         <div className={GRP}>
           <div className={ROW + " text-[13px] text-muted"}>
-            One @ocw-agent App, installed per account or org — you pick the repos on
-            GitHub; each installation keeps its own allow-list.
-            {cloud?.signed_in ? "" : " One-click needs cloud sign-in; a PAT works without it."}
+            每个账号或组织分别安装 @ocw-agent App，并在 GitHub 中选择仓库；各安装拥有独立的允许列表。
+            {cloud?.signed_in ? "" : " 快捷连接需要登录云端，也可以使用个人访问令牌。"}
           </div>
         </div>
       )}
@@ -120,15 +119,14 @@ export function GithubDetail({ c, cloud, onChanged }: DetailProps) {
       {c.connected && !relay && (
         <div className={GRP} data-testid="github-manual-card">
           <div className={ROW + " text-[13px] text-muted"}>
-            Personal access token · tools only. Install the GitHub App to let
-            @-mentions and the agent label reach this computer.
+            个人访问令牌仅支持工具调用。安装 GitHub App 后，@提及和智能体标签才能发送到此设备。
           </div>
         </div>
       )}
 
       {relay && listening.length > 0 && (
         <>
-          <div className={GRP_H}>Listening</div>
+          <div className={GRP_H}>监听</div>
           <div className={GRP}>
             <ListeningRows subs={listening} onChanged={changed} />
           </div>
@@ -138,8 +136,7 @@ export function GithubDetail({ c, cloud, onChanged }: DetailProps) {
       <ToolsDisclosure c={c} onChanged={onChanged} />
       {c.connected && relay && (
         <div className={FOOT + " mt-2"}>
-          Triggers: @ocw-agent mentions and the “ocw-agent” label. The agent replies as
-          ocw-agent[bot].
+          触发方式：@ocw-agent 提及或“ocw-agent”标签。智能体将以 ocw-agent[bot] 身份回复。
         </div>
       )}
 
@@ -147,7 +144,7 @@ export function GithubDetail({ c, cloud, onChanged }: DetailProps) {
         <AddConnectionModal
           c={c}
           cloud={cloud}
-          title="Add an installation"
+          title="添加安装"
           onClose={() => setAdding(false)}
           onChanged={changed}
         />
@@ -231,7 +228,7 @@ function DisconnectBtn({ id, busy, onClick }: { id: string; busy: boolean; onCli
       onClick={onClick}
       disabled={busy}
     >
-      {busy ? "Disconnecting…" : "Disconnect installation"}
+      {busy ? "正在断开…" : "断开安装"}
     </button>
   );
 }

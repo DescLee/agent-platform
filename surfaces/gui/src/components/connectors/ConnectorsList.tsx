@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { type CloudStatus, type Connector, type McpServer, type SlackStatus } from "../../api";
 import { ConnectorBadge } from "../../connectors/ConnectorIcon";
 import { AddConnectionModal } from "./AddConnectionModal";
 import { AddMcpModal, CustomMcpGroup } from "./CustomMcp";
-import { CHIP_OK, CHIP_OFF, CHIP_WARN, GRP, GRP_H, FOOT, PILL_QUIET, ROW } from "./ui";
+import { CHIP_OK, CHIP_OFF, CHIP_WARN, GRP, GRP_H, PILL_QUIET, ROW } from "./ui";
 
 // The Connectors LIST (UX-DECISIONS §21): connected first in their own inset group —
 // rows navigate to the connector's detail subpage; problems surface as a chip in the
@@ -11,7 +11,13 @@ import { CHIP_OK, CHIP_OFF, CHIP_WARN, GRP, GRP_H, FOOT, PILL_QUIET, ROW } from 
 // Custom MCP servers (UX-034) render as their own group after Connected; the "Add
 // custom server" affordance sits at the top of the page (owner ruling: top).
 
-const AVAILABLE_FOLD = 8; // rows shown before "show all"
+const AVAILABLE_CONNECTORS = new Set(["figma"]);
+const CONNECTOR_COPY: Record<string, { title: string; blurb: string }> = {
+  browser: { title: "浏览器", blurb: "读取网页并执行浏览器操作。" },
+  github: { title: "GitHub", blurb: "处理议题、拉取请求、仓库文件和持续集成状态。" },
+  figma: { title: "Figma", blurb: "读取和管理 Figma 设计文件与团队资源。" },
+  notion: { title: "Notion", blurb: "搜索、读取和管理 Notion 页面与数据库。" },
+};
 
 export function ConnectorsList({
   connectors,
@@ -29,41 +35,35 @@ export function ConnectorsList({
   onChanged: () => void;
 }) {
   const [filter, setFilter] = useState("");
-  const [showAll, setShowAll] = useState(false);
   const [connecting, setConnecting] = useState<string | null>(null);
   const [addingMcp, setAddingMcp] = useState(false);
 
+  useEffect(() => {
+    const open = () => setAddingMcp(true);
+    window.addEventListener("ocw-add-mcp", open);
+    return () => window.removeEventListener("ocw-add-mcp", open);
+  }, []);
+  useEffect(() => {
+    const search = (event: Event) => setFilter((event as CustomEvent<string>).detail || "");
+    window.addEventListener("ocw-connector-search", search);
+    return () => window.removeEventListener("ocw-connector-search", search);
+  }, []);
+
   const q = filter.trim().toLowerCase();
-  const match = (c: Connector) => !q || c.title.toLowerCase().includes(q) || c.name.includes(q);
+  const match = (c: Connector) => !q || c.title.toLowerCase().includes(q) || c.name.includes(q) || CONNECTOR_COPY[c.name]?.title.toLowerCase().includes(q);
   const connected = connectors.filter((c) => c.connected && match(c));
-  const available = connectors.filter((c) => !c.connected && c.available && match(c));
-  const customMcp = mcpServers.filter((s) => !q || s.name.toLowerCase().includes(q));
-  const shown = showAll || q ? available : available.slice(0, AVAILABLE_FOLD);
+  const available = connectors.filter((c) => !c.connected && c.available && AVAILABLE_CONNECTORS.has(c.name) && match(c));
+  const customMcp = mcpServers.filter((s) => s.name !== "granola" && (!q || s.name.toLowerCase().includes(q)));
+  const shown = available;
   const connectingC = connecting ? connectors.find((c) => c.name === connecting) : null;
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <button
-          className={PILL_QUIET}
-          onClick={() => setAddingMcp(true)}
-          data-testid="add-custom-server"
-        >
-          + Add custom MCP server
-        </button>
-        <input
-          placeholder="Search"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          className="w-44 px-3.5 py-1.5 rounded-full border border-line bg-panel text-[13px] outline-none focus:border-accent"
-        />
-      </div>
-
       {/* No cloud strip here anymore (§26): the sidebar's account row is the permanent
           sign-in home, and the connect modals keep their inline sign-in panes. */}
       {connected.length > 0 && (
         <>
-          <div className={GRP_H + " !mt-0"}>Connected · {connected.length}</div>
+          <div className={GRP_H + " !mt-0"}>已连接 · {connected.length}</div>
           <div className={GRP}>
             {connected.map((c) => (
               <button
@@ -72,9 +72,9 @@ export function ConnectorsList({
                 className={ROW + " w-full text-left hover:bg-paper/60"}
                 onClick={() => onOpen(c.name)}
               >
-                <ConnectorBadge connector={c} size={34} title={c.title} />
+                <ConnectorBadge connector={c} size={34} title={CONNECTOR_COPY[c.name]?.title || c.title} />
                 <span className="min-w-0 flex-1">
-                  <span className="font-medium text-[13px]">{c.title}</span>
+                  <span className="font-medium text-[13px]">{CONNECTOR_COPY[c.name]?.title || c.title}</span>
                   <span className="block text-[12px] text-muted">{statusLine(c)}</span>
                 </span>
                 {healthChip(c, slack)}
@@ -85,13 +85,9 @@ export function ConnectorsList({
         </>
       )}
 
-      <CustomMcpGroup
-        servers={customMcp}
-        onOpen={(name) => onOpen("mcp:" + name)}
-        onChanged={onChanged}
-      />
+      <CustomMcpGroup servers={customMcp} onOpen={(name) => onOpen(`mcp:${name}`)} onChanged={onChanged} />
 
-      <div className={GRP_H}>Available</div>
+      <div className={GRP_H}>可用连接器</div>
       <div className={GRP}>
         {shown.map((c) => (
           /* The row navigates to the pre-connect detail page (§38); the pill
@@ -104,8 +100,8 @@ export function ConnectorsList({
           >
             <ConnectorBadge connector={c} size={34} title={c.title} />
             <span className="min-w-0 flex-1">
-              <span className="font-medium text-[13px]">{c.title}</span>
-              <span className="block text-[12px] text-muted truncate">{c.blurb}</span>
+              <span className="font-medium text-[13px]">{CONNECTOR_COPY[c.name]?.title || c.title}</span>
+              <span className="block text-[12px] text-muted truncate">{CONNECTOR_COPY[c.name]?.blurb || c.blurb}</span>
             </span>
             <span
               className={PILL_QUIET + " cursor-pointer"}
@@ -115,22 +111,14 @@ export function ConnectorsList({
                 setConnecting(c.name);
               }}
             >
-              Connect
+              连接
             </span>
           </button>
         ))}
         {shown.length === 0 && (
-          <div className={ROW + " text-[13px] text-muted"}>Nothing matches.</div>
+          <div className={ROW + " text-[13px] text-muted"}>没有匹配的连接器。</div>
         )}
       </div>
-      {!showAll && !q && available.length > AVAILABLE_FOLD && (
-        <div className={FOOT}>
-          {available.length - AVAILABLE_FOLD} more ·{" "}
-          <button className="text-muted hover:text-ink" onClick={() => setShowAll(true)}>
-            show all
-          </button>
-        </div>
-      )}
 
       {connectingC && (
         <AddConnectionModal
@@ -148,12 +136,12 @@ export function ConnectorsList({
 function statusLine(c: Connector): string {
   if (c.name === "slack" && c.mode === "relay") {
     const n = c.workspaces?.length ?? 0;
-    return `${n} workspace${n === 1 ? "" : "s"} · relay`;
+    return `${n} 个工作区 · 中继模式`;
   }
-  if ((c.accounts?.length ?? 0) > 1) return `${c.accounts!.length} accounts`;
-  if ((c.portals?.length ?? 0) > 1) return `${c.portals!.length} portals`;
-  if (c.auth === "none") return "Built in";
-  return c.account || "Connected";
+  if ((c.accounts?.length ?? 0) > 1) return `${c.accounts!.length} 个账号`;
+  if ((c.portals?.length ?? 0) > 1) return `${c.portals!.length} 个门户`;
+  if (c.auth === "none") return "内置";
+  return c.account || "已连接";
 }
 
 function healthChip(c: Connector, slack: SlackStatus | null) {
@@ -161,15 +149,14 @@ function healthChip(c: Connector, slack: SlackStatus | null) {
   // surface in the list, never one click deep. Named honestly per layer; we
   // never claim "Slack↔cloud down" (the desktop can't see that leg).
   if (c.name === "slack" && c.mode === "relay" && slack) {
-    if (!slack.signed_in) return <span className={CHIP_WARN}>● Sign-in needed</span>;
-    if (slack.relay.state === "offline") return <span className={CHIP_OFF}>● Offline</span>;
+    if (!slack.signed_in) return <span className={CHIP_WARN}>● 需要登录</span>;
+    if (slack.relay.state === "offline") return <span className={CHIP_OFF}>● 离线</span>;
     if (slack.relay.state === "reconnecting")
-      return <span className={CHIP_WARN}>● Reconnecting</span>;
+      return <span className={CHIP_WARN}>● 正在重连</span>;
     if (Object.values(slack.teams).some((t) => !t.token_ok))
-      return <span className={CHIP_WARN}>⚠ Token</span>;
-    return <span className={CHIP_OK}>● Live</span>;
+      return <span className={CHIP_WARN}>⚠ 凭证异常</span>;
+    return <span className={CHIP_OK}>● 在线</span>;
   }
-  if (c.two_way && c.connected) return <span className={CHIP_OK}>● Live</span>;
-  return <span className={CHIP_OK}>● Ready</span>;
+  if (c.two_way && c.connected) return <span className={CHIP_OK}>● 在线</span>;
+  return <span className={CHIP_OK}>● 已就绪</span>;
 }
-

@@ -65,6 +65,11 @@ const mergeAttachments = (cur: Attachment[], add: Attachment[]): Attachment[] =>
   return [...cur, ...add.filter((a) => !seen.has(attKey(a)))].slice(0, 8);
 };
 
+const skillLabel = (skill: Pick<SessionSkillRow, "name" | "description"> & { label?: string }) => {
+  if (skill.label?.trim()) return skill.label.trim();
+  return skill.description.match(/^(.+?\.Skill)(?:\s|$)/i)?.[1]?.trim() || skill.name;
+};
+
 interface Props {
   expertSlot?: ReactNode;
   mode: string;
@@ -153,7 +158,7 @@ export function Composer(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slashQuery === null]);
   const pickSkill = (s: SessionSkillRow) => {
-    setPendingSkill(s);
+    setPendingSkill({ ...s, label: skillLabel(s) });
     setText("");
     textareaRef.current?.focus();
   };
@@ -570,11 +575,7 @@ export function Composer(props: Props) {
                   onMouseEnter={() => setSlashIndex(i)}
                   onClick={() => pickSkill(s)}
                 >
-                  <span className="text-[13px] font-medium text-accent shrink-0">/{s.name}</span>
-                  <span className="text-[12px] text-faint truncate flex-1">{s.description}</span>
-                  <span className="text-[11px] px-1.5 py-0.5 rounded-full border border-line text-faint shrink-0">
-                    {s.scope}
-                  </span>
+                  <span className="text-[13px] font-medium text-accent truncate">{skillLabel(s) === s.name ? `/${s.name}` : skillLabel(s)}</span>
                 </button>
               ))
             )}
@@ -583,7 +584,7 @@ export function Composer(props: Props) {
         {pendingSkill && (
           <div className="px-3.5 pt-3" data-testid="selected-skill">
             <span className="inline-flex items-center gap-2 rounded-lg bg-paper px-2.5 py-1.5 text-[13px] text-ink">
-              <span>{pendingSkill.label || pendingSkill.description || pendingSkill.name}</span>
+              <span>{skillLabel(pendingSkill)}</span>
               <button
                 type="button"
                 className="text-muted hover:text-ink"

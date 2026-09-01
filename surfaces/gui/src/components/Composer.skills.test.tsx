@@ -10,6 +10,7 @@ const MENU = {
     { name: "weekly-report", description: "Monday status report", scope: "global", enabled: true },
     { name: "greet", description: "says hello", scope: "project", enabled: true },
     { name: "muted-one", description: "muted here", scope: "global", enabled: false },
+    { name: "dev-expert", description: "编程专家.Skill P8级编程助手,覆盖很多能力", scope: "global", enabled: true },
   ],
 };
 
@@ -55,7 +56,9 @@ describe("Composer / skills popup", () => {
     expect(await screen.findByText("/weekly-report")).toBeTruthy();
     expect(screen.getByText("/greet")).toBeTruthy();
     expect(screen.queryByText("/muted-one")).toBeNull(); // muted → not offered
-    expect(screen.getByText("project")).toBeTruthy(); // scope badge
+    expect(screen.queryByText("project")).toBeNull();
+    expect(screen.getByText("编程专家.Skill")).toBeTruthy();
+    expect(screen.queryByText(/P8级编程助手/)).toBeNull();
   });
 
   it("filters as you type", async () => {
@@ -82,7 +85,7 @@ describe("Composer / skills popup", () => {
     fireEvent.change(box(), { target: { value: "/gr" } });
     fireEvent.click(await screen.findByRole("option", { name: /greet/ }));
     expect((box() as HTMLTextAreaElement).value).toBe("");
-    expect(screen.getByTestId("selected-skill").textContent).toContain("says hello");
+    expect(screen.getByTestId("selected-skill").textContent).toContain("greet");
     fireEvent.change(box(), { target: { value: "say hi to the team" } });
     fireEvent.keyDown(box(), { key: "Enter" });
     await waitFor(() => expect(p.onSend).toHaveBeenCalled());

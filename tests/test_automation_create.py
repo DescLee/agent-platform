@@ -29,11 +29,40 @@ def test_create_automation_success(tmp_path, monkeypatch):
     task = out["task"]
     assert task["title"] == "Morning news briefing"
     assert task["schedule"] == "Every day at ~8:00 AM"
+    assert task["approval_mode"] == "auto-approve"
     # it really landed in the store and is bound to a fresh scratch workspace
     saved = manager.task_store.get(task["id"])
     assert saved is not None
     assert saved.agent == "cowork"
     assert Path(saved.workspace).is_dir()
+
+
+def test_create_automation_accepts_selected_approval_mode(tmp_path, monkeypatch):
+    manager = _manager(tmp_path, monkeypatch)
+    out = manager.create_automation(
+        {
+            "title": "Ask first",
+            "instructions": "Prepare a report.",
+            "cron": "0 8 * * *",
+            "approval_mode": "interactive",
+        }
+    )
+    assert out["ok"] is True
+    assert out["task"]["approval_mode"] == "interactive"
+
+
+def test_create_automation_rejects_invalid_approval_mode(tmp_path, monkeypatch):
+    manager = _manager(tmp_path, monkeypatch)
+    out = manager.create_automation(
+        {
+            "title": "Invalid mode",
+            "instructions": "Prepare a report.",
+            "cron": "0 8 * * *",
+            "approval_mode": "unknown",
+        }
+    )
+    assert out == {"ok": False, "error": "invalid approval mode"}
+    assert manager.task_store.list() == []
 
 
 def test_create_automation_invalid_cron(tmp_path, monkeypatch):

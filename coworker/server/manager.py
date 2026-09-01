@@ -4399,11 +4399,14 @@ class SessionManager:
     def _build_task_engine(self, task, *, session_id: str) -> TurnEngine:
         ag = get_agent(task.agent)
         Path(task.workspace).mkdir(parents=True, exist_ok=True)
+        approval_mode = getattr(task, "approval_mode", "auto-approve")
+        if approval_mode not in {"interactive", "auto-approve", "bypass-approvals"}:
+            approval_mode = "auto-approve"
         engine = build_engine(
             agent=ag,
             workspace=task.workspace,
             model=task.model or self.model,
-            mode=Mode.INTERACTIVE,
+            mode=Mode(approval_mode),
             approver=self._scheduled_approver(task, session_id),
             provider=self.provider,
             memory_store=self.memory_store,
@@ -4421,6 +4424,9 @@ class SessionManager:
             task_store=None,
             session_id=session_id,
             audit_sink=self.audit_store.append,
+            # This is a task-scoped, user-selected policy. It must not depend on the
+            # global session preference for Auto-Approve.
+            auto_approve=approval_mode == "auto-approve",
             # Scheduled runs respect the same per-session connection hierarchy as live sessions:
             # expose only the persona's effective-enabled connectors' tools (§4.3).
             connector_filter=self.effective_connectors(session_id, task.agent),
@@ -4875,9 +4881,9 @@ class SessionManager:
         # schedule ("every day at 5:32pm…"), so make explicit that the schedule already fired and
         # the job now is to execute, not to (re)schedule.
         opening = (
-            f"⏰ Scheduled run — {task.title}\n\n"
-            "This automation is due now: carry out the task below immediately and produce the "
-            "result. The schedule already exists — do not create or modify any scheduled tasks.\n\n"
+            f"⏰ 自动任务运行 — {task.title}\n\n"
+            "此自动任务现已到达运行时间：请立即执行以下任务并生成结果。该定时任务已存在，"
+            "请勿创建或修改任何自动任务。\n\n"
             f"{task.instructions}"
         )
         try:
@@ -4982,6 +4988,9 @@ class SessionManager:
         cron = (payload.get("cron") or "").strip() or None
         fire_at = (payload.get("fire_at") or "").strip() or None
         timezone = (payload.get("timezone") or "").strip() or "local"
+        approval_mode = (payload.get("approval_mode") or "auto-approve").strip()
+        if approval_mode not in {"interactive", "auto-approve", "bypass-approvals"}:
+            return {"ok": False, "error": "invalid approval mode"}
 
         if not title:
             return {"ok": False, "error": "title is required"}
@@ -5010,6 +5019,7 @@ class SessionManager:
             workspace="",
             origin_surface="cowork",
             agent="cowork",
+            approval_mode=approval_mode,
             # Human-driven path (GUI form / onboarding recipes): the creating surface
             # rendered the grants, the submit IS the consent. Same validation as the
             # agent tool — only target-bound write grants survive.
@@ -5031,6 +5041,11 @@ class SessionManager:
             task.instructions = changes["instructions"]
         if changes.get("title") is not None:
             task.title = changes["title"]
+        if changes.get("approval_mode") is not None:
+            approval_mode = str(changes["approval_mode"])
+            if approval_mode not in {"interactive", "auto-approve", "bypass-approvals"}:
+                return {"ok": False, "error": "invalid approval mode"}
+            task.approval_mode = approval_mode
         if changes.get("cron") is not None:
             from croniter import croniter
 
@@ -5071,12 +5086,13 @@ class SessionManager:
             "session_id": run.session_id,
             "workspace": task.workspace,
             "agent": task.agent,
+            "approval_mode": task.approval_mode,
             # Same execute-now framing as the headless path — manual runs ride a normal live
             # session whose engine DOES have scheduling tools, so be explicit.
             "prompt": (
-                f"⏰ Running automation '{task.title}' now. Carry out these instructions "
-                "immediately and produce the result. The schedule already exists — do not create "
-                f"or modify any scheduled tasks.\n\n{task.instructions}"
+                f"⏰ 正在运行自动任务“{task.title}”。请立即执行以下指令并生成结果。"
+                "该定时任务已存在，请勿创建或修改任何自动任务。\n\n"
+                f"{task.instructions}"
             ),
         }
 

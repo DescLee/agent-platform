@@ -154,6 +154,7 @@ export function AutomationQuickstart({
     title: string;
     instructions: string;
     cron?: string;
+    approval_mode?: string;
     permissions?: { tool: string; target: string; access: "read" | "write" }[];
   }) => void;
 }) {
@@ -176,6 +177,7 @@ export function AutomationQuickstart({
   const [time, setTime] = useState("09:00");
   const [deliver, setDeliver] = useState<"app" | "slack">("app");
   const [consent, setConsent] = useState(true);
+  const [approvalMode, setApprovalMode] = useState("auto-approve");
 
   const refresh = () => {
     getConnectors().then(setConnectors).catch(() => {});
@@ -227,6 +229,7 @@ export function AutomationQuickstart({
     setDay(t.day);
     setTime(t.time);
     setConsent(true);
+    setApprovalMode("auto-approve");
     setConnFlow(null);
   };
 
@@ -280,6 +283,7 @@ export function AutomationQuickstart({
       title: picked.title,
       instructions: picked.instructions({ repo, channel, deliver }),
       cron: cronFor(day, time),
+      approval_mode: approvalMode,
       permissions:
         picked.consent && consent && channel
           ? [{ tool: "send_message", target: channel, access: "write" }]
@@ -514,6 +518,17 @@ export function AutomationQuickstart({
                   onChange={(e) => setTime(e.target.value)}
                 />
               </div>
+              <label className={label}>审批方式</label>
+              <SelectMenu
+                ariaLabel="审批方式"
+                value={approvalMode}
+                options={[
+                  { value: "auto-approve", label: "替我审批" },
+                  { value: "interactive", label: "操作前询问" },
+                  { value: "bypass-approvals", label: "跳过审批" },
+                ]}
+                onChange={setApprovalMode}
+              />
               {picked.deliver && (
                 <>
                   <label className={label}>发送到</label>

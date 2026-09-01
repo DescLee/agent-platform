@@ -126,6 +126,9 @@ class ScheduledTask:
     id: str = field(default_factory=lambda: "task-" + uuid.uuid4().hex[:10])
     task_session_id: str = ""  # the task's OWN thread (set to f"__task__{id}")
     model: Optional[str] = None
+    # Per-task approval policy. Auto-Approve is the GUI default; older persisted tasks
+    # receive the same default when deserialized without this field.
+    approval_mode: str = "auto-approve"
     notify_on_completion: bool = True
     notify_target: Optional[str] = None  # extra messaging target ("telegram:123")
     always_allowed_tools: list[str] = field(default_factory=list)
@@ -199,6 +202,7 @@ class ScheduledTask:
             "schedule_raw": self.schedule.to_dict(),
             "workspace": self.workspace,
             "agent": self.agent,
+            "approval_mode": self.approval_mode,
             "enabled": self.enabled,
             "next_run": self.next_run,
             "last_run": self.last_run,

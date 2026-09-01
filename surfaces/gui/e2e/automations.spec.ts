@@ -18,11 +18,11 @@ test("scheduled run session shows the run banner; Back returns to the task detai
   await page.getByTitle("打开此次运行的会话").click();
   const banner = page.getByTestId("run-banner");
   await expect(banner).toBeVisible();
-  await expect(banner).toContainText("Scheduled run");
+  await expect(banner).toContainText("定时运行");
   await expect(banner).toContainText("Daily AI News");
 
   // Back link lands on the SAME task's detail, not the bare list.
-  await banner.getByRole("button", { name: "← Back to runs" }).click();
+  await banner.getByRole("button", { name: "← 返回运行记录" }).click();
   await expect(page.getByRole("button", { name: /立即运行/ })).toBeVisible();
   await expect(page.getByText("Daily AI News").first()).toBeVisible();
 

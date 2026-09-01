@@ -26,6 +26,7 @@ import { Icon, type IconName } from "./Icon";
 import { personaGlyph } from "./personaIcon";
 import { SearchModal } from "./SearchModal";
 import { baseName } from "../paths";
+import { automationScheduleLabel } from "../automationLabels";
 
 // Session surfaces shown as accordions, in display order. The surfaced personas drive this list
 // (so third-party / Ops personas appear); the hardcoded set is the fallback before personas load.
@@ -714,7 +715,7 @@ export function Sidebar(props: Props) {
             >
               <div className="flex-1 min-w-0">
                 <div className="text-[13px] text-ink truncate">{a.title}</div>
-                <div className="text-[11px] text-faint truncate">{a.schedule}</div>
+                <div className="text-[11px] text-faint truncate">{automationScheduleLabel(a)}</div>
               </div>
               <UnseenBadge n={a.unseen_runs || 0} failed={a.unseen_failed} />
             </button>

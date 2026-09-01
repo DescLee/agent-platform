@@ -1573,6 +1573,7 @@ export function App() {
   const runTaskNow = async (taskId: string, title?: string) => {
     const r = await runAutomation(taskId);
     if (!r || !r.ok) return;
+    setMode(r.approval_mode || "auto-approve");
     pendingPromptRef.current = { text: r.prompt };
     activeRunRef.current = { taskId, runId: r.run_id, sessionId: r.session_id };
     openRunSession(r.session_id, r.workspace, r.agent, { id: taskId, title: title || "" });
@@ -1768,7 +1769,9 @@ export function App() {
         surfaces={surfaces}
         sessions={sessions}
         projects={projects}
-        activeSession={sessionId}
+        // Only session surfaces have an active conversation. Other surfaces (including
+        // Automations) must leave the historical session rows visually unselected.
+        activeSession={surface === "session" ? sessionId : ""}
         activeRunning={running}
         unreadCompletedSessions={unreadCompletedSessions}
         onSwitchAgent={switchAgent}
@@ -1975,7 +1978,7 @@ export function App() {
                       <span className="text-ink font-medium">{runContext.title}</span>
                     </>
                   ) : null}{" "}
-                  · started by an automation
+                  · 由自动任务启动
                 </span>
                 <button
                   className="ml-auto shrink-0 text-accent font-medium hover:underline"
@@ -1984,7 +1987,7 @@ export function App() {
                     setSurface("scheduled");
                   }}
                 >
-                  ← Back to runs
+                  ← 返回运行记录
                 </button>
               </div>
             )}
@@ -2087,7 +2090,7 @@ export function App() {
                   onClick={followLatest}
                 >
                   <Icon name="chevronDown" size={13} />
-                  Jump to latest
+                  跳转到最新消息
                 </button>
               </div>
             )}

@@ -2018,6 +2018,7 @@ export interface Automation {
   schedule_raw?: { kind: string; cron?: string | null; fire_at?: string | null; timezone?: string };
   workspace: string;
   agent: string;
+  approval_mode: string;
   enabled: boolean;
   next_run: number | null;
   last_run: number | null;
@@ -2103,6 +2104,7 @@ export async function createAutomation(payload: {
   cron?: string;
   fire_at?: string;
   timezone?: string;
+  approval_mode?: string;
   // §25 standing grants (the creating surface rendered them; submit IS the consent).
   // Only target-bound write entries survive server-side validation.
   permissions?: { tool: string; target: string; access: "read" | "write" }[];
@@ -2141,6 +2143,7 @@ export interface PreparedRun {
   session_id: string;
   workspace: string;
   agent: string;
+  approval_mode: string;
   prompt: string;
 }
 

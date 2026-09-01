@@ -58,6 +58,8 @@ def test_weekly_label_matches_croniter_fire_day():
 def test_task_gets_own_thread_id():
     t = _task()
     assert t.task_session_id == f"__task__{t.id}"
+    assert t.approval_mode == "auto-approve"
+    assert t.public()["approval_mode"] == "auto-approve"
     assert t.public()["schedule"] == "Every day at ~7:10 PM"
 
 
@@ -290,7 +292,7 @@ async def test_scheduled_run_persists_continuable_session(tmp_path, monkeypatch)
     assert (
         record is not None
         and record.workspace
-        and any("Scheduled run" in (m.get("content") or "") for m in record.messages)
+        and any("自动任务运行" in (m.get("content") or "") for m in record.messages)
     )
     # …and it is continuable: a follow-up turn reuses the same thread
     engine = manager.get_engine(run.session_id, workspace=str(ws), agent="cowork")
@@ -363,8 +365,9 @@ async def test_manual_run_prepare_and_finalize(tmp_path, monkeypatch):
     # The prompt wraps the instructions in execute-now framing (so the live agent runs the task
     # instead of re-scheduling it) and carries them verbatim.
     assert prep["agent"] == "cowork"
+    assert prep["approval_mode"] == "auto-approve"
     assert task.instructions in prep["prompt"]
-    assert "do not create or modify any scheduled tasks" in prep["prompt"]
+    assert "请勿创建或修改任何自动任务" in prep["prompt"]
     assert manager.task_store.runs(task.id)[0].status == "running"
 
     # the GUI drives the run live over the session, then finalize records the outcome

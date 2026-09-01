@@ -13,6 +13,11 @@ import {
 import { Icon } from "./Icon";
 import { PanelHead } from "./IntegrationsView";
 import { AutomationQuickstart } from "./AutomationQuickstart";
+import {
+  automationRunStatusLabel,
+  automationRunTriggerLabel,
+  automationScheduleLabel,
+} from "../automationLabels";
 
 // Shared utility strings (the §28 page shell — mirrors IntegrationsView's constants).
 const CARD = "rounded-xl2 border border-line bg-panel";
@@ -88,6 +93,7 @@ export function ScheduledView({ onOpenRun, onRunNow, initialOpenId }: Props) {
     title: string;
     instructions: string;
     cron?: string;
+    approval_mode?: string;
     permissions?: { tool: string; target: string; access: "read" | "write" }[];
   }) => {
     setBusy(payload.title);
@@ -184,7 +190,7 @@ export function ScheduledView({ onOpenRun, onRunNow, initialOpenId }: Props) {
               </div>
               <div className="flex items-center gap-1.5 text-[12px] text-muted">
                 <Icon name="clock" size={13} className="text-faint shrink-0" />
-                {t.enabled ? t.schedule : "已暂停"} · 下次运行 {fmt(t.next_run)} · 已运行 {t.run_count} 次
+                {t.enabled ? automationScheduleLabel(t) : "已暂停"} · 下次运行 {fmt(t.next_run)} · 已运行 {t.run_count} 次
                 {t.last_status ? ` · 上次状态 ${t.last_status}` : ""}
               </div>
             </div>
@@ -202,12 +208,13 @@ function NewAutomationForm({
 }: {
   busy: boolean;
   onCancel: () => void;
-  onCreate: (p: { title: string; instructions: string; cron?: string }) => void;
+  onCreate: (p: { title: string; instructions: string; cron?: string; approval_mode?: string }) => void;
 }) {
   const [title, setTitle] = useState("");
   const [instructions, setInstructions] = useState("");
   const [time, setTime] = useState("09:00");
   const [freq, setFreq] = useState("daily");
+  const [approvalMode, setApprovalMode] = useState("auto-approve");
 
   const valid = title.trim() && instructions.trim();
 
@@ -251,6 +258,18 @@ function NewAutomationForm({
           </select>
         </label>
       </div>
+      <label className="tmpl-field">
+        <span>审批方式</span>
+        <select
+          className="tmpl-input tmpl-select"
+          value={approvalMode}
+          onChange={(e) => setApprovalMode(e.target.value)}
+        >
+          <option value="auto-approve">替我审批</option>
+          <option value="interactive">操作前询问</option>
+          <option value="bypass-approvals">跳过审批</option>
+        </select>
+      </label>
       <div className="tmpl-form-actions">
         <button
           className="btn-primary sm"
@@ -260,6 +279,7 @@ function NewAutomationForm({
               title: title.trim(),
               instructions: instructions.trim(),
               cron: toCron(time, freq),
+              approval_mode: approvalMode,
             })
           }
         >
@@ -423,7 +443,7 @@ function TaskDetail({
               <input type="checkbox" checked={task.enabled} onChange={toggle} />
               <span className="slider" />
             </label>{" "}
-            {task.enabled ? `已启用 · 下次运行 ${fmt(task.next_run)}` : "已暂停"} · {task.schedule}
+            {task.enabled ? `已启用 · 下次运行 ${fmt(task.next_run)}` : "已暂停"} · {automationScheduleLabel(task)}
           </div>
         )}
 
@@ -490,7 +510,7 @@ function TaskDetail({
                 {seenMark !== null && r.started_at > seenMark && (
                   <span className="run-new-pill" data-testid="run-new">新</span>
                 )}
-                {fmt(r.started_at)} · <span className={"run-" + r.status}>{r.status}</span> · {r.trigger}
+                {fmt(r.started_at)} · <span className={"run-" + r.status}>{automationRunStatusLabel(r.status)}</span> · {automationRunTriggerLabel(r.trigger)}
                 {r.artifacts.length > 0 && <span className="dim"> · {r.artifacts.length} 个文件</span>}
               </span>
               <span className="sched-run-go" aria-hidden>

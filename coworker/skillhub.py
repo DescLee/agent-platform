@@ -101,6 +101,9 @@ def skillhub_skills(page: int = 1, page_size: int = 24, category: str = "") -> d
         data = payload.get("data") or {}
         skills = []
         for item in data.get("skills") or []:
+            labels = item.get("labels") or {}
+            if str(labels.get("requires_api_key", "")).strip().lower() != "false":
+                continue
             namespace = item.get("namespace") or {}
             handle = str(namespace.get("handle", ""))
             slug = str(item.get("slug", ""))

@@ -1298,21 +1298,6 @@ export async function setPersonaConnection(
   return res.json();
 }
 
-/** Enable/disable the persona (whether it surfaces in the new-session picker). */
-export async function setPersonaEnabled(
-  id: string,
-  enabled: boolean,
-): Promise<{ ok: boolean; personas?: Persona[]; error?: string }> {
-  const res = await fetch(`${httpBase()}/v1/personas/${encodeURIComponent(id)}/enable`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ enabled }),
-  });
-  const out = await res.json();
-  if (out.ok) announcePersonasChanged();
-  return out;
-}
-
 // -- Per-session connections (Sources bar + drawer, §6) -----------------------
 // An effective-enabled connector for a session, with a short human detail (e.g. "#ocw-test · DMs").
 // `enabled` reflects the session override/persona default so the drawer toggle shows correct state.

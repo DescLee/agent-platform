@@ -346,7 +346,7 @@ export function PersonaView({
           <section className="border-t border-line pt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px]">
             <button
               className={BTN_BORDERED}
-              disabled={detail.default || !detail.enabled}
+              disabled={detail.default}
               data-testid="persona-make-default"
               onClick={() => patch({ default: true })}
             >

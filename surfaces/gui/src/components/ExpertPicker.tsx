@@ -14,7 +14,8 @@ interface Props {
 // Draft-only expert selection. The wire id for the default coworker is "cowork".
 export function ExpertPicker(props: Props) {
   const [openMenu, setOpenMenu] = useState<"coworker" | null>(null);
-  const personas = (props.personas || []).filter((p) => p.enabled);
+  // Every expert shown by the app is available. Selecting one only affects this draft/session.
+  const personas = props.personas || [];
   const current = personas.find((p) => p.id === props.agent);
   const toggle = (_menu: "coworker") => setOpenMenu((current) => current ? null : "coworker");
   const chip = "inline-flex min-w-0 items-center gap-1 px-1.5 py-1 rounded-lg text-[12px] text-muted hover:text-ink hover:bg-paper";

@@ -3,7 +3,6 @@ import {
   getPersonasIndex,
   getPersonaAvatarUrl,
   installPersona,
-  updatePersona,
   type Persona,
   type PersonaConsent,
 } from "../api";
@@ -11,8 +10,8 @@ import { chooseFolder } from "../tauri";
 import { Icon } from "./Icon";
 import { PersonaGlyph } from "./personaIcon";
 
-// Expert management: one toggle per row; retired Security entries are excluded.
-// (enable implies picker); in-picker nuance, set-default, export and delete live on the
+// Expert management: every displayed expert is available; retired Security entries are excluded.
+// Set-default, export and delete live on the
 // per-coworker detail page. Unshipped coworkers (ships:false) and the installer are quiet
 // text disclosures at the bottom; Folder/Zip install through native pickers.
 const CARD = "rounded-xl2 border border-line bg-panel";
@@ -36,9 +35,6 @@ export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?
   const [consent, setConsent] = useState<PersonaConsent[] | null>(null);
   const [showUnshipped, setShowUnshipped] = useState(false);
   const [showInstall, setShowInstall] = useState(false);
-  // Disabling archives the persona's conversations (server-side), so when there are any we
-  // arm an inline confirm (same two-step idiom as delete) instead of flipping immediately.
-  const [confirmOff, setConfirmOff] = useState<string | null>(null);
   const [avatars, setAvatars] = useState<Record<string, string>>({});
   // The picker's "Import coworker…" door lands here and asks us to put the Add section
   // front and center (sharing v1).
@@ -80,17 +76,6 @@ export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?
     return () => { cancelled = true; };
   }, [personas]);
 
-  // Real conversations the disable would archive (unarchived; run sessions are server-hidden).
-  const toggle = async (
-    id: string,
-    body: { enabled?: boolean; surfaced?: boolean; default?: boolean },
-  ) => {
-    const r = await updatePersona(id, body);
-    if (r.personas) setPersonas(r.personas);
-    else reload();
-  };
-
-
   const finishInstall = (r: Awaited<ReturnType<typeof installPersona>>) => {
     setBusy(false);
     if (!r.ok) {
@@ -99,7 +84,7 @@ export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?
     }
     setConsent(r.consent || []);
     if (r.personas) setPersonas(r.personas);
-    setMsg(`已导入 ${(r.consent || []).length} 个专家，请在下方检查能力并启用。`);
+    setMsg(`已导入 ${(r.consent || []).length} 个专家，请在下方检查能力。`);
     setSrc("");
   };
 
@@ -198,29 +183,6 @@ export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?
               <div className="mt-auto flex items-center gap-2 text-[12px]">
                 {(p.tags || []).slice(0, 4).map((tag) => <span key={tag} className="rounded-md bg-paper px-2.5 py-1 text-muted whitespace-nowrap">{tag}</span>)}
               </div>
-              {confirmOff === p.id && (
-                <div
-                  className="mt-4 pt-4 border-t border-line flex flex-wrap items-center gap-2.5 text-[12px] text-muted"
-                  data-testid={`persona-disable-warning-${p.id}`}
-                >
-                  <span className="min-w-0">
-                    停用后将归档该专家的会话，仍可在“已归档”中查看。
-                  </span>
-                  <button
-                    className="text-[12px] px-2.5 py-1.5 rounded-lg bg-accent text-white shrink-0"
-                    data-testid={`persona-disable-confirm-${p.id}`}
-                    onClick={() => {
-                      setConfirmOff(null);
-                      toggle(p.id, { enabled: false });
-                    }}
-                  >
-                    停用
-                  </button>
-                  <button className={BTN_BORDERED} onClick={() => setConfirmOff(null)}>
-                    保持启用
-                  </button>
-                </div>
-              )}
             </article>
           ))}
         </div>
@@ -230,8 +192,7 @@ export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?
 
   return (
     <div>
-      {/* One toggle per row (enable implies picker); ★ marks the default. Everything
-          else — in-picker nuance, default, export, delete — lives on the detail page. */}
+      {/* Every expert shown here is immediately available; ★ marks the default. */}
       {group(null, available.filter((p) => p.ships !== false))}
 
       {unshipped.length > 0 && (
@@ -335,7 +296,7 @@ export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?
           <div className="flex items-start gap-2.5 rounded-xl border border-warnInk/30 bg-warnSoft px-3.5 py-2.5 text-[13px] text-warnInk">
             <Icon name="shield" size={15} className="shrink-0 mt-0.5" />
             <span>
-              请检查来源、能力和兼容性说明后启用。导入不会执行代码；使用助手时，
+              请检查来源、能力和兼容性说明。导入不会执行代码；使用助手时，
               提示词和技能会影响其行为，但不会绕过应用的权限审批。
             </span>
           </div>
@@ -343,10 +304,6 @@ export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?
             <ConsentCard
               key={c.id}
               c={c}
-              enabled={personas.find((p) => p.id === c.id)?.enabled ?? false}
-              onEnable={async () => {
-                await toggle(c.id, { enabled: true, surfaced: true });
-              }}
             />
           ))}
         </div>
@@ -367,15 +324,10 @@ const RISK_PHRASE: Record<string, string> = {
 
 function ConsentCard({
   c,
-  enabled,
-  onEnable,
 }: {
   c: PersonaConsent;
-  enabled: boolean;
-  onEnable: () => Promise<void>;
 }) {
   const [showTools, setShowTools] = useState(false);
-  const [busy, setBusy] = useState(false);
   const phrases = (c.risk.length ? c.risk : ["read"]).map((r) => RISK_PHRASE[r] || r);
   const summary = phrases.join("、");
   const recommends = c.recommends || [];
@@ -397,8 +349,8 @@ function ConsentCard({
           {c.replaces.version ? ` v${c.replaces.version}` : ""}
           {c.replaces.installed_at ? ` (installed ${c.replaces.installed_at})` : ""}.
           {c.replaces.capabilities_grew
-            ? " This update asks for MORE capabilities than the copy it replaces — review below before re-enabling."
-            : " Same capabilities as before — it stays enabled."}
+            ? " This update asks for MORE capabilities than the copy it replaces — review below before using it."
+            : " Same capabilities as before."}
         </div>
       )}
       <div className="text-[13px] text-ink mt-2">
@@ -432,25 +384,7 @@ function ConsentCard({
         </div>
       )}
       <div className="flex items-center gap-3 mt-2.5">
-        {/* Enable right here (owner ask 2026-08-11) — the old "enable it above" copy
-            sent the user hunting back up the list. */}
-        {enabled ? (
-          <span className="text-[13px] text-muted" data-testid="consent-enabled">
-            ✓ 已启用，可在会话的专家列表中选择。
-          </span>
-        ) : (
-          <button
-            className={BTN_ACCENT}
-            data-testid={`consent-enable-${c.id}`}
-            disabled={busy}
-            onClick={() => {
-              setBusy(true);
-              void onEnable().finally(() => setBusy(false));
-            }}
-          >
-            {busy ? "启用中…" : "启用此专家"}
-          </button>
-        )}
+        <span className="text-[13px] text-muted">✓ 已导入，可在会话的专家列表中选择。</span>
         <span className="text-[12px] text-faint">建议模式：{c.recommended_mode === "interactive" ? "操作前询问" : c.recommended_mode}</span>
       </div>
     </div>

@@ -121,23 +121,4 @@ describe("PersonaView", () => {
     });
   });
 
-  it("toggling Enable POSTs /enable", async () => {
-    const calls = stubFetch([
-      { match: "/v1/personas/ops", method: "GET", json: DETAIL },
-      { match: "/v1/connectors", method: "GET", json: CONNECTORS },
-      { match: "/v1/personas/ops/enable", method: "POST", json: { ok: true } },
-    ]);
-    render(<PersonaView personaId="ops" />);
-    await screen.findByText("Ops Coworker");
-
-    // The enable switch is the first one in DOM order (identity header).
-    const enableToggle = screen.getAllByRole("switch")[0];
-    fireEvent.click(enableToggle);
-
-    await waitFor(() => {
-      const post = calls.find((c) => c.method === "POST" && c.url.includes("/v1/personas/ops/enable"));
-      expect(post).toBeTruthy();
-      expect(post!.body).toMatchObject({ enabled: false });
-    });
-  });
 });

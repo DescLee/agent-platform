@@ -727,9 +727,7 @@ export function Sidebar(props: Props) {
   // "Group by" flips the persona accordion ↔ chronological list; "Filter by coworker" narrows to
   // the checked personas (none checked = all shown).
   const recentHeader = () => {
-    const filterPersonaList = (personas || []).filter(
-      (p) => (p.enabled && p.surfaced) || agentsWithSessions.has(p.id),
-    );
+    const filterPersonaList = personas || [];
     return (
     <div className="relative flex items-center justify-between px-1.5 mb-1" data-testid="recent-header">
       <span className="text-[11px] uppercase tracking-[0.07em] text-faint font-semibold">
@@ -845,24 +843,11 @@ export function Sidebar(props: Props) {
     }
   }
 
-  // Surfaced + enabled personas drive the surface list (default persona first); fall back to the
-  // static set until loaded. A persona that has live sessions ALWAYS gets a section, surfaced or
-  // not — every session must have a home in the grouped layout (a picker preference can hide the
-  // persona from New Session, never orphan its conversations).
-  const agentsWithSessions = new Set(
-    props.sessions
-      .filter(
-        (s) =>
-          !s.archived &&
-          !s.session_id.startsWith("__") &&
-          s.team?.role !== "worker",
-      )
-      .map((s) => s.agent),
-  );
+  // Every displayed persona is available (default persona first). A persona is only active for
+  // the session where the user explicitly selects or summons it.
   const visibleSurfaces = (
     personas
       ? personas
-          .filter((p) => (p.enabled && p.surfaced) || agentsWithSessions.has(p.id))
           .sort((a, b) => Number(b.default) - Number(a.default)) // default leads
           .map(surfaceFromPersona)
       : SURFACES.filter(

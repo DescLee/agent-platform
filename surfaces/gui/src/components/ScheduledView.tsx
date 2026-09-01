@@ -235,7 +235,7 @@ function NewAutomationForm({
         value={instructions}
         onChange={(e) => setInstructions(e.target.value)}
       />
-      <div className="tmpl-sched">
+      <div className="tmpl-sched tmpl-sched-three">
         <label className="tmpl-field">
           <span>执行时间</span>
           <input
@@ -257,19 +257,19 @@ function NewAutomationForm({
             <option value="weekends">周末</option>
           </select>
         </label>
+        <label className="tmpl-field">
+          <span>审批方式</span>
+          <select
+            className="tmpl-input tmpl-select"
+            value={approvalMode}
+            onChange={(e) => setApprovalMode(e.target.value)}
+          >
+            <option value="auto-approve">替我审批</option>
+            <option value="interactive">操作前询问</option>
+            <option value="bypass-approvals">跳过审批</option>
+          </select>
+        </label>
       </div>
-      <label className="tmpl-field">
-        <span>审批方式</span>
-        <select
-          className="tmpl-input tmpl-select"
-          value={approvalMode}
-          onChange={(e) => setApprovalMode(e.target.value)}
-        >
-          <option value="auto-approve">替我审批</option>
-          <option value="interactive">操作前询问</option>
-          <option value="bypass-approvals">跳过审批</option>
-        </select>
-      </label>
       <div className="tmpl-form-actions">
         <button
           className="btn-primary sm"

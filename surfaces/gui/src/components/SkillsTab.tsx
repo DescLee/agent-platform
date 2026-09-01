@@ -68,10 +68,12 @@ async function fileToB64(file: File): Promise<string> {
 
 export function SkillsTab({
   onCreateSkill,
+  embedded = false,
 }: {
   // The doorway (SKILLS-SPEC §5.2): starts a new conversation with the description
   // prefilled in the composer — the worker builds the skill and proposes it via save_skill.
   onCreateSkill?: (description: string) => void;
+  embedded?: boolean;
 }) {
   const [rows, setRows] = useState<SkillRow[]>([]);
   const [editor, setEditor] = useState<Editor | null>(null);
@@ -164,7 +166,7 @@ export function SkillsTab({
     <section>
       <div className="flex items-start justify-between gap-3 mb-4">
         <div>
-          <h2 className="text-[16px] font-semibold">技能</h2>
+          {!embedded && <h2 className="text-[16px] font-semibold">技能</h2>}
           <p className="text-[13px] text-muted mt-1 leading-relaxed">
             可供协作助手在所有会话中遵循的复用指令；在此关闭后将全局停用。
           </p>

@@ -52,7 +52,7 @@ import { SkillsTab } from "./SkillsTab";
 // Models + Personas host the existing tab components inside the page shell (field re-skin to follow).
 // "appearance" is the General tab's stable key — callers deep-link with it, so the
 // rename (UX-021) changed only the label. "files" folded into General as a card.
-type SetTab = "appearance" | "models" | "context" | "skills" | "voice" | "memory";
+type SetTab = "appearance" | "models" | "context" | "voice" | "memory";
 
 const CARD = "rounded-xl2 border border-line bg-panel";
 const FIELD_LABEL = "text-[13px] font-medium text-ink";
@@ -71,19 +71,14 @@ const SET_TABS: {
   { key: "appearance", label: "通用", icon: "sliders" },
   { key: "models", label: "模型", icon: "code" },
   { key: "context", label: "上下文优化", icon: "refresh" },
-  { key: "skills", label: "技能", icon: "book" },
   { key: "voice", label: "语音输入", icon: "mic" },
   { key: "memory", label: "记忆", icon: "archive" },
 ];
 
 export function SettingsView({
   initialTab,
-  onCreateSkill,
 }: {
   initialTab?: SetTab;
-  // Skills doorway (SKILLS-SPEC §5.2): start a new conversation with the description
-  // prefilled — the worker builds the skill and proposes it via save_skill.
-  onCreateSkill?: (description: string) => void;
 }) {
   const tabs = SET_TABS;
   const wanted = initialTab || "appearance";
@@ -137,8 +132,6 @@ export function SettingsView({
               <TokenSavingsCard />
               <CompactionCard />
             </section>
-          ) : tab === "skills" ? (
-            <SkillsTab onCreateSkill={onCreateSkill} />
           ) : tab === "voice" ? (
             <VoiceInputSection />
           ) : (
@@ -373,15 +366,34 @@ function VoiceInputSection() {
 // The Gallery entry point is GONE (owner 2026-08-21) — coworkers install from
 // GitHub / folder / zip only. GalleryModal stays in the tree for the gallery's
 // possible return as a first-class distribution surface, but nothing mounts it.
-export function PersonasSection({ onOpenPersona, onSummonPersona }: { onOpenPersona?: (id: string) => void; onSummonPersona?: (id: string, prompt?: string) => void }) {
+export function PersonasSection({ onOpenPersona, onSummonPersona, onCreateSkill }: { onOpenPersona?: (id: string) => void; onSummonPersona?: (id: string, prompt?: string) => void; onCreateSkill?: (description: string) => void }) {
+  const [tab, setTab] = useState<"experts" | "skills">("experts");
   return (
     <section className="h-full min-h-0 flex flex-col">
       <div className="flex items-center justify-between mb-6 shrink-0">
-        <PanelHead title="专家" sub="" />
-        <button className="text-[13px] px-3 py-2 rounded-lg border border-line bg-paper hover:border-lineStrong" onClick={() => window.dispatchEvent(new Event("ocw-focus-import"))}>导入专家</button>
+        <div className="flex items-center gap-5" role="tablist" aria-label="专家和技能">
+          {(["experts", "skills"] as const).map((key) => (
+            <button
+              key={key}
+              role="tab"
+              aria-selected={tab === key}
+              className={"text-[20px] font-semibold pb-1 border-b-2 " + (tab === key ? "text-ink border-accent" : "text-muted border-transparent hover:text-ink")}
+              onClick={() => setTab(key)}
+            >
+              {key === "experts" ? "专家" : "技能"}
+            </button>
+          ))}
+        </div>
+        {tab === "experts" && <button className="text-[13px] px-3 py-2 rounded-lg border border-line bg-paper hover:border-lineStrong" onClick={() => window.dispatchEvent(new Event("ocw-focus-import"))}>导入专家</button>}
       </div>
       <div className="flex-1 min-h-0 flex flex-col">
-        <PersonasTab onOpenPersona={onOpenPersona} onSummonPersona={onSummonPersona} />
+        {tab === "experts" ? (
+          <PersonasTab onOpenPersona={onOpenPersona} onSummonPersona={onSummonPersona} />
+        ) : (
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+            <SkillsTab onCreateSkill={onCreateSkill} embedded />
+          </div>
+        )}
       </div>
     </section>
   );

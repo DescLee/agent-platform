@@ -259,10 +259,10 @@ export function App() {
   const [gateCreate, setGateCreate] = useState(false);
   // Which Settings section the full-page Settings surface opens on (§ Settings-as-page).
   const [settingsTab, setSettingsTab] = useState<
-    "appearance" | "models" | "skills" | "voice" | "memory"
+    "appearance" | "models" | "voice" | "memory"
   >("appearance");
   const openSettings = (
-    tab: "appearance" | "models" | "skills" | "voice" | "memory" = "appearance",
+    tab: "appearance" | "models" | "voice" | "memory" = "appearance",
   ) => {
     setSettingsTab(tab);
     setSurface("settings");
@@ -1807,7 +1807,9 @@ export function App() {
       {surface === "coworkers" ? (
         <main className="flex-1 min-w-0 min-h-0 overflow-hidden bg-paper">
           <div className="experts-content mx-auto px-7 py-6 h-full flex flex-col min-h-0">
-            <PersonasSection onOpenPersona={(id) => openPersona(id, "coworkers")} onSummonPersona={summonPersona} />
+            <PersonasSection onOpenPersona={(id) => openPersona(id, "coworkers")} onSummonPersona={summonPersona} onCreateSkill={(description) => {
+              void startNewSession().then(() => prefillComposer(description ? `帮我创建一个新技能：${description}` : "帮我创建一个新技能：（请描述这个技能需要完成什么）"));
+            }} />
           </div>
           {personaModalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-6" onClick={() => setPersonaModalOpen(false)}><div className="relative w-full max-w-[580px] max-h-[85vh] overflow-hidden rounded-2xl shadow-2xl" onClick={(e) => e.stopPropagation()}><button className="absolute right-14 top-3 z-10 rounded-lg bg-accent px-3 py-1.5 text-[13px] text-white" onClick={() => void summonPersona(personaViewId || agent)}>召唤</button><button className="absolute right-4 top-3 z-10 text-xl text-muted" onClick={() => setPersonaModalOpen(false)}>×</button><PersonaView personaId={personaViewId} onBack={() => setPersonaModalOpen(false)} onQuickPrompt={(prompt) => void summonPersona(personaViewId || agent, prompt)} /></div></div>}
         </main>
@@ -1823,17 +1825,6 @@ export function App() {
         <SettingsView
           key={settingsTab}
           initialTab={settingsTab}
-          onCreateSkill={async (description) => {
-            // The Skills doorway (SKILLS-SPEC §5.2): creation is a conversation. Fresh
-            // session, description in the composer — the user reads and hits send. With
-            // no description, the prefill invites them to finish the sentence there.
-            await startNewSession();
-            prefillComposer(
-              description
-                ? `Build a new skill for me: ${description}`
-                : "帮我创建一个新技能：（请描述这个技能需要完成什么）",
-            );
-          }}
         />
       ) : surface === "audit" ? (
         <AuditView />

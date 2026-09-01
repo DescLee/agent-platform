@@ -161,6 +161,13 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Keep every visible app scrollbar unobtrusive and dimensionally consistent. */
+* { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+*::-webkit-scrollbar { width: 1px; height: 1px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 1px; }
+*::-webkit-scrollbar-thumb:hover { background: var(--faint); }
+
 .app {
   display: grid;
   grid-template-columns: 300px 1fr;
@@ -1366,6 +1373,10 @@ button.btn.ghost:hover { color: var(--ink); }
 .tmpl-sched { display: flex; gap: 14px; flex-wrap: wrap; }
 .tmpl-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
 .tmpl-time, .tmpl-select { padding: 6px 9px; }
+.tmpl-sched-three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.tmpl-sched-three .tmpl-field { min-width: 0; }
+.tmpl-sched-three .tmpl-time,
+.tmpl-sched-three .tmpl-select { width: 100%; height: 36px; }
 .tmpl-form-actions { display: flex; align-items: center; gap: 12px; margin-top: 2px; }
 
 
@@ -1705,23 +1716,6 @@ html[data-theme="dark"] .hiw-sticky { background: #eab308; color: #3d2c05; }
 @keyframes toast-pulse { 50% { opacity: .35; } }
 .toast-drain { animation: toast-drain 5s linear forwards; }
 @keyframes toast-drain { to { width: 0; } }
-
-/* ============ Windows (WebView2) polish ============ */
-/* Classic Windows scrollbars consume ~17px of layout width that macOS's overlay
-   scrollbars don't — panels tuned on Mac ended up cramped/misaligned (caught
-   2026-07-21). Thin, quiet scrollbars matching the app's neutral palette; scoped
-   to data-platform so macOS keeps its native overlay behavior. */
-html[data-platform="windows"] ::-webkit-scrollbar,
-html[data-platform="linux"] ::-webkit-scrollbar { width: 10px; height: 10px; }
-html[data-platform="windows"] ::-webkit-scrollbar-track,
-html[data-platform="linux"] ::-webkit-scrollbar-track { background: transparent; }
-html[data-platform="windows"] ::-webkit-scrollbar-thumb,
-html[data-platform="linux"] ::-webkit-scrollbar-thumb {
-  background: var(--line-strong); border-radius: 5px;
-  border: 2px solid transparent; background-clip: content-box;
-}
-html[data-platform="windows"] ::-webkit-scrollbar-thumb:hover,
-html[data-platform="linux"] ::-webkit-scrollbar-thumb:hover { background-color: var(--faint); }
 
 /* -- thinking (reasoning trace) disclosure — model-layer roadmap item 4 ----------- */
 .thinking { margin: 2px 0 4px; }

@@ -42,6 +42,19 @@ const BTN_BORDERED =
 const BADGE =
   "text-[11px] px-2 py-0.5 rounded-full border border-line bg-paper text-muted shrink-0";
 
+function skillCardName(row: Pick<SkillRow, "name" | "description">): string {
+  const fromDescription = row.description.match(/^(.+?\.Skill)\b/i)?.[1]?.trim();
+  return fromDescription || row.name;
+}
+
+function skillCardTags(row: Pick<SkillRow, "name" | "description" | "source">): string[] {
+  const text = `${row.name} ${row.description}`;
+  if (/编程|代码|开发|bug|api/i.test(text)) return ["开发编程"];
+  if (/文档|写作|内容/i.test(text)) return ["内容创作"];
+  if (/办公|周报|表格/i.test(text)) return ["办公效率"];
+  return row.source === "uploaded" ? ["自定义技能"] : ["通用技能"];
+}
+
 type Editor = {
   mode: "new" | "edit";
   name: string;
@@ -404,12 +417,12 @@ export function SkillsTab({
           {rows.map((row) => (
             <article key={row.name} className={`${CARD} expert-card group ${row.enabled ? "" : "opacity-60"}`}>
               <div className="flex items-start gap-3.5">
-                <div className="w-10 h-10 rounded-xl bg-accentSoft text-accent flex items-center justify-center shrink-0 font-semibold">
-                  {row.name.slice(0, 1).toUpperCase()}
+                <div className="w-20 h-20 rounded-2xl bg-accentSoft text-accent flex items-center justify-center shrink-0 text-2xl font-semibold overflow-hidden">
+                  {skillCardName(row).slice(0, 1).toUpperCase()}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-[15px] font-semibold truncate" title={row.name}>{row.name}</h3>
-                  <p className="text-[12px] text-muted truncate">{row.source === "local" ? "本地技能" : row.source}</p>
+                  <h3 className="text-[20px] font-semibold truncate" title={skillCardName(row)}>{skillCardName(row)}</h3>
+                  <p className="text-[16px] text-muted truncate">{row.source === "uploaded" ? "uploaded" : "user_" + row.name.slice(0, 8)}</p>
                 </div>
                 <div className="expert-card-actions shrink-0">
                   <button
@@ -429,12 +442,13 @@ export function SkillsTab({
                   </button>
                 </div>
               </div>
-              <p className="text-[13px] text-muted leading-[21px] line-clamp-3 break-words mt-2 mb-3" title={row.description}>
+              <p className="text-[16px] text-muted leading-[27px] line-clamp-3 break-words mt-5 mb-4" title={row.description}>
                 {row.description || "暂无介绍"}
               </p>
-              <div className="mt-auto flex items-center gap-2 text-[11px] text-muted">
+              <div className="mt-auto flex items-center gap-2 text-[13px] text-muted">
+                {skillCardTags(row).map((tag) => <span key={tag} className="rounded-lg bg-paper px-3 py-1.5">{tag}</span>)}
                 {row.files ? (
-                  <button className="inline-flex items-center gap-1 rounded-md bg-paper px-2 py-1 hover:text-ink" title="显示文件夹" onClick={() => revealSkill(row.name)}>
+                  <button className="hidden inline-flex items-center gap-1 rounded-md bg-paper px-2 py-1 hover:text-ink" title="显示文件夹" onClick={() => revealSkill(row.name)}>
                     <Icon name="folder" size={11} /> {row.files} 个文件
                   </button>
                 ) : null}

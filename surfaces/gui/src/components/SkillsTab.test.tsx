@@ -125,7 +125,7 @@ describe("SkillsTab", () => {
         trust: { userReason: "安全可靠", items: { scan: { score: 4.7 } } },
       } } } },
       { match: "/v1/skillhub/skills/docs?namespace=tester", json: { ok: true, skill: {
-        name: "文档助手", slug: "docs", namespace: "tester", publisher: "tester", description: "处理文档",
+        name: "文档助手.Skill 后面是不应展示的冗长描述，覆盖多项能力", slug: "docs", namespace: "tester", publisher: "tester", description: "处理文档",
         category: "", icon_url: "", url: "https://skillhub.cn/skills/docs", verified: false,
         stars: 12, downloads: 34, tags: ["办公", "文档"], rating: 0, evaluation_report: "",
       } } },
@@ -153,7 +153,7 @@ describe("SkillsTab", () => {
     expect(await screen.findByRole("button", { name: "使用" })).toBeTruthy();
     expect(calls.find((call) => call.url.includes("/docs/install"))?.body).toEqual({ namespace: "tester" });
     fireEvent.click(screen.getByRole("button", { name: "使用" }));
-    expect(onUseSkill).toHaveBeenCalledWith("docs", "文档助手");
+    expect(onUseSkill).toHaveBeenCalledWith("docs", "文档助手.Skill");
     expect(screen.queryByTestId("trace-score-summary")).toBeNull();
     expect(calls.some((call) => call.url.includes("/evaluation"))).toBe(false);
 

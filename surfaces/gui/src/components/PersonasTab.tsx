@@ -61,6 +61,9 @@ export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?
   const [catalogError, setCatalogError] = useState("");
   const [indexLoaded, setIndexLoaded] = useState(false);
   const [catalogLoaded, setCatalogLoaded] = useState(false);
+  const [showLoadRetry, setShowLoadRetry] = useState(false);
+  const loadAttemptRef = useRef(0);
+  const loadRetryTimerRef = useRef<number | null>(null);
   const [summoning, setSummoning] = useState<CatalogPersona | null>(null);
   const [selectedRemote, setSelectedRemote] = useState<CatalogPersona | null>(null);
   const [summonError, setSummonError] = useState("");
@@ -88,22 +91,42 @@ export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?
     return () => window.removeEventListener("ocw-focus-import", focus);
   }, []);
 
+  const loadExperts = () => {
+    const attempt = ++loadAttemptRef.current;
+    setIndexLoaded(false);
+    setCatalogLoaded(false);
+    setCatalogError("");
+    setShowLoadRetry(false);
+    if (loadRetryTimerRef.current) window.clearTimeout(loadRetryTimerRef.current);
+    loadRetryTimerRef.current = window.setTimeout(() => {
+      if (loadAttemptRef.current === attempt) setShowLoadRetry(true);
+    }, 7_000);
+
+    void Promise.allSettled([getPersonasIndex(), getPersonaCatalog()]).then(([indexResult, catalogResult]) => {
+      if (loadAttemptRef.current !== attempt) return;
+      if (indexResult.status === "fulfilled") {
+        setPersonas(indexResult.value.personas);
+        setInternal(indexResult.value.internal);
+      }
+      if (catalogResult.status === "fulfilled" && catalogResult.value.ok) {
+        setCatalog(catalogResult.value.experts);
+        setCategories(catalogResult.value.categories);
+      } else {
+        setCatalogError(catalogResult.status === "fulfilled" ? catalogResult.value.error || "专家目录加载失败" : "专家目录加载失败");
+      }
+      setIndexLoaded(true);
+      setCatalogLoaded(true);
+      setShowLoadRetry(false);
+      if (loadRetryTimerRef.current) window.clearTimeout(loadRetryTimerRef.current);
+    });
+  };
   useEffect(() => {
-    getPersonasIndex()
-      .then((r) => {
-        setPersonas(r.personas);
-        setInternal(r.internal);
-      })
-      .catch(() => {})
-      .finally(() => setIndexLoaded(true));
-    getPersonaCatalog()
-      .then((r) => {
-        if (!r.ok) return setCatalogError(r.error || "专家目录加载失败");
-        setCatalog(r.experts);
-        setCategories(r.categories);
-      })
-      .catch(() => setCatalogError("专家目录加载失败"))
-      .finally(() => setCatalogLoaded(true));
+    loadExperts();
+    return () => {
+      loadAttemptRef.current += 1;
+      if (loadRetryTimerRef.current) window.clearTimeout(loadRetryTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const updateCategoryEdges = () => {
     const el = categoryScrollRef.current;
@@ -310,6 +333,9 @@ export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?
         <div className="flex-1 min-h-0 flex flex-col items-center justify-center text-center" data-testid="experts-initial-loading">
           <div className="spinner mb-4" aria-hidden="true" />
           <div className="text-[15px] font-medium text-ink">正在翻找通讯库..</div>
+          {showLoadRetry && (
+            <button className={`${BTN_BORDERED} mt-4`} onClick={loadExperts}>重试</button>
+          )}
         </div>
       ) : (
       <>

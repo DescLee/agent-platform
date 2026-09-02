@@ -24,6 +24,7 @@ export type DictationStatus = {
   download_in_progress: boolean;
   model_name: string;
   model_bytes: number;
+  recognition_language: string;
   supported: boolean;
   device_summary: string;
   compatibility_reason: string | null;

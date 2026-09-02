@@ -267,7 +267,8 @@ function VoiceInputSection() {
   const downloading = phase === "downloading" || !!status?.download_in_progress;
   const progressTotal = progress?.total_bytes || status?.model_bytes || 1;
   const progressPercent = Math.min(100, Math.round(((progress?.downloaded_bytes || 0) / progressTotal) * 100));
-  const ready = !!status?.supported && !!status?.model_verified && !!status?.test_passed;
+  const chineseBackend = status?.recognition_language === "zh";
+  const ready = !!status?.supported && !!status?.model_verified && !!status?.test_passed && chineseBackend;
 
   return (
     <section>
@@ -306,13 +307,21 @@ function VoiceInputSection() {
             </div>
           </div>
 
+          {status && !chineseBackend && (
+            <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-[12px] text-amber-800">
+              桌面端仍在运行旧版英文转写引擎，请完全退出并重新启动应用后再测试。
+            </div>
+          )}
+
           <div className={CARD}>
             <div className="p-4 flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-accentSoft text-accent grid place-items-center font-semibold">W</div>
               <div className="min-w-0 flex-1">
-                <div className="text-[13px] font-medium">Whisper Base · 中文</div>
+                <div className="text-[13px] font-medium">
+                  {chineseBackend ? "Whisper Base · 中文" : status?.model_name || "Whisper Base · 中文"}
+                </div>
                 <div className="text-[12px] text-muted mt-0.5">
-                  {status?.model_verified ? `中文模型已安装并验证 · ${formatBytes(status.model_bytes)}` : `本地中文语音模型 · ${formatBytes(status?.model_bytes || 147_951_465)}`}
+                  {status?.model_verified && chineseBackend ? `中文模型已安装并验证 · ${formatBytes(status.model_bytes)}` : `本地中文语音模型 · ${formatBytes(status?.model_bytes || 147_951_465)}`}
                 </div>
               </div>
               {status?.model_verified ? (
@@ -347,7 +356,7 @@ function VoiceInputSection() {
                 </div>
               </div>
               {ready && <span className="text-[12px] px-2 py-1 rounded-full bg-green-50 text-green-700">● 已就绪</span>}
-              <button className={BTN_BORDERED} disabled={!status?.supported || !status?.model_verified || phase === "transcribing"} onClick={() => void toggleTest()}>
+              <button className={BTN_BORDERED} disabled={!status?.supported || !status?.model_verified || !chineseBackend || phase === "transcribing"} onClick={() => void toggleTest()}>
                 {status?.recording ? "停止并检查" : phase === "transcribing" ? "正在转写…" : ready ? "重新测试" : "测试麦克风"}
               </button>
             </div>

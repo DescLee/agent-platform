@@ -389,7 +389,11 @@ export function Composer(props: Props) {
     return () => window.removeEventListener("keydown", cancelOnEscape);
   }, [dictation?.recording]);
 
-  const voiceReady = !!dictation?.supported && !!dictation?.model_verified && !!dictation?.test_passed;
+  const voiceReady =
+    !!dictation?.supported &&
+    !!dictation?.model_verified &&
+    !!dictation?.test_passed &&
+    dictation?.recognition_language === "zh";
   const recordingTime = `${Math.floor(recordingSeconds / 60)}:${String(recordingSeconds % 60).padStart(2, "0")}`;
 
   // Attach-time PDF thresholds (Settings → Token savings): a PDF over the user's page or
@@ -555,7 +559,12 @@ export function Composer(props: Props) {
 
       const status = dictation || (await getDictationStatus());
       if (!status) throw new Error("语音输入当前不可用。");
-      if (!status.supported || !status.model_verified || !status.test_passed) {
+      if (
+        !status.supported ||
+        !status.model_verified ||
+        !status.test_passed ||
+        status.recognition_language !== "zh"
+      ) {
         props.onConfigureVoiceInput?.();
         return;
       }

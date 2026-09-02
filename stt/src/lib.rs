@@ -43,6 +43,7 @@ pub struct DictationStatus {
     pub download_in_progress: bool,
     pub model_name: &'static str,
     pub model_bytes: u64,
+    pub recognition_language: &'static str,
 }
 
 #[derive(Debug, Clone, Copy, Serialize)]
@@ -121,6 +122,7 @@ impl Dictation {
             download_in_progress: self.download_in_progress.load(Ordering::SeqCst),
             model_name: "Whisper Base Chinese (local)",
             model_bytes: DEFAULT_MODEL_BYTES,
+            recognition_language: "zh",
         }
     }
 

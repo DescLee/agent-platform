@@ -12,6 +12,7 @@ const READY = {
   download_in_progress: false,
   model_name: "Whisper Base Chinese (local)",
   model_bytes: 147951465,
+  recognition_language: "zh",
   supported: true,
   device_summary: "macOS 15 · Apple Silicon",
   compatibility_reason: null,
@@ -64,6 +65,19 @@ describe("Composer voice input (§37)", () => {
 
     const mic = await screen.findByLabelText("请在设置中配置语音输入");
     expect(mic.getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(mic);
+    await waitFor(() => expect(onConfigureVoiceInput).toHaveBeenCalled());
+    expect(invoke).not.toHaveBeenCalledWith("start_dictation", undefined);
+  });
+
+  it("rejects a stale desktop backend that does not report Chinese recognition", async () => {
+    invoke.mockImplementation(async (cmd: string) =>
+      cmd === "get_dictation_status" ? { ...READY, recognition_language: undefined } : null,
+    );
+    const onConfigureVoiceInput = vi.fn();
+    render(<Composer {...props({ onConfigureVoiceInput })} />);
+
+    const mic = await screen.findByLabelText("请在设置中配置语音输入");
     fireEvent.click(mic);
     await waitFor(() => expect(onConfigureVoiceInput).toHaveBeenCalled());
     expect(invoke).not.toHaveBeenCalledWith("start_dictation", undefined);

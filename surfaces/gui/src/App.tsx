@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
 import {
   createTempWorkspace,
+  saveGreenboatDraft,
   finalizeAutomationRun,
   boardComment,
   boardTransition,
@@ -55,6 +56,7 @@ import { addTurnUsage, emptyUsage, usageFromMessages } from "./usage";
 import { streamMode } from "./streamGate";
 import { InboxItemCard } from "./components/InboxItemCard";
 import { chooseFolder, isTauri, platformOS, startWindowDrag } from "./tauri";
+import { greenboatSummaryPrompt } from "./greenboatReport";
 import { Icon } from "./components/Icon";
 import { Sidebar } from "./components/Sidebar";
 import { ThinkingBlock, Transcript } from "./components/Transcript";
@@ -424,7 +426,7 @@ export function App() {
   // A pending composer prefill (text + attachments) pushed from the session start panel.
   // Auto-Approve metering (§1.7): live reviewer counts for the composer badge. Polled with
   // the session inbox; null until the first fetch (badge hidden).
-  const [composerPrefill, setComposerPrefill] = useState<{ text: string; attachments?: Attachment[]; skill?: { name: string; label?: string }; nonce: number }>();
+  const [composerPrefill, setComposerPrefill] = useState<{ text: string; attachments?: Attachment[]; skill?: { name: string; label?: string }; nonce: number; targetSessionId?: string }>();
 
   // Persona metadata drives workspace behavior by FAMILY, not by hardcoded id (so a DevOps/SecOps
   // code-family persona gates a folder like Code, and a knowledge persona starts orphan like Cowork).
@@ -1250,7 +1252,7 @@ export function App() {
     sessionRef.current?.setModel(next);
   }, [connected, sessionReady, running, modelReady, models, model, defaultModel]);
 
-  const startNewSession = async (forAgent?: string) => {
+  const startNewSession = async (forAgent?: string, prepared?: { sessionId: string; workspace: string }) => {
     // The next engine reads the persisted default; wait if the user immediately
     // clicks New session after choosing a model.
     await homeModelSave.current;
@@ -1282,8 +1284,21 @@ export function App() {
       setBranch(null);
     }
     setDraftFolderPicked(false);
-    setTempWorkspace(false);
-    setSessionId(newId());
+    setTempWorkspace(Boolean(prepared));
+    if (prepared) { setWorkspace(prepared.workspace); setBranch(null); }
+    setSessionId(prepared?.sessionId || newId());
+  };
+  const openGreenboatDraft = async (date: string, report: string) => {
+    const sid = newId();
+    const result = await saveGreenboatDraft(sid, date, report);
+    await startNewSession("cowork", { sessionId: sid, workspace: result.workspace });
+    setComposerPrefill(previous => ({
+      nonce: (previous?.nonce ?? 0) + 1,
+      targetSessionId: sid,
+      text: greenboatSummaryPrompt(date, result.filename),
+      attachments: [{ kind: "file", name: result.filename, mime: "text/markdown", path: result.path }],
+    }));
+    return result.path;
   };
   const summonPersona = async (id: string, prompt?: string) => {
     setPersonaModalOpen(false);
@@ -1884,7 +1899,7 @@ export function App() {
       ) : surface === "knowledge" ? (
         <KnowledgeView onOpenSession={selectSession} />
       ) : surface === "greenboat" ? (
-        <GreenboatView />
+        <GreenboatView onReady={openGreenboatDraft} />
       ) : surface === "settings" ? (
         <SettingsView
           key={settingsTab}

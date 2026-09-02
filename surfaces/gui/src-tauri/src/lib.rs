@@ -30,6 +30,8 @@ use tauri::{
 use tauri_plugin_autostart::ManagerExt;
 use uuid::Uuid;
 
+mod greenboat;
+
 /// The sidecar server child — killed on exit (orphaned servers have bitten us before).
 struct ServerProcess(Mutex<Option<Child>>);
 /// The active keep-awake guard while keep-awake is on (None when off). Dropping the guard
@@ -400,6 +402,28 @@ fn start_window_drag(window: tauri::WebviewWindow) -> bool {
     window.start_dragging().is_ok()
 }
 
+const GREENBOAT_LOGIN_CHECK_SCRIPT: &str = include_str!("greenboat-login.js");
+
+#[tauri::command]
+fn open_greenboat_window(app: tauri::AppHandle) -> bool {
+    if let Some(window) = app.get_webview_window("greenboat") {
+        let _ = window.eval(GREENBOAT_LOGIN_CHECK_SCRIPT);
+        let _ = window.show();
+        let _ = window.set_focus();
+        return true;
+    }
+    WebviewWindowBuilder::new(
+        &app,
+        "greenboat",
+        WebviewUrl::External("https://imwork.syncotechai.com:8663/woa/im/messages".parse().unwrap()),
+    )
+    .title("绿舟助理")
+    .inner_size(1200.0, 800.0)
+    .initialization_script(GREENBOAT_LOGIN_CHECK_SCRIPT)
+    .build()
+    .is_ok()
+}
+
 /// Bring the main application window forward when the desktop pet is clicked.
 #[tauri::command]
 fn show_main_window(app: tauri::AppHandle) -> bool {
@@ -761,6 +785,10 @@ pub fn run() {
             get_keep_awake,
             set_keep_awake,
             start_window_drag,
+            open_greenboat_window,
+            greenboat::start_greenboat_export,
+            greenboat::cancel_greenboat_export,
+            greenboat::save_greenboat_report,
             show_main_window,
             hide_pet_window,
             show_pet_window,

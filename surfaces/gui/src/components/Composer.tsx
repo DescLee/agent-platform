@@ -68,7 +68,7 @@ const shortModel = (m: string) => (m.includes(":") ? m.split(":").slice(1).join(
 // Identify an attachment by name + payload size so duplicates (e.g. the same file picked twice,
 // or a prefill applied twice) collapse to one chip.
 const attKey = (a: Attachment) =>
-  a.kind === "text"
+  a.kind === "file" ? `f:${a.path}` : a.kind === "text"
     ? `t:${a.name}:${a.text?.length ?? 0}`
     : `${a.kind[0]}:${a.name}:${a.data_url?.length ?? 0}`;
 const mergeAttachments = (cur: Attachment[], add: Attachment[]): Attachment[] => {
@@ -134,7 +134,7 @@ interface Props {
   onOpenMemory?: () => void;
   // Push text + attachments into the composer (e.g. a start-panel task card). The `nonce` makes
   // repeated identical prefills re-apply; the user can still edit before sending.
-  prefill?: { text: string; attachments?: Attachment[]; skill?: { name: string; label?: string }; nonce: number };
+  prefill?: { text: string; attachments?: Attachment[]; skill?: { name: string; label?: string }; nonce: number; targetSessionId?: string };
   // Changes when the active conversation changes; clears any unsent draft.
   resetKey?: string;
   // Surface-specific hint shown in the empty textarea.
@@ -290,7 +290,12 @@ export function Composer(props: Props) {
   // bleed from one session into another. Declared BEFORE the prefill effect: when both fire in
   // the same render (the Skills doorway starts a new session AND prefills it), effects run in
   // declaration order — clear first, then the prefill lands on the fresh session.
+  const clearedDraft = useRef<{ key: string | undefined } | null>(null);
   useEffect(() => {
+    // StrictMode replays mount effects while retaining refs. Clearing twice would
+    // erase the prefill, whose nonce correctly prevents a second application.
+    if (clearedDraft.current?.key === props.resetKey && clearedDraft.current !== null) return;
+    clearedDraft.current = { key: props.resetKey };
     setText("");
     setAttachments([]);
     setPendingSkill(null);
@@ -304,6 +309,9 @@ export function Composer(props: Props) {
   useEffect(() => {
     const p = props.prefill;
     if (!p || p.nonce === appliedNonce.current) return;
+    // Session creation and the prefill may commit in separate renders. Wait for
+    // both the target session and its draft reset, otherwise the reset erases it.
+    if (p.targetSessionId && (p.targetSessionId !== props.sessionId || p.targetSessionId !== props.resetKey)) return;
     appliedNonce.current = p.nonce;
     setText(p.text);
     if (p.skill) {
@@ -318,7 +326,7 @@ export function Composer(props: Props) {
     if (p.attachments?.length) setAttachments((cur) => mergeAttachments(cur, p.attachments!));
     textareaRef.current?.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.prefill?.nonce]);
+  }, [props.prefill?.nonce, props.sessionId, props.resetKey]);
 
   // Dictation is intentionally native-only: the browser/dev build remains a local server client
   // and never turns on the browser microphone or ships audio anywhere.

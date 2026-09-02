@@ -18,6 +18,25 @@ import pytest
 from coworker.attachments import KNOWLEDGE_REF_PREFIX, build_user_content, content_to_text
 
 
+def test_workspace_file_is_reference_not_inlined(tmp_path):
+    from coworker.attachments import valid_workspace_file
+    report = tmp_path / "今日消息.md"
+    report.write_text("private message body", encoding="utf-8")
+    attachment = {"kind": "file", "name": report.name, "path": str(report)}
+    assert valid_workspace_file(attachment, tmp_path)
+    parts = build_user_content("总结今日消息", [attachment])
+    assert parts[0]["text"] == "总结今日消息"
+    assert str(report) in parts[1]["text"]
+    assert "private message body" not in str(parts)
+    assert not valid_workspace_file(attachment, tmp_path / "another-session")
+    assert not valid_workspace_file({**attachment, "path": str(tmp_path / "missing.md")}, tmp_path)
+    outside = tmp_path.parent / f"{tmp_path.name}-outside.md"
+    outside.write_text("outside", encoding="utf-8")
+    link = tmp_path / "escape.md"
+    link.symlink_to(outside)
+    assert not valid_workspace_file({**attachment, "path": str(link)}, tmp_path)
+
+
 # -- a tiny solid-color PNG (stdlib) so tests need no fixtures -------------------
 def _solid_png(r: int, g: int, b: int, size: int = 32) -> bytes:
     raw = bytearray()

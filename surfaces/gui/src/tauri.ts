@@ -77,6 +77,13 @@ export const setKeepAwake = (enabled: boolean) => invoke<boolean>("set_keep_awak
 /** Begin native window dragging from a custom title/header region. */
 export const startWindowDrag = () => invoke<boolean>("start_window_drag");
 
+/** Open Greenboat as a top-level native WebView so its cookies are first-party. */
+export const openGreenboatWindow = () => invoke<boolean>("open_greenboat_window");
+
+export const startGreenboatExport = (jobId: string) => invokeStrict<void>("start_greenboat_export", { jobId });
+export const cancelGreenboatExport = (jobId: string) => invokeStrict<void>("cancel_greenboat_export", { jobId });
+export const saveGreenboatReport = (date: string, report: string) => invokeStrict<string>("save_greenboat_report", { date, report });
+
 /** Bring the main app window forward from the desktop pet. */
 export const showMainWindow = () => invoke<boolean>("show_main_window");
 

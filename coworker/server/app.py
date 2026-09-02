@@ -164,6 +164,7 @@ _CONNECT_FAILED_DETAIL = (
 )
 
 from ..attachments import (
+    valid_workspace_file,
     MAX_ATTACHMENTS as _MAX_ATTACHMENTS,
     MAX_IMAGE_CHARS,
     MAX_PDF_CHARS,
@@ -864,6 +865,36 @@ def create_app(manager: SessionManager) -> FastAPI:
             git=bool((body or {}).get("git", True)),
         )
 
+    @app.post("/v1/workspaces/temp/greenboat-report")
+    def save_greenboat_draft(body: dict):
+        from datetime import date as calendar_date
+
+        sid, date, report = body.get("session_id"), body.get("date"), body.get("report")
+        if not all(isinstance(value, str) for value in (sid, date, report)):
+            return JSONResponse({"error": "invalid report fields"}, status_code=400)
+        try:
+            if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date):
+                raise ValueError("invalid date")
+            calendar_date.fromisoformat(date)
+        except ValueError:
+            return JSONResponse({"error": "invalid report date"}, status_code=400)
+        if len(report.encode("utf-8")) > 25 * 1024 * 1024:
+            return JSONResponse({"error": "report exceeds 25 MB"}, status_code=413)
+        result = manager.provision_temp_workspace(sid, git=False)
+        if not result.get("ok"):
+            return JSONResponse({"error": result.get("error", "invalid session")}, status_code=400)
+        folder = Path(result["path"]).resolve()
+        if not folder.is_relative_to(manager.scratch_base().resolve()):
+            return JSONResponse({"error": "invalid temporary folder"}, status_code=400)
+        filename = f"绿舟今日消息-{date}-{uuid.uuid4().hex[:8]}.md"
+        path = folder / filename
+        try:
+            with path.open("x", encoding="utf-8") as stream:
+                stream.write(report)
+        except OSError:
+            return JSONResponse({"error": "无法写入会话临时目录"}, status_code=500)
+        return {"workspace": str(folder), "path": str(path), "filename": filename}
+
     @app.post("/v1/sessions/{session_id}/save-as-project")
     def save_session_as_project(session_id: str, body: dict) -> dict[str, Any]:
         # UX-029 "Save as project…": move the temporary folder somewhere real. The GUI
@@ -1486,11 +1517,14 @@ def create_app(manager: SessionManager) -> FastAPI:
 
         if name == "lvzhou":
             if (body or {}).get("action") != "connect":
-                return {"ok": False, "error": "绿舟仅支持连接检测，不支持重置或断开"}
+                return {"ok": False, "error": "绿舟仅支持连接，不支持重置或断开"}
+            from ..lvzhou.launch import launch_lvzhou
             from ..connectors.setup import _lvzhou_running
-            running = _lvzhou_running()
-            return {"ok": running, "connected": running, "started": False,
-                    "error": None if running else "未检测到正在运行的绿舟客户端"}
+            result = await asyncio.to_thread(launch_lvzhou)
+            if not result["ok"]:
+                return result
+            running = await asyncio.to_thread(_lvzhou_running)
+            return {**result, "connected": running}
 
         if name not in CLI_CONNECTORS:
             return {"ok": False, "error": "不是受支持的 CLI 连接器"}
@@ -3014,7 +3048,7 @@ def create_app(manager: SessionManager) -> FastAPI:
                             name = attachment.get("name")
                             mime = attachment.get("mime")
                             knowledge_ref = attachment.get("knowledge_ref")
-                            if attachment_kind not in {"image", "pdf", "text"}:
+                            if attachment_kind not in {"image", "pdf", "text", "file"}:
                                 reject = "Invalid attachment kind."
                             elif name is not None and (
                                 not isinstance(name, str) or len(name) > 1024
@@ -3049,6 +3083,9 @@ def create_app(manager: SessionManager) -> FastAPI:
                                     or len(data) > MAX_PDF_CHARS
                                 ):
                                     reject = "Invalid or oversized PDF attachment."
+                            elif attachment_kind == "file":
+                                if not valid_workspace_file(attachment, manager.scratch_base() / session_id):
+                                    reject = "File attachment must exist in this session's temporary folder."
                             else:
                                 body = attachment.get("text")
                                 if (

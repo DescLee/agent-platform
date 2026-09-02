@@ -33,6 +33,23 @@ def _mgr(tmp_path, monkeypatch) -> SessionManager:
     return mgr
 
 
+def test_greenboat_report_uses_its_session_scratch(tmp_path, monkeypatch):
+    mgr = _mgr(tmp_path, monkeypatch)
+    client = TestClient(create_app(mgr))
+    body = {"session_id": "greenboat-draft", "date": "2026-09-03", "report": "# 已读、未读与@我\n"}
+    response = client.post("/v1/workspaces/temp/greenboat-report", json=body)
+    assert response.status_code == 200
+    result = response.json()
+    file = Path(result["path"])
+    assert file.parent == (tmp_path / "scratch" / body["session_id"]).resolve()
+    assert file.read_text() == body["report"]
+    assert result["workspace"] == str(file.parent)
+    again = client.post("/v1/workspaces/temp/greenboat-report", json=body).json()
+    assert again["path"] != result["path"]
+    assert client.post("/v1/workspaces/temp/greenboat-report", json={**body, "session_id": "../escape"}).status_code == 400
+    assert client.post("/v1/workspaces/temp/greenboat-report", json={**body, "date": "2026-99-03"}).status_code == 400
+
+
 def test_provision_temp_workspace_creates_dir_with_git(tmp_path, monkeypatch):
     mgr = _mgr(tmp_path, monkeypatch)
     client = TestClient(create_app(mgr))

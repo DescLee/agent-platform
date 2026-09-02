@@ -1,0 +1,9 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "greenboat-login-status",
+  "description": "Allow the Greenboat window to report login status to the main window.",
+  "local": false,
+  "windows": ["greenboat"],
+  "remote": { "urls": ["https://imwork.syncotechai.com:8663/*"] },
+  "permissions": ["core:event:allow-emit-to"]
+}

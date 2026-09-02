@@ -14,6 +14,7 @@ import { CHIP_OK, CHIP_OFF, CHIP_WARN, GRP, GRP_H, PILL_QUIET, ROW } from "./ui"
 
 const CONNECTOR_COPY: Record<string, { title: string; blurb: string }> = {
   browser: { title: "浏览器", blurb: "读取网页并执行浏览器操作。" },
+  lvzhou: { title: "绿舟", blurb: "连接本机正在运行的绿舟客户端，启用后提供绿舟能力。" },
   github: { title: "GitHub", blurb: "处理议题、拉取请求、仓库文件和持续集成状态。" },
   figma: { title: "Figma", blurb: "读取和管理 Figma 设计文件与团队资源。" },
   dingtalk: { title: "钉钉", blurb: "使用消息、通讯录、文档与知识库、日历、待办、邮箱、审批和智能协作能力。" },
@@ -143,6 +144,17 @@ export function ConnectorsList({
               onMouseLeave={() => setCliHover(null)}
               onClick={(e) => {
                 e.stopPropagation();
+                if (c.name === "lvzhou") {
+                  if (cliBusy === c.name) return;
+                  setCliBusy(c.name);
+                  setCliActionType("connect");
+                  void connectorCliAction(c.name, "connect").then(result => {
+                    setToast(result.ok ? "已打开绿舟3.0，请在客户端完成登录" : result.error || "打开绿舟3.0失败");
+                    onChanged();
+                  }).catch(() => setToast("打开绿舟3.0失败，请重试"))
+                    .finally(() => { setCliBusy(null); setCliActionType(null); });
+                  return;
+                }
                 if (CLI_CONNECTOR_NAMES.has(c.name)) {
                   if (cliBusy === c.name && cliActionType === "connect") {
                     cliOperation.current += 1;
@@ -177,7 +189,7 @@ export function ConnectorsList({
                 setConnecting(c.name);
               }}
             >
-              {cliBusy === c.name ? (cliActionType === "connect" ? (cliHover === c.name ? "取消" : "连接中…") : "安装中…") : CLI_CONNECTOR_NAMES.has(c.name) ? (c.cli_ready ? (c.authenticated ? "已连接" : "连接") : "安装") : "连接"}
+              {c.name === "lvzhou" ? (cliBusy === c.name ? "连接中…" : "连接") : cliBusy === c.name ? (cliActionType === "connect" ? (cliHover === c.name ? "取消" : "连接中…") : "安装中…") : CLI_CONNECTOR_NAMES.has(c.name) ? (c.cli_ready ? (c.authenticated ? "已连接" : "连接") : "安装") : "连接"}
             </span>
           </button>
         ))}

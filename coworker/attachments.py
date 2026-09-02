@@ -12,6 +12,8 @@ text-only path), else the parts list.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any, Optional
 
 MAX_ATTACHMENTS = 8
@@ -23,6 +25,18 @@ MAX_TEXT_CHARS = 200_000  # per text file, inlined
 # spelling must not drift from `build_user_content` — both live here for exactly that reason.
 ATTACHED_TEXT_PREFIX = "[Attached file: "
 KNOWLEDGE_REF_PREFIX = "[OpenWorker knowledge reference: "
+
+
+def valid_workspace_file(attachment: dict, workspace: Path) -> bool:
+    """Only reference existing files belonging to this session; never read their body."""
+    value = attachment.get("path")
+    if not isinstance(value, str) or not value or len(value) > 4096 or any(ord(c) < 32 for c in value):
+        return False
+    try:
+        path = Path(value)
+        return path.is_absolute() and path.resolve().is_relative_to(workspace.resolve()) and path.is_file()
+    except (OSError, ValueError, RuntimeError):
+        return False
 
 
 def _is_data_image(url: Any) -> bool:
@@ -38,8 +52,9 @@ def build_user_content(
 ) -> Any:
     """Return `str` (no attachments) or a list of OpenAI content-parts (with attachments).
 
-    Each attachment is `{"kind": "image"|"pdf"|"text", "name"?, "data_url"? (image/pdf),
-    "text"? (text)}`.
+    Each attachment is `{"kind": "image"|"pdf"|"text"|"file", "name"?, "data_url"? (image/pdf),
+    "text"? (text), "path"? (file)}`. Local file references are validated by the
+    session endpoint and passed as paths, never automatically read or inlined.
     Invalid/oversized attachments are skipped rather than failing the turn.
     """
     text = (text or "").strip()
@@ -75,6 +90,16 @@ def build_user_content(
                 parts.append(
                     {"type": "file", "file": {"filename": name, "file_data": url}}
                 )
+                added += 1
+        elif kind == "file":
+            path = a.get("path")
+            if isinstance(path, str) and path and len(path) <= 4096:
+                name = str(a.get("name") or "attachment").replace("]", "").replace("\n", " ")
+                parts.append({"type": "text", "text": (
+                    f"{ATTACHED_TEXT_PREFIX}{name}]\n"
+                    f"Local file reference: {json.dumps(path, ensure_ascii=False)}\n"
+                    "Read the complete file using workspace file tools. Its contents are not inlined here."
+                )})
                 added += 1
         elif kind == "text":
             body = str(a.get("text") or "")[:MAX_TEXT_CHARS]

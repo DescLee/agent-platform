@@ -59,13 +59,8 @@ function pathLogo(d: string): LogoComponent {
   );
 }
 
-function cjkLogo(char: string): LogoComponent {
-  return () => (
-    <svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true">
-      <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="1.8" />
-      <text x="12" y="16" textAnchor="middle" fontSize="11" fontWeight="700" fill="currentColor">{char}</text>
-    </svg>
-  );
+function imageLogo(src: string): LogoComponent {
+  return () => <img src={src} alt="" aria-hidden="true" style={{ width: "100%", height: "100%", objectFit: "contain" }} />;
 }
 
 function brand(icon: SimpleIcon): ConnectorRegistryEntry {
@@ -245,10 +240,18 @@ export const CONNECTORS: Record<string, ConnectorRegistryEntry> = {
   email: { label: "Email", logo: EmailLogo },
   browser: { label: "浏览器", logo: BrowserLogo },
   mcp: { label: "MCP", logo: McpLogo },
-  dingtalk: { label: "钉钉", logo: cjkLogo("钉") },
-  feishu: { label: "飞书", logo: cjkLogo("飞") },
-  wecom: { label: "企业微信", logo: cjkLogo("企") },
-  tencent_docs: { label: "腾讯文档", logo: cjkLogo("文") },
+  dingtalk: { label: "钉钉", logo: imageLogo("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y+mAAAAMFBMVEVHcEwAf/8Af/8Af/8Af/8Af/8Af/8Af/8Af/8Af/8Af/8Af/8Af/8Af/8Af/8Af//iPiMiAAAAD3RSTlMA786HFLjeQ28knDL4XQUepX4iAAAAp0lEQVQokZWSSxIDIQhEFRQ/o3L/245oksUIqaS3r7qxBed+UAhfIMbLhsAxmZCYwaTAzNQNWCdkn3VYSCjj0BjmTatS6eJYoS16VgqeKYIXqlSaD2pEJGY4Hl2kS/PL6/GYGhfYelQaGeJrqMx9OuGdejqdS5/cVs+vKB1hMVR3GxaErkLk3USDIaOX1RgXk2YL61wK6ZGigdS1fe5QtG/MlWKzP3UDvJYIQwfceNEAAAAASUVORK5CYII=") },
+  feishu: {
+    label: "飞书",
+    logo: () => <img
+      src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y+mAAAAllBMVEVHcEz////////////////////////////M9/Bu5tSA6dma7uH3/P4A1rgA0LgA2Lq28+lQ4csA2Lzx8/3b5Pjk6/2mv//O2/oGvrUSgalHYq0eR6CXqdWNrP8zcf8SPJoPOJgFMpi7y/eRr/8fZfpBev8WcqZ6jsEmav8tbf8ycP+bt/9cjf+FmMklW9kaSrdLddtjj/9h7ufUAAAAB3RSTlMAN4W3sifpcHFWSwAAAP1JREFUeAF900UCgzAAAEGqOFRCirs7//9cE9z3OkiUIC7X232n2/WB7Eke9LwQN/KwG0Ge1CNFM0Mst0aO5gW+j1khiuWHRGqD5GvU9waRflavYuQ2X2a+AEhci/A3KNO9KCuqpmmqjtEwB+XeiATFsnGOi9HzA7dXSuSF0LZwTkS2GCdp1v+YFULH6hD0mKZ+3n0ajFaQI6ZJYEgk+VPtzmwNjIg1DqCuOdb44og4M4n9skIjRe859XeJ2M0UOaqWyA1iNvH/wbh80E8mReTnYLa2MIhHxuPiFrsiwSZIYlzQQIncnATgQi+DLujfGvG406N5fqiJx9F1uBB/KOwwRaQdoWkAAAAASUVORK5CYII="
+      alt=""
+      aria-hidden="true"
+      style={{ width: "100%", height: "100%", objectFit: "contain" }}
+    />,
+  },
+  wecom: { label: "企业微信", logo: imageLogo("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAADNElEQVR4Ac1XU7jlSBistXdf1rbH1uPYtm3bk4xt27Zt27aR5JzxQU9d9+05fa2H+pLu/tNVPxpB3maFkhXRGxjuf2A6ndDDWgLDusLnE/SwPTDsB3zuYd8IvpfCPPFuggqA4RQgwS4SipggVFBfDBOfxksAej7+ipMtVghiAfs2TLtknASgl+tPkl8KMOldhnoqTKcJn8VCouNUAj1me2dAIabdIVYCSPwLJ7yvhPUc6A3GineinKS38zvtxtPerwjpHiMBzNt79ORoZHJrSGwLC6YrO0XckRzws69otAJo2D4yudM5ttWsRPK2NN91RvBDrT04SG9dUr43QYg34rW2DVchJZrN9QJMu6xk/AR9nv2YIBuM6UyWnDqgtePgAilns+TBeEbhr0hR6G39HFiAYR2PWDpO+QTdZg3rhFRX+XQC7HCjXq5sCSrAtFowqjWJcTBdVXUpsCIi4MqeaIcOC1snYJ+Uq2oJSZpqA3qk2ggvny9Sb0Y5XQpmSEU4LiEFpN4QTC6CsRGPNALsutJyeYb+7i8TTMBGeCQB/vS78PvrAgaJDyjiXmJEIc1GtCO5LGKxZit2OisnWZv4EItDmCkO4HLwu8AbJG9I8ht8+v/fijyBDqNPwZNPPkSI2rEmPoD6xHXCL/YjvzrOQpzNtJzSHMfuf5QzwYPN4u0YER9ER5J6CUEIki/T2aK7NYBz+8jxnPtOMfUkGyffBUJuSE5BCpvOPgM8WtHTSote7n/5cY7gCwpriKSecPKD8PP5d0By2oaSixA8ui0byEuSsNewvTSae+BmfgfZe+Khfme02ynH/k1FQKzvgitCBXQPFfFCrERTXz2MDySA9lcl8U/Q80l+VcB6zUXzPnGa414lAl61TkQzfOOphRfeOrgoquOHiMuu3S+0uPejW8TBFHUEDPslMQB9xGfB47wbMv9foO+TbzFSfKy76Yh6qOitDX8orotaaEIH3DCspqqternMFLIp2T4+F8Jw/ojrXsAI3PbUhgiDqIt6MfsvmCfeisXPhRb0fJwsgIKW6QQkMKRaqA0vISjGL2ojf6ILUCEa4W8W5FDRGLl0Nin97zjx8Qo+a7Io2itFNwAAAABJRU5ErkJggg==") },
+  tencent_docs: { label: "腾讯文档", logo: imageLogo("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAE80lEQVR4Ae3XA5Am3RWA4fece7s/js3FKLZt27Zt21YhZiml2LbtZG1r9KG770m2q2YW1TMTJz+eqjauJWbG/5JcHoGrPm6Zixk8LJi9FjgIBAqIgAocOG6UY+jvEtKMC/glc2dmXf/8NUuv6v9Z+pFD11PcstK7XVjYknLsgR6POS4WyO4BNg4yDsVCgEYKD7+d53u/C/xxb2DryIWRcA0j6xRO3VI+nFTdSHQ8vB4DhFUaJOPiDeyKIKynlUA7MZ5975ivvaHMYDd/i4ThFETIYdDqUfCweFV93cKcvi+aN/wyIOTUHJy/4RgBtrKBZmIMdgu1EnRWhe+/vco1p4Tf7g6YgQbIykJjXCEDUkgn9bGnr6WfbQyCa5HTOESsbKUQo0GvYljMBpabMDEgdNcFgOEe4TtvrXLXG3j+sCuQJgYxpB0CAgSgAe057nLoDvyyVbcBAK8IK1SENDDVSsACiFDIgNPzxpYh5XylCD7zijKPf2eL9302YeuosumTLdpfFCRjVVbhGm6BZ3Lv6EW+YS1WWIDIcfWemnD0jJEFcMKFBMwAjKlRpch7n15irF94+cfabF4Q+mNIjVVmhtT87wC8R1mRGRw+GWafex/PU+8e8ad9RhpAhVUCmEGSwRUmhLW87MExo33CE97VYqkkjPSe10IM1NvvAbyYssKrVWNvV/z4t1LudWPPNaaUf8Vj7hAx2is84PVNdh+BzUN5JEDloIn7E4BaC/KtKViQyb5uGdl52LjRMxv8emfgX3Wn63m++aYKHRX4837DKQB7TGgBqE0F8m0uI1Szq6QNmBwUlttwt5c32H4w8K+69ozjt++pcrOrKPuOBxz661IiAKgMO2TEoWMeiWXWUiPNYOuwcOwM3P0VTXYeCgCcXrR8Oz5vLDQoZMCZJePUQv5ufjx73dMhfPBZJa6+VTkxb3/JTADw8ffCasVqxuHqVASMPBIzY8Khk8ZtXthgrE9oJxAM9h833vb4Eg+8hediP9+W8ZA3NCnHQikiZwbByFuGInR02K+13AY8vlQXBDCBVsrsee0/j8RQt+Sp3XbAUIUkhZMLlleuIn/aF/jzzsDQkKLK+fKI18titTq7zMj50wQQsGDDYsyqcIFgUCuf3QSAM8vGVTYrcxNKkR2HjLOJ6usULmaACn9x7Wg1Ahp5TxxFeOc2mVGFjbvg8X7Ju94CeX1xKhQRwIwdaQgECwB4I8EChJSrwcaabdgyrGs+23XYqFcoFMyIvftlqaL5OYCPqwpAKwtzIQEc60oyY7q4C+bAicDBE0a1JBQTzGwbISBGzi+fBgwwu5o41pUF8p9PjwgF8j7jxHw+TFNEBYK53yy2BDAAvEWKmCEJWy0AwpqSFLrrMDWmFMizf6lpeCdQbF6EfefXEa1lGVGazWSBKYT15D8f61Mm+oUif94f8I41ifAHkXBcSBEyALTiPZHqlJmxkeUWeTddrwhFdh82Yi+sxWB7ZsbKBuBPtBIwru5U2Eg7NaZGlCLHzxh7jgZqFQoZRoT/VWQRhgGr/YD0qDJnxrrMyLeZUaFA3ssdOWVUYqGIkdvhACXfcr6d2A0Eu6kI60pS6KkLM2O6ZvnPL1s+QS2iCJlkv18khVU1vMIxRL4HNIFja7d/znavMj6gDghZIKcCIsi2A4F2KqlzhUkZAH7iYBvI5WvD/68I/BVk4GIP1dooGQAAAABJRU5ErkJggg==") },
 };
 
 /**

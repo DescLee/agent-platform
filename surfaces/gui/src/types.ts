@@ -113,11 +113,12 @@ export interface SessionInfo {
 
 // Attachments (images, PDFs, text files) sent with a user message.
 export interface Attachment {
-  kind: "image" | "text" | "pdf";
+  kind: "image" | "text" | "pdf" | "file";
   name: string;
   mime?: string;
   data_url?: string; // images + PDFs
   text?: string; // text files
+  path?: string; // existing file in this session's temporary workspace; no inline body
   knowledge_ref?: string; // knowledge-library reference; not a new upload
 }
 

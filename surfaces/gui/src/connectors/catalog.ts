@@ -7,6 +7,7 @@ export const AVAILABLE_CONNECTOR_NAMES = new Set([
   "feishu",
   "wecom",
   "tencent_docs",
+  "lvzhou",
 ]);
 
 export const CLI_CONNECTOR_NAMES = new Set(["dingtalk", "feishu", "wecom"]);

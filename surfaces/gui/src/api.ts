@@ -143,6 +143,16 @@ export async function createTempWorkspace(
   return res.json();
 }
 
+export async function saveGreenboatDraft(sessionId: string, date: string, report: string): Promise<{ workspace: string; path: string; filename: string }> {
+  const res = await fetch(`${httpBase()}/v1/workspaces/temp/greenboat-report`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_id: sessionId, date, report }),
+  });
+  const result = await res.json();
+  if (!res.ok) throw new Error(result.error || "无法创建绿舟总结草稿");
+  return result;
+}
+
 /** UX-029 "Save as project…": move a session's temporary folder to a real location.
  * Callers reconnect afterwards so the engine rebinds to the new path. */
 export async function saveSessionAsProject(

@@ -2,8 +2,10 @@
 // slash, lists only the session's effective (enabled) menu, filters while typing, and the
 // picked skill rides onSend as its own field — never as message text.
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { StrictMode } from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Composer } from "./Composer";
+import { greenboatSummaryPrompt } from "../greenboatReport";
 
 const MENU = {
   skills: [
@@ -48,6 +50,49 @@ afterEach(() => {
 });
 
 describe("Composer / skills popup", () => {
+  it("keeps the Greenboat file and prompt when StrictMode replays mount effects", async () => {
+    stubFetch();
+    const attachment = { kind: "file" as const, name: "今日消息.md", path: "/scratch/s1/今日消息.md", mime: "text/markdown" };
+    const prefill = { nonce: 1, targetSessionId: "s1", text: greenboatSummaryPrompt("2026-09-03", attachment.name), attachments: [attachment] };
+    const p = props({ resetKey: "s1", prefill });
+    render(<StrictMode><Composer {...p} /></StrictMode>);
+    expect((box() as HTMLTextAreaElement).value).toBe(prefill.text);
+    expect(screen.getAllByText(attachment.name)).toHaveLength(1);
+    expect(p.onSend).not.toHaveBeenCalled();
+  });
+  it("waits for the target session reset before applying the Greenboat file and fixed prompt", async () => {
+    stubFetch();
+    const attachment = { kind: "file" as const, name: "今日消息.md", path: "/scratch/s2/今日消息.md", mime: "text/markdown" };
+    const prefill = { nonce: 1, targetSessionId: "s2", text: greenboatSummaryPrompt("2026-09-03", attachment.name), attachments: [attachment] };
+    const p = props({ sessionId: "s1", resetKey: "s1", prefill });
+    const { rerender } = render(<Composer {...p} />);
+    expect((box() as HTMLTextAreaElement).value).toBe("");
+    expect(screen.queryByText(attachment.name)).toBeNull();
+    rerender(<Composer {...p} sessionId="s2" />);
+    expect((box() as HTMLTextAreaElement).value).toBe("");
+    rerender(<Composer {...p} sessionId="s2" resetKey="s2" />);
+    expect(await screen.findByText(attachment.name)).toBeTruthy();
+    expect((box() as HTMLTextAreaElement).value).toBe(prefill.text);
+    expect(p.onSend).not.toHaveBeenCalled();
+    fireEvent.change(box(), { target: { value: "用户编辑" } });
+    rerender(<Composer {...p} sessionId="s2" resetKey="s2" connected={false} />);
+    expect((box() as HTMLTextAreaElement).value).toBe("用户编辑");
+    rerender(<Composer {...p} sessionId="s3" resetKey="s3" />);
+    expect((box() as HTMLTextAreaElement).value).toBe("");
+    expect(screen.queryByText(attachment.name)).toBeNull();
+  });
+  it("prefills a real workspace file chip with only the prompt in the text box", async () => {
+    stubFetch();
+    const attachment = { kind: "file" as const, name: "今日消息.md", path: "/scratch/s1/今日消息.md", mime: "text/markdown" };
+    const p = props({ resetKey: "s1", prefill: { nonce: 1, text: "总结今日已读、未读和@我的事项", attachments: [attachment] } });
+    render(<Composer {...p} />);
+    expect(await screen.findByText("今日消息.md")).toBeTruthy();
+    expect((box() as HTMLTextAreaElement).value).toBe(p.prefill!.text);
+    expect(p.onSend).not.toHaveBeenCalled();
+    fireEvent.keyDown(box(), { key: "Enter" });
+    await waitFor(() => expect(p.onSend).toHaveBeenCalledWith(p.prefill!.text, [attachment], undefined));
+    expect(vi.mocked(p.onSend).mock.calls[0][1]?.[0].text).toBeUndefined();
+  });
   it("opens on a leading '/' and lists only enabled skills from the effective menu", async () => {
     stubFetch();
     render(<Composer {...props()} />);

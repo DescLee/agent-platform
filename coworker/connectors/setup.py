@@ -61,17 +61,10 @@ def connector_list(secrets: SecretStore) -> list[dict[str, Any]]:
         if d.experimental and not show_experimental:
             continue
         profile = secrets.get(f"{d.name}:default") or {}
-        if d.name == "dingtalk":
-            import shutil, subprocess
-            dws = shutil.which("dws")
-            cli_ready = bool(dws)
-            authenticated = False
-            if dws:
-                try:
-                    status = subprocess.run([dws, "auth", "status"], capture_output=True, text=True, timeout=10)
-                    authenticated = status.returncode == 0 and '"authenticated": true' in status.stdout.lower()
-                except (OSError, subprocess.SubprocessError):
-                    pass
+        if d.name in {"dingtalk", "feishu", "wecom"}:
+            from .cli_connectors import state
+
+            cli_ready, authenticated = state(d.name)
             connected = authenticated
         elif d.mcp_url and profile.get("mode") == "mcp":
             # MCP-backed connect: the profile is just a marker — connected-ness
@@ -190,7 +183,7 @@ def connector_list(secrets: SecretStore) -> list[dict[str, Any]]:
             entry["account"] = (default_row or {}).get("name") or None
             entry["managed_profile"] = bool((default_row or {}).get("managed"))
             entry["hidden_fields"] = hubspot_portals.get_hidden_fields(secrets)
-        if d.name == "dingtalk":
+        if d.name in {"dingtalk", "feishu", "wecom"}:
             entry["cli_ready"] = cli_ready
             entry["authenticated"] = authenticated
             # DWS keeps credentials outside SecretStore; a successful CLI login is

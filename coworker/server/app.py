@@ -1379,11 +1379,24 @@ def create_app(manager: SessionManager) -> FastAPI:
     def connectors_list() -> dict[str, Any]:
         return {"connectors": manager.list_connectors()}
 
-    @app.post("/v1/connectors/dingtalk/action")
-    async def dingtalk_action(body: dict[str, Any] | None = None) -> dict[str, Any]:
+    cli_connecting: dict[str, object] = {}
+
+    @app.post("/v1/connectors/{name}/cli-action")
+    async def connector_cli_action(name: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
         import shutil, subprocess
+        from ..connectors.cli_connectors import (
+            CONNECTORS as CLI_CONNECTORS,
+            cancel_connect,
+            connect_commands,
+            connect_feishu_interactive,
+            install_command,
+            reset,
+        )
+
+        if name not in CLI_CONNECTORS:
+            return {"ok": False, "error": "不是受支持的 CLI 连接器"}
         action = (body or {}).get("action")
-        if action == "install":
+        if action == "install" and name == "dingtalk":
             try:
                 root = subprocess.run(["npm", "root", "-g"], capture_output=True, text=True, timeout=10)
                 if root.returncode == 0:
@@ -1393,21 +1406,51 @@ def create_app(manager: SessionManager) -> FastAPI:
                     shutil.rmtree(package_root / "dingtalk-workspace-cli", ignore_errors=True)
             except (OSError, subprocess.SubprocessError):
                 pass
-        cmd = (
-            ["npm", "install", "-g", "dingtalk-workspace-cli", "--force"]
-            if action == "install"
-            else [shutil.which("dws") or "dws", "auth", "login", "-y"]
-            if action == "connect"
-            else [shutil.which("dws") or "dws", "auth", "reset", "-y"]
-            if action == "reset"
-            else None
-        )
-        if cmd is None:
+        if action == "cancel":
+            cli_connecting.pop(name, None)
+            await asyncio.to_thread(cancel_connect, name)
+            return {"ok": True}
+        if action not in {"install", "connect", "reset"}:
             return {"ok": False, "error": "不支持的操作"}
+        if action == "connect" and name == "feishu":
+            if name in cli_connecting:
+                return {"ok": True, "started": True}
+            token = object()
+            cli_connecting[name] = token
+
+            async def finish_feishu_connect() -> None:
+                try:
+                    await asyncio.to_thread(connect_feishu_interactive)
+                finally:
+                    if cli_connecting.get(name) is token:
+                        cli_connecting.pop(name, None)
+
+            asyncio.create_task(finish_feishu_connect())
+            return {"ok": True, "started": True}
         try:
-            result = await asyncio.to_thread(subprocess.run, cmd, capture_output=True, text=True, timeout=300)
+            if action == "reset":
+                result = await asyncio.to_thread(reset, name)
+            else:
+                commands = [install_command(name)] if action == "install" else connect_commands(name)
+                result = None
+                for cmd in commands:
+                    result = await asyncio.to_thread(
+                        subprocess.run, cmd, capture_output=True, text=True, timeout=300
+                    )
+                    if result.returncode != 0:
+                        break
         except (OSError, subprocess.SubprocessError) as exc:
             return {"ok": False, "error": str(exc)}
+        assert result is not None
+        if action == "install" and result.returncode == 0:
+            from ..connectors.connector_skills import install_connector_skills
+
+            try:
+                skills_dir = await asyncio.to_thread(install_connector_skills, name)
+            except Exception as exc:
+                return {"ok": False, "error": f"连接器已安装，但 Skills 安装失败: {exc}"}
+            if skills_dir is None:
+                return {"ok": False, "error": "连接器已安装，但没有找到对应 Skills"}
         return {"ok": True} if result.returncode == 0 else {"ok": False, "error": (result.stderr or result.stdout or "操作失败").strip()}
 
     async def _refresh_listeners_if_two_way(name: str) -> None:
@@ -2543,6 +2586,10 @@ def create_app(manager: SessionManager) -> FastAPI:
                 manager.inbox.resolve(pend[0].id, resolution)
 
         workspace = ws.query_params.get("workspace")
+        try:
+            initial_mode = Mode(ws.query_params.get("mode")) if ws.query_params.get("mode") else None
+        except ValueError:
+            initial_mode = None
         mcp_tools = await manager.prepare_mcp_tools(
             session_id, workspace=workspace, agent=agent
         )
@@ -2558,6 +2605,7 @@ def create_app(manager: SessionManager) -> FastAPI:
             tool_requester=tool_requester,
             team_approver=team_approver,
             items_approver=items_approver,
+            initial_mode=initial_mode,
         )
         if engine is None:
             await ws.send_json(

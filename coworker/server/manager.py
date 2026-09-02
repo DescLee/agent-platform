@@ -575,6 +575,7 @@ class SessionManager:
         tool_requester: Optional[Any] = None,
         team_approver: Optional[Any] = None,
         items_approver: Optional[Any] = None,
+        initial_mode: Optional[Mode] = None,
     ) -> Optional[TurnEngine]:
         engine = self._engines.get(session_id)
         if engine is not None:
@@ -604,7 +605,7 @@ class SessionManager:
             model, mode, messages = record.model, Mode(record.mode), record.messages
         else:
             ws = self.resolve_workspace(workspace)
-            model, mode, messages = self.model, self.mode, None
+            model, mode, messages = self.model, initial_mode or self.mode, None
 
         if not ws or not Path(ws).is_dir():
             # Sessions without a folder start "orphan": auto-provision a per-conversation
@@ -702,9 +703,7 @@ class SessionManager:
             ),
             # Persona-carried skills (OPE-58): the bundle's skills/ dir joins the loader
             # so its skills are readable, not just listed.
-            extra_skill_dirs=(
-                [d] if (d := self.persona_skill_scope(agent_name)[0]) is not None else None
-            ),
+            extra_skill_dirs=self._extra_skill_dirs(session_id, agent_name),
             # Auto-Approve (spec §1.5): prefs-backed, so the Settings toggle takes effect on
             # the next session build without a config.toml edit.
             auto_approve=self.auto_approve(),
@@ -1472,19 +1471,23 @@ class SessionManager:
         d = get_descriptor(name)
         if d is None or not d.mcp_url:
             return {"ok": False, "error": f"{name} has no MCP connect path"}
-        put_global_server(
-            name,
-            {
-                "url": d.mcp_url,
-                "auth": "oauth",
-                # Server-level approval off: writes gate per-tool via the pinned
-                # read/write classification (prepare_mcp_tools); unknown vendor
-                # tools never load at all (include_tools).
-                "requires_approval": False,
-                "include_tools": mcp_pinned_tools(name),
-                "enabled": True,
-            },
-        )
+        pinned_tools = mcp_pinned_tools(name)
+        server_config: dict[str, Any] = {
+            "url": d.mcp_url,
+            "auth": "oauth",
+            "enabled": True,
+        }
+        if pinned_tools:
+            # Curated connectors classify writes per tool and reject vendor drift.
+            server_config.update(
+                {"requires_approval": False, "include_tools": pinned_tools}
+            )
+        else:
+            # Some official MCP connectors publish no stable tool manifest. Load
+            # their advertised tools dynamically, but keep every call behind the
+            # server-level approval gate until a curated allowlist is available.
+            server_config["requires_approval"] = True
+        put_global_server(name, server_config)
         result = await self.connect_mcp(name)
         if result.get("ok"):
             profile = self.secrets.get(f"{name}:default") or {}
@@ -4433,9 +4436,7 @@ class SessionManager:
             skill_filter=lambda sid=session_id, w=task.workspace, a=task.agent: (
                 self.effective_skill_names(sid, w, agent=a)
             ),
-            extra_skill_dirs=(
-                [d] if (d := self.persona_skill_scope(task.agent)[0]) is not None else None
-            ),
+            extra_skill_dirs=self._extra_skill_dirs(session_id, task.agent),
         )
         self._seed_task_permissions(engine, task)
         return engine
@@ -5817,6 +5818,46 @@ class SessionManager:
         allow = {s for s in manifest.skills if s} or None
         return d, allow
 
+    def connector_skill_scope(
+        self, session_id: str, agent: Optional[str] = None
+    ) -> tuple[list[Path], set[str]]:
+        """Installed skills whose owning connector is ready+enabled in this session."""
+        from ..connectors.connector_skills import (
+            SKILL_CONNECTORS,
+            connector_skill_cache_dir,
+        )
+        from ..connectors.cli_connectors import state
+
+        effective = self.effective_connectors(session_id, agent)
+        directories: list[Path] = []
+        names: set[str] = set()
+        for connector in SKILL_CONNECTORS:
+            if connector not in effective:
+                continue
+            cli_ready, authenticated = state(connector)
+            directory = connector_skill_cache_dir(connector)
+            if not cli_ready or not authenticated or not directory.is_dir():
+                continue
+            directories.append(directory)
+            names |= set(SkillLoader([directory]).names())
+        return directories, names
+
+    def _extra_skill_dirs(self, session_id: str, agent: Optional[str]) -> list[Path] | None:
+        from ..connectors.connector_skills import (
+            SKILL_CONNECTORS,
+            connector_skill_cache_dir,
+        )
+
+        dirs: list[Path] = []
+        persona_dir, _allow = self.persona_skill_scope(self._persona_of(session_id, agent))
+        if persona_dir is not None:
+            dirs.append(persona_dir)
+        # Keep the stable cache path in every loader. The live skill filter keeps
+        # its contents invisible until Feishu is ready+enabled; once it becomes
+        # ready, the loader's per-turn rescan sees the freshly exported skills.
+        dirs.extend(connector_skill_cache_dir(name) for name in SKILL_CONNECTORS)
+        return dirs
+
     def effective_skill_names(
         self,
         session_id: str,
@@ -5838,6 +5879,8 @@ class SessionManager:
             if allow is not None:
                 persona_names &= allow
             names |= persona_names
+        _connector_dirs, connector_names = self.connector_skill_scope(session_id, agent)
+        names |= connector_names
         return effective_skills(
             names=names,
             disabled=self.skill_store.disabled_names(),
@@ -5855,6 +5898,11 @@ class SessionManager:
         rows = [
             {
                 "name": r["name"],
+                **(
+                    {"display_name": r["display_name"]}
+                    if r.get("display_name")
+                    else {}
+                ),
                 "description": r["description"],
                 "scope": r["scope"],
                 "enabled": overrides.get(r["name"], True),

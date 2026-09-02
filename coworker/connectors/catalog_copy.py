@@ -54,8 +54,10 @@ ABOUT: dict[str, str] = {
     "asana": "Keep up with your Asana work — search and read tasks and "
     "projects, create tasks, and comment. Connects with a personal access "
     "token from the Asana developer console.",
-    "dingtalk": "Use the locally authenticated DingTalk Workspace CLI to send "
-    "messages to your own DingTalk account or another user.",
+    "dingtalk": "通过本机钉钉工作区命令行工具使用消息、通讯录、文档与知识库、钉盘、日历、待办、邮箱、审批、智能表格和智能听记等能力。安装连接器时会同时安装钉钉技能，连接器已就绪并在当前对话启用后才会加载。",
+    "feishu": "通过飞书官方命令行工具使用消息与群组、通讯录、云文档、电子表格与多维表格、任务、会议与妙记、邮箱和审批。安装连接器时会同时安装飞书技能，连接器已就绪并在当前对话启用后才会加载。",
+    "wecom": "通过本机企业微信命令行工具使用通讯录、消息、文档、会议、日程、待办、表格、智能表格和智能文档。安装连接器时会同时安装企业微信技能，连接器已就绪并在当前对话启用后才会加载。",
+    "tencent_docs": "通过腾讯文档远程服务读取和管理授权范围内的文档与表格。腾讯文档不安装本地技能，连接后直接使用远程工具。",
 }
 
 # What connecting actually grants, as short honest bullets. Write powers always
@@ -177,8 +179,30 @@ ACCESS: dict[str, list[str]] = {
         "Comments as you — never edits a design.",
     ],
     "dingtalk": [
-        "Sends text messages through your locally authenticated DingTalk account.",
-        "The recipient must be your own account or an explicitly supplied userId.",
+        "读取和发送消息，并可管理群聊、联系人及组织通讯录。",
+        "读取和操作文档、知识库、钉盘文件、智能表格与电子表格。",
+        "读取和管理日历、待办、邮箱、审批、智能听记等协作数据。",
+        "写入、发送、删除或审批等操作会使用当前登录的钉钉身份。",
+        "凭据与技能保存在本机；仅在连接器已就绪且当前对话启用时加载技能。",
+    ],
+    "feishu": [
+        "读取和发送消息，并可管理群组、成员、表情回复和置顶消息。",
+        "读取通讯录，并操作云文档、电子表格、多维表格、幻灯片、任务、会议和妙记。",
+        "获得相应授权后，可以读取和发送邮件，以及处理审批。",
+        "包含删除数据、修改文档访问权限和转移文档所有权等敏感写入能力。",
+        "使用飞书官方命令行工具；请在飞书授权页面核对并确认所申请的权限。",
+    ],
+    "wecom": [
+        "读取企业通讯录，并可查询成员与部门信息。",
+        "读取和发送企业微信消息，并使用当前登录身份执行相关操作。",
+        "读取和管理文档、会议、日程、待办、表格、智能表格与智能文档。",
+        "访问范围受登录时授权的企业身份和企业微信权限限制。",
+        "凭据与技能保存在本机；仅在连接器已就绪且当前对话启用时加载技能。",
+    ],
+    "tencent_docs": [
+        "通过腾讯文档登录授权读取可访问的文档与表格。",
+        "可通过远程服务创建或修改腾讯文档内容；写入操作执行前需要确认。",
+        "访问范围由腾讯文档账号授权决定，不会安装本地技能。",
     ],
     "close": [
         "Reads leads, contacts, and opportunities.",

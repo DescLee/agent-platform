@@ -27,6 +27,7 @@ import {
   type Subscription,
 } from "../api";
 import { ConnectorBadge } from "../connectors/ConnectorIcon";
+import { AVAILABLE_CONNECTOR_NAMES } from "../connectors/catalog";
 import { indexConnectors, labelFor, visualFor, type ConnectorMap } from "../connectors/visuals";
 import { baseName } from "../paths";
 import { useRoots } from "../useRoots";
@@ -86,6 +87,14 @@ export function AccessSection({
   useEffect(() => {
     reload();
   }, [reload]);
+  useEffect(() => {
+    const refresh = (event: Event) => {
+      const changed = (event as CustomEvent<{ sessionId?: string }>).detail;
+      if (!changed?.sessionId || changed.sessionId === sessionId) reload();
+    };
+    window.addEventListener("ocw-session-connections-changed", refresh);
+    return () => window.removeEventListener("ocw-session-connections-changed", refresh);
+  }, [reload, sessionId]);
 
   // The connector index feeds brand colors and gates the "Channels ·" links; refetch on every
   // expand so a single failed fetch at mount can't hide them for the session's whole lifetime.
@@ -111,7 +120,7 @@ export function AccessSection({
   // Child views (connect-in-context / channels drill-down) replace the section body inline.
   const [channelsFor, setChannelsFor] = useState<string | null>(null);
   const [connectFor, setConnectFor] = useState<Connector | null>(null);
-  // "+ Add a source…" (§32 addendum): the FULL catalog in-session. The list shows on focus,
+  // "+ Add a source…" (§32 addendum): the same curated catalog as Connectors. It shows on focus,
   // before any typing (FB-012: typing-to-see was a hidden step), and the query filters it
   // live; rich browsing (detail pages, connect states) stays on the global Connectors page.
   const [adding, setAdding] = useState(false);
@@ -200,6 +209,7 @@ export function AccessSection({
     .filter(
       (c) =>
         c.available &&
+        (c.connected || AVAILABLE_CONNECTOR_NAMES.has(c.name)) &&
         !connectedSet.has(c.name) &&
         (!q ||
           c.title.toLowerCase().includes(q) ||
@@ -322,7 +332,7 @@ export function AccessSection({
                     </div>
                   ))}
                 </div>
-                {/* §32 addendum (owner ask 2026-07-13; FB-012): the catalog's long tail,
+                {/* §32 addendum (owner ask 2026-07-13; FB-012): the productized catalog,
                     in-session. A quiet row that becomes a typeahead: full list on focus,
                     filter as you type. */}
                 {adding ? (

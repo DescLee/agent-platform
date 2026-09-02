@@ -169,6 +169,26 @@ def test_home_model_default_applies_to_new_sessions_but_not_history(tmp_path, mo
     assert restarted.get_engine("history", workspace=tmp_path).model == old_model
 
 
+def test_initial_approval_mode_applies_only_to_new_sessions(tmp_path):
+    from coworker.permissions import Mode
+    from coworker.server.manager import SessionManager
+
+    manager = SessionManager(data_dir=tmp_path / "data")
+    existing = manager.get_engine(
+        "history", workspace=tmp_path, initial_mode=Mode.INTERACTIVE
+    )
+    existing.messages.append({"role": "user", "content": "已有对话"})
+    manager.save("history", existing)
+    manager._engines.pop("history", None)
+
+    assert manager.get_engine(
+        "new", workspace=tmp_path, initial_mode=Mode.AUTO_APPROVE
+    ).permissions.mode is Mode.AUTO_APPROVE
+    assert manager.get_engine(
+        "history", workspace=tmp_path, initial_mode=Mode.AUTO_APPROVE
+    ).permissions.mode is Mode.INTERACTIVE
+
+
 def test_nav_layout_setting_roundtrips(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
 

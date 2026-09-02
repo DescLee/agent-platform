@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
-import { dingtalkAction, type CloudStatus, type Connector, type McpServer, type SlackStatus } from "../../api";
+import { useEffect, useRef, useState } from "react";
+import { connectorCliAction, getConnectors, type CloudStatus, type Connector, type McpServer, type SlackStatus } from "../../api";
 import { ConnectorBadge } from "../../connectors/ConnectorIcon";
+import { AVAILABLE_CONNECTOR_NAMES, CLI_CONNECTOR_NAMES } from "../../connectors/catalog";
 import { AddConnectionModal } from "./AddConnectionModal";
 import { AddMcpModal, CustomMcpGroup } from "./CustomMcp";
 import { CHIP_OK, CHIP_OFF, CHIP_WARN, GRP, GRP_H, PILL_QUIET, ROW } from "./ui";
@@ -11,12 +12,14 @@ import { CHIP_OK, CHIP_OFF, CHIP_WARN, GRP, GRP_H, PILL_QUIET, ROW } from "./ui"
 // Custom MCP servers (UX-034) render as their own group after Connected; the "Add
 // custom server" affordance sits at the top of the page (owner ruling: top).
 
-const AVAILABLE_CONNECTORS = new Set(["figma", "dingtalk"]);
 const CONNECTOR_COPY: Record<string, { title: string; blurb: string }> = {
   browser: { title: "浏览器", blurb: "读取网页并执行浏览器操作。" },
   github: { title: "GitHub", blurb: "处理议题、拉取请求、仓库文件和持续集成状态。" },
   figma: { title: "Figma", blurb: "读取和管理 Figma 设计文件与团队资源。" },
-  dingtalk: { title: "钉钉", blurb: "访问钉钉消息、文档、日历和组织协作能力。" },
+  dingtalk: { title: "钉钉", blurb: "使用消息、通讯录、文档与知识库、日历、待办、邮箱、审批和智能协作能力。" },
+  feishu: { title: "飞书", blurb: "使用消息与群组、通讯录、云文档与表格、任务、会议、妙记、邮箱和审批。" },
+  wecom: { title: "企业微信", blurb: "使用通讯录、消息、文档、会议、日程、待办、表格和智能文档。" },
+  tencent_docs: { title: "腾讯文档", blurb: "通过远程服务读取和管理授权范围内的腾讯文档与表格。" },
   notion: { title: "Notion", blurb: "搜索、读取和管理 Notion 页面与数据库。" },
 };
 
@@ -40,10 +43,11 @@ export function ConnectorsList({
   const [filter, setFilter] = useState("");
   const [connecting, setConnecting] = useState<string | null>(null);
   const [addingMcp, setAddingMcp] = useState(false);
-  const [dingtalkBusy, setDingtalkBusy] = useState(false);
-  const [dingtalkActionType, setDingtalkActionType] = useState<"install" | "connect" | null>(null);
-  const [dingtalkHover, setDingtalkHover] = useState(false);
+  const [cliBusy, setCliBusy] = useState<string | null>(null);
+  const [cliActionType, setCliActionType] = useState<"install" | "connect" | null>(null);
+  const [cliHover, setCliHover] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const cliOperation = useRef(0);
 
   useEffect(() => {
     const open = () => setAddingMcp(true);
@@ -64,15 +68,25 @@ export function ConnectorsList({
   const q = filter.trim().toLowerCase();
   const match = (c: Connector) => !q || c.title.toLowerCase().includes(q) || c.name.includes(q) || CONNECTOR_COPY[c.name]?.title.toLowerCase().includes(q);
   const connected = connectors.filter((c) => c.connected && match(c));
-  const available = connectors.filter((c) => !c.connected && c.available && AVAILABLE_CONNECTORS.has(c.name) && match(c));
+  const available = connectors.filter((c) => !c.connected && c.available && AVAILABLE_CONNECTOR_NAMES.has(c.name) && match(c));
   const customMcp = mcpServers.filter((s) => s.name !== "granola" && (!q || s.name.toLowerCase().includes(q)));
   const shown = available;
   const connectingC = connecting ? connectors.find((c) => c.name === connecting) : null;
 
+  const waitForCliAuth = async (name: string, operation: number) => {
+    for (let attempt = 0; attempt < 120; attempt += 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, 2500));
+      if (cliOperation.current !== operation) return false;
+      const latest = await getConnectors();
+      if (latest.find((item) => item.name === name)?.authenticated) return true;
+    }
+    return false;
+  };
+
   return (
     <div>
       {toast && <div className="pointer-events-none fixed left-1/2 top-7 z-[70] -translate-x-1/2 rounded-xl border border-line bg-panel px-4 py-3 text-[13px] text-ink shadow-xl" role="status">{toast}</div>}
-      {dingtalkBusy && dingtalkActionType === "install" && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-paper/70 backdrop-blur-[2px]" role="status"><div className="flex items-center gap-3 rounded-xl border border-line bg-panel px-5 py-4 text-[14px] text-ink shadow-xl"><span className="h-5 w-5 animate-spin rounded-full border-2 border-line border-t-accent" /><span>第一次安装时间比较久，请耐心等待</span></div></div>}
+      {cliBusy && cliActionType === "install" && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-paper/70 backdrop-blur-[2px]" role="status"><div className="flex items-center gap-3 rounded-xl border border-line bg-panel px-5 py-4 text-[14px] text-ink shadow-xl"><span className="h-5 w-5 animate-spin rounded-full border-2 border-line border-t-accent" /><span>首次使用或更新需要安装连接器依赖，正在安装中，请稍后...</span></div></div>}
       {/* No cloud strip here anymore (§26): the sidebar's account row is the permanent
           sign-in home, and the connect modals keep their inline sign-in panes. */}
       {connected.length > 0 && (
@@ -125,31 +139,45 @@ export function ConnectorsList({
             <span
               className={PILL_QUIET + " cursor-pointer"}
               role="button"
-              onMouseEnter={() => setDingtalkHover(true)}
-              onMouseLeave={() => setDingtalkHover(false)}
+              onMouseEnter={() => setCliHover(c.name)}
+              onMouseLeave={() => setCliHover(null)}
               onClick={(e) => {
                 e.stopPropagation();
-                if (c.name === "dingtalk") {
-                  if (dingtalkBusy && dingtalkActionType === "connect") {
-                    setDingtalkBusy(false);
-                    setDingtalkActionType(null);
+                if (CLI_CONNECTOR_NAMES.has(c.name)) {
+                  if (cliBusy === c.name && cliActionType === "connect") {
+                    cliOperation.current += 1;
+                    void connectorCliAction(c.name, "cancel");
+                    setCliBusy(null);
+                    setCliActionType(null);
                     setToast("已取消连接");
                     return;
                   }
-                  setDingtalkBusy(true);
+                  setCliBusy(c.name);
+                  const operation = ++cliOperation.current;
                   const action = c.cli_ready ? "connect" : "install";
-                  setDingtalkActionType(action);
+                  setCliActionType(action);
                   if (action === "install") setToast("第一次安装时间比较久，请耐心等待");
-                  void dingtalkAction(action).then((result) => {
-                    setToast(result.ok ? (action === "install" ? "安装成功" : "连接成功") : (action === "install" ? "安装失败" : "连接失败"));
+                  void connectorCliAction(c.name, action).then(async (result) => {
+                    const connected = result.ok && result.started
+                      ? await waitForCliAuth(c.name, operation)
+                      : result.ok;
+                    if (cliOperation.current !== operation) return;
+                    setToast(connected ? (action === "install" ? "安装成功" : "连接成功") : (action === "install" ? "安装失败" : "连接失败或已超时"));
                     onChanged();
-                  }).catch(() => setToast(action === "install" ? "安装失败" : "连接失败")).finally(() => { setDingtalkBusy(false); setDingtalkActionType(null); });
+                  }).catch(() => {
+                    if (cliOperation.current === operation) setToast(action === "install" ? "安装失败" : "连接失败");
+                  }).finally(() => {
+                    if (cliOperation.current === operation) {
+                      setCliBusy(null);
+                      setCliActionType(null);
+                    }
+                  });
                   return;
                 }
                 setConnecting(c.name);
               }}
             >
-              {dingtalkBusy && c.name === "dingtalk" ? (dingtalkActionType === "connect" ? (dingtalkHover ? "取消" : "连接中…") : "安装中…") : c.name === "dingtalk" ? (c.cli_ready ? (c.authenticated ? "已连接" : "连接") : "安装") : "连接"}
+              {cliBusy === c.name ? (cliActionType === "connect" ? (cliHover === c.name ? "取消" : "连接中…") : "安装中…") : CLI_CONNECTOR_NAMES.has(c.name) ? (c.cli_ready ? (c.authenticated ? "已连接" : "连接") : "安装") : "连接"}
             </span>
           </button>
         ))}
@@ -178,6 +206,7 @@ function statusLine(c: Connector): string {
   }
   if ((c.accounts?.length ?? 0) > 1) return `${c.accounts!.length} 个账号`;
   if ((c.portals?.length ?? 0) > 1) return `${c.portals!.length} 个门户`;
+  if (CLI_CONNECTOR_NAMES.has(c.name)) return CONNECTOR_COPY[c.name]?.blurb || c.blurb;
   if (c.auth === "none") return "内置";
   return c.account || "已连接";
 }

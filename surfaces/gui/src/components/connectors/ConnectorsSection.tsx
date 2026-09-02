@@ -1,11 +1,13 @@
 import { useEffect, useLayoutEffect, useState } from "react";
 import {
-  dingtalkAction,
+  connectorCliAction,
   disconnectConnector,
   getCloudStatus,
   getConnectors,
   getMcpServers,
+  getSessionConnections,
   getSlackStatus,
+  setSessionConnection,
   type CloudStatus,
   type Connector,
   type McpServer,
@@ -22,7 +24,8 @@ import { GithubDetail } from "./GithubDetail";
 import { GmailDetail } from "./GmailDetail";
 import { HubSpotDetail } from "./HubSpotDetail";
 import { SlackDetail } from "./SlackDetail";
-import { GRP } from "./ui";
+import { GRP, GRP_H, ROW } from "./ui";
+import { Toggle } from "../Toggle";
 
 // Connectors surface = LIST ⇄ per-connector DETAIL SUBPAGE (UX-DECISIONS §21). The
 // Integrations sub-nav never grows per-connector items; detail pages live behind a
@@ -53,7 +56,7 @@ const DETAIL_PAGES: Record<string, (p: DetailProps) => JSX.Element> = {
   hunter: (p) => <AccountsDetail {...p} />,
 };
 
-export function ConnectorsSection({ onNavigate }: { onNavigate?: () => void } = {}) {
+export function ConnectorsSection({ onNavigate, sessionId, personaId }: { onNavigate?: () => void; sessionId?: string; personaId?: string } = {}) {
   const [detail, setDetail] = useState<string | null>(null);
   useLayoutEffect(() => { onNavigate?.(); }, [detail, onNavigate]);
   const [connectors, setConnectors] = useState<Connector[]>([]);
@@ -133,16 +136,21 @@ export function ConnectorsSection({ onNavigate }: { onNavigate?: () => void } = 
           /* Pre-connect page (§38). When a connect completes, the poll flips
              c.connected and this same route re-renders as the connected page. */
           <AvailableDetail c={c} cloud={cloud} onChanged={refresh} />
-        ) : Page ? (
-          <Page c={c} cloud={cloud} slack={slack} onChanged={refresh} />
         ) : (
-          <GenericDetail
-            c={c}
-            cloud={cloud}
-            slack={slack}
-            onChanged={refresh}
-            onGone={() => setDetail(null)}
-          />
+          <>
+            {sessionId && <SessionEnableRow sessionId={sessionId} personaId={personaId} connector={c.name} />}
+            {Page ? (
+              <Page c={c} cloud={cloud} slack={slack} onChanged={refresh} />
+            ) : (
+              <GenericDetail
+                c={c}
+                cloud={cloud}
+                slack={slack}
+                onChanged={refresh}
+                onGone={() => setDetail(null)}
+              />
+            )}
+          </>
         )}
       </div>
     );
@@ -161,6 +169,53 @@ export function ConnectorsSection({ onNavigate }: { onNavigate?: () => void } = 
   );
 }
 
+function SessionEnableRow({ sessionId, personaId, connector }: { sessionId: string; personaId?: string; connector: string }) {
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let live = true;
+    getSessionConnections(sessionId, personaId)
+      .then((result) => {
+        const row = result.connected.find((item) => item.connector === connector);
+        if (live) setEnabled(row?.enabled ?? false);
+      })
+      .catch(() => live && setError("无法读取当前会话的启用状态。"));
+    return () => { live = false; };
+  }, [sessionId, personaId, connector]);
+
+  const change = async (next: boolean) => {
+    setSaving(true);
+    setError("");
+    const previous = enabled;
+    setEnabled(next);
+    try {
+      const result = await setSessionConnection(sessionId, connector, next);
+      if (!result.ok) throw new Error(result.error || "保存失败");
+      window.dispatchEvent(new CustomEvent("ocw-session-connections-changed", { detail: { sessionId } }));
+    } catch {
+      setEnabled(previous);
+      setError("启用状态保存失败，请重试。")
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className={GRP + " mb-4"} data-testid="connector-session-enable">
+      <div className={ROW}>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[13px] font-medium">启用</span>
+          <span className="block text-[12px] text-muted">允许当前会话使用此连接器。</span>
+        </span>
+        <Toggle checked={enabled ?? false} disabled={enabled === null || saving} onChange={change} ariaLabel="在当前会话中启用连接器" />
+      </div>
+      {error && <div className="border-t border-line px-3 py-2 text-[12px] text-danger" role="alert">{error}</div>}
+    </div>
+  );
+}
+
 // Fallback detail page: status header + the connector's existing config blocks
 // (tools; allow-list/parked/listening for two-way) + Disconnect. Bespoke pages
 // (Slack/Gmail/HubSpot) replace this one connector at a time.
@@ -174,13 +229,14 @@ function GenericDetail({
   const [resetting, setResetting] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
+  const isCliConnector = ["dingtalk", "feishu", "wecom"].includes(c.name);
 
-  const resetDingtalk = async () => {
+  const resetCliConnector = async () => {
     setResetConfirmOpen(false);
     setResetting(true);
     setResetError(null);
     try {
-      const result = await dingtalkAction("reset");
+      const result = await connectorCliAction(c.name, "reset");
       if (!result.ok) {
         setResetError(result.error || "重置连接失败");
         return;
@@ -200,17 +256,14 @@ function GenericDetail({
         <ConnectorBadge connector={c} size={44} title={c.title} />
         <div className="min-w-0 flex-1">
           <h2 className="text-[20px] font-semibold tracking-tight leading-tight">{c.title}</h2>
-          <div className="text-[13px] text-muted flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-ok" />
-            {c.account || (c.auth === "none" ? "内置" : "已连接")}
-          </div>
+          <div className="text-[13px] text-muted">{c.blurb}</div>
         </div>
-        {(c.auth !== "none" || c.name === "dingtalk") && (
+        {(c.auth !== "none" || isCliConnector) && (
           <button
             className="text-[13px] text-danger/80 hover:text-danger shrink-0"
             disabled={resetting}
             onClick={async () => {
-              if (c.name === "dingtalk") {
+              if (isCliConnector) {
                 setResetConfirmOpen(true);
                 return;
               } else {
@@ -220,7 +273,7 @@ function GenericDetail({
               onGone();
             }}
           >
-          {c.name === "dingtalk" ? (resetting ? "重置中…" : "重置连接") : "断开连接"}
+          {isCliConnector ? (resetting ? "重置中…" : "重置连接") : "断开连接"}
           </button>
         )}
       </div>
@@ -231,6 +284,20 @@ function GenericDetail({
         </div>
       )}
 
+      {c.about && <p className="mb-1 px-0.5 text-[13px] leading-relaxed text-ink/90">{c.about}</p>}
+
+      {(c.access?.length ?? 0) > 0 && (
+        <>
+          <div className={GRP_H}>访问权限</div>
+          <div className={GRP}>
+            {c.access!.map((line) => (
+              <div key={line} className={ROW + " !min-h-[36px] !py-2 text-[13px]"}>{line}</div>
+            ))}
+          </div>
+        </>
+      )}
+
+      <div className={GRP_H}>工具</div>
       <div className={GRP}>
         <ConnectorTools c={c} onChanged={onChanged} />
       </div>
@@ -246,13 +313,13 @@ function GenericDetail({
       )}
 
       {resetConfirmOpen && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/30 px-4" role="dialog" aria-modal="true" aria-labelledby="dingtalk-reset-title">
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/30 px-4" role="dialog" aria-modal="true" aria-labelledby="cli-reset-title">
           <div className="w-full max-w-[420px] rounded-xl border border-line bg-panel p-5 shadow-xl">
-            <h3 id="dingtalk-reset-title" className="text-[16px] font-semibold text-ink">重置钉钉连接？</h3>
-            <p className="mt-2 text-[13px] leading-5 text-muted">这会清除本机钉钉登录状态，之后需要重新扫码或登录。</p>
+            <h3 id="cli-reset-title" className="text-[16px] font-semibold text-ink">重置{c.title}连接？</h3>
+            <p className="mt-2 text-[13px] leading-5 text-muted">这会清除本机{c.title}登录状态，之后需要重新扫码或登录。</p>
             <div className="mt-5 flex justify-end gap-3">
               <button className="text-[13px] text-muted hover:text-ink" onClick={() => setResetConfirmOpen(false)}>取消</button>
-              <button className="rounded-md bg-danger px-3 py-1.5 text-[13px] text-white hover:bg-danger/90" onClick={() => void resetDingtalk()}>确认重置</button>
+              <button className="rounded-md bg-danger px-3 py-1.5 text-[13px] text-white hover:bg-danger/90" onClick={() => void resetCliConnector()}>确认重置</button>
             </div>
           </div>
         </div>

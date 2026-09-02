@@ -782,8 +782,8 @@ export async function connectConnector(
   return res.json();
 }
 
-export async function dingtalkAction(action: "install" | "connect" | "reset"): Promise<{ ok: boolean; error?: string }> {
-  const res = await fetch(`${httpBase()}/v1/connectors/dingtalk/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) });
+export async function connectorCliAction(name: string, action: "install" | "connect" | "reset" | "cancel"): Promise<{ ok: boolean; started?: boolean; error?: string }> {
+  const res = await fetch(`${httpBase()}/v1/connectors/${encodeURIComponent(name)}/cli-action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) });
   return res.json();
 }
 
@@ -1467,6 +1467,7 @@ export interface SkillRow {
 
 export interface SessionSkillRow {
   name: string;
+  display_name?: string;
   description: string;
   scope: "global" | "project";
   enabled: boolean; // false = muted for this session only
@@ -2546,8 +2547,9 @@ export class Session {
   // against the first message being dropped if the user sends in the connect window.
   private outbox: object[] = [];
 
-  constructor(sessionId: string, workspace: string, agent: string, handlers: Handlers) {
-    const q = `?workspace=${encodeURIComponent(workspace)}&agent=${encodeURIComponent(agent)}`;
+  constructor(sessionId: string, workspace: string, agent: string, handlers: Handlers, initialMode?: string) {
+    const q = `?workspace=${encodeURIComponent(workspace)}&agent=${encodeURIComponent(agent)}` +
+      (initialMode ? `&mode=${encodeURIComponent(initialMode)}` : "");
     this.ws = openWebSocket(`${wsBase()}/ws/session/${sessionId}${q}`);
     this.ws.onmessage = (e) => {
       try {

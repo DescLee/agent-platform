@@ -20,8 +20,8 @@ import {
 // polished enough to ship, and Custom (config.toml auto-allow rules) is a power-user mode
 // with no in-app explanation. The server still honors both — a session already in one of
 // those modes keeps working; the picker just doesn't offer them.
-// "auto" is the legacy wire value for Bypass approvals (server: Mode.BYPASS_APPROVALS) —
-// kept so saved sessions and configs keep working. Selecting the reviewer mode explicitly
+// Saved legacy "auto" values are normalized by the app to the current wire value.
+// Selecting the reviewer mode explicitly
 // enables its user-global feature flag before changing the session mode.
 type ModeOption = Option & { caution?: boolean };
 const PERMISSION_OPTIONS: ModeOption[] = [
@@ -34,7 +34,7 @@ const PERMISSION_OPTIONS: ModeOption[] = [
       "当前模型审核中低风险操作；高风险转人工，明确危险时拒绝",
   },
   {
-    value: "auto",
+    value: "bypass-approvals",
     label: "跳过审批",
     description: "不再询问，直接执行所有操作",
     caution: true,
@@ -65,8 +65,9 @@ const mergeAttachments = (cur: Attachment[], add: Attachment[]): Attachment[] =>
   return [...cur, ...add.filter((a) => !seen.has(attKey(a)))].slice(0, 8);
 };
 
-const skillLabel = (skill: Pick<SessionSkillRow, "name" | "description"> & { label?: string }) => {
+const skillLabel = (skill: Pick<SessionSkillRow, "name" | "display_name" | "description"> & { label?: string }) => {
   if (skill.label?.trim()) return skill.label.trim();
+  if (skill.display_name?.trim()) return skill.display_name.trim();
   return skill.description.match(/^(.+?\.Skill)(?:\s|$)/i)?.[1]?.trim() || skill.name;
 };
 

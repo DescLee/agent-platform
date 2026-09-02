@@ -4,11 +4,30 @@ import { PersonasTab } from "./PersonasTab";
 
 afterEach(() => {
   cleanup();
+  localStorage.clear();
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
 describe("PersonasTab", () => {
+  it("renders a fresh daily cache without requesting the expert sources", () => {
+    localStorage.setItem("openworker:expert-directory:v1", JSON.stringify({
+      savedAt: Date.now(),
+      personas: [],
+      internal: false,
+      experts: [],
+      categories: [],
+    }));
+    const request = vi.fn();
+    vi.stubGlobal("fetch", request);
+
+    render(<PersonasTab />);
+
+    expect(screen.queryByTestId("experts-initial-loading")).toBeNull();
+    expect(screen.getByTestId("expert-list-scroll")).toBeTruthy();
+    expect(request).not.toHaveBeenCalled();
+  });
+
   it("shows the address-book loading page until both expert sources finish", async () => {
     let resolveIndex!: (value: Response) => void;
     let resolveCatalog!: (value: Response) => void;

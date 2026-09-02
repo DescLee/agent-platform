@@ -209,7 +209,11 @@ export function App() {
   // accumulated live from assistant_message events, reset with the transcript.
   const [usage, setUsage] = useState<SessionUsage>(emptyUsage());
   const [surfaces, setSurfaces] = useState<SurfaceVisibility>({ cowork: true, chat: false, code: false });
-  const [mode, setMode] = useState("interactive");
+  const [mode, setMode] = useState(() => {
+    const saved = localStorage.getItem("openworker:last-approval-mode");
+    return saved === "auto" ? "bypass-approvals" : saved || "interactive";
+  });
+  const preferredModeRef = useRef(mode);
   const [connected, setConnected] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
   const [running, setRunning] = useState(false);
@@ -963,7 +967,7 @@ export function App() {
         }
       },
       onClose: () => { setConnected(false); setSessionReady(false); },
-    });
+    }, preferredModeRef.current);
     sessionRef.current = session;
     return () => session.close();
     // NOTE: `workspace` is intentionally NOT a dependency. Every real workspace change
@@ -1024,7 +1028,7 @@ export function App() {
 
   useEffect(() => {
     if (atBottomRef.current) scrollToBottom();
-  }, [items, streaming]);
+  }, [items, streaming, reasoningStream, running, compacting]);
 
   // Track produced-file count for the topbar "Artifacts" affordance (works even when the rail is
   // hidden, where the rail itself doesn't fetch). Cowork only; refreshes on file writes/turn end.
@@ -1109,6 +1113,8 @@ export function App() {
       return next;
     });
     setItems((p) => [...p, { kind: "user", text: shown, attachments, ts: Date.now() / 1000 }]);
+    // Optimistically reveal the waiting row immediately; turn_start confirms it shortly after.
+    setRunning(true);
     // The visible model rides along with the message (single source of truth per turn).
     sessionRef.current?.userMessage(text, attachments, model, skill);
     followLatest(); // sending always re-engages stream-following, wherever the user had scrolled
@@ -1182,6 +1188,8 @@ export function App() {
     sessionRef.current?.retry();
   };
   const changeMode = (m: string) => {
+    preferredModeRef.current = m;
+    localStorage.setItem("openworker:last-approval-mode", m);
     setMode(m);
     sessionRef.current?.setMode(m);
   };
@@ -1808,7 +1816,7 @@ export function App() {
       {surface === "coworkers" || surface === "integrations" ? (
         <main className="flex-1 min-w-0 min-h-0 overflow-hidden bg-paper">
           <div className="experts-content mx-auto px-7 py-6 h-full flex flex-col min-h-0">
-            <PersonasSection initialTab={surface === "integrations" ? "connectors" : "experts"} onOpenPersona={(id) => openPersona(id, "coworkers")} onSummonPersona={summonPersona} onCreateSkill={(description) => {
+            <PersonasSection sessionId={sessionId} personaId={agent} initialTab={surface === "integrations" ? "connectors" : "experts"} onOpenPersona={(id) => openPersona(id, "coworkers")} onSummonPersona={summonPersona} onCreateSkill={(description) => {
               void startNewSession().then(() => prefillComposer(description ? `帮我创建一个新技能：${description}` : "帮我创建一个新技能：（请描述这个技能需要完成什么）"));
             }} onUseSkill={(name, label) => {
               void startNewSession().then(() => window.setTimeout(() => prefillComposerSkill(name, label), 0));

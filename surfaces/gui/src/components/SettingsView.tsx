@@ -367,7 +367,7 @@ function VoiceInputSection() {
 // The Gallery entry point is GONE (owner 2026-08-21) — coworkers install from
 // GitHub / folder / zip only. GalleryModal stays in the tree for the gallery's
 // possible return as a first-class distribution surface, but nothing mounts it.
-export function PersonasSection({ onOpenPersona, onSummonPersona, onCreateSkill, onUseSkill, initialTab = "experts" }: { onOpenPersona?: (id: string) => void; onSummonPersona?: (id: string, prompt?: string) => void; onCreateSkill?: (description: string) => void; onUseSkill?: (name: string, label: string) => void; initialTab?: "experts" | "skills" | "connectors" }) {
+export function PersonasSection({ onOpenPersona, onSummonPersona, onCreateSkill, onUseSkill, initialTab = "experts", sessionId, personaId }: { onOpenPersona?: (id: string) => void; onSummonPersona?: (id: string, prompt?: string) => void; onCreateSkill?: (description: string) => void; onUseSkill?: (name: string, label: string) => void; initialTab?: "experts" | "skills" | "connectors"; sessionId?: string; personaId?: string }) {
   const [tab, setTab] = useState<"experts" | "skills" | "connectors">(initialTab);
   const [skillDetailOpen, setSkillDetailOpen] = useState(false);
   return (
@@ -411,7 +411,7 @@ export function PersonasSection({ onOpenPersona, onSummonPersona, onCreateSkill,
           </div>
         ) : (
           <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain hairline-scroll pr-1" data-testid="connectors-tab-scroll">
-            <ConnectorsSection />
+            <ConnectorsSection sessionId={sessionId} personaId={personaId} />
           </div>
         )}
       </div>

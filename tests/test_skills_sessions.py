@@ -44,7 +44,11 @@ def _skill(base: Path, name: str, description: str = "", body: str = "do it") ->
 
 
 @pytest.fixture()
-def manager(tmp_path):
+def manager(tmp_path, monkeypatch):
+    from coworker.connectors import cli_connectors
+
+    # Skill resolution tests must not inherit the developer machine's live CLI login.
+    monkeypatch.setattr(cli_connectors, "state", lambda name: (False, False))
     return SessionManager(workspace=tmp_path / "ws", provider=ScriptedProvider())
 
 
@@ -123,10 +127,46 @@ def test_no_workspace_means_global_only(manager, tmp_path):
     assert manager.effective_skill_names("s1", ws) == {"everywhere", "local-only"}
 
 
+def test_session_skill_view_keeps_chinese_display_name(manager):
+    _skill(manager.skill_store.global_dir, "anti-fraud", "防骗大师.Skill 防骗专家")
+    manager.skill_store.save_skillhub_metadata(
+        "anti-fraud", {"display_name": "防骗大师.Skill"}
+    )
+
+    row = manager.session_skills_view("s1")["skills"][0]
+    assert row["name"] == "anti-fraud"
+    assert row["display_name"] == "防骗大师.Skill"
+
+
 def test_workspace_without_skills_dir_is_fine(manager, tmp_path):
     ws = tmp_path / "bare-ws"
     ws.mkdir()
     assert manager.effective_skill_names("s1", ws) == set()
+
+
+def test_feishu_skills_require_ready_enabled_connector(manager, tmp_path, monkeypatch):
+    from coworker.connectors import cli_connectors, connector_skills
+
+    bundled = tmp_path / "feishu-skills"
+    _skill(bundled, "lark-im", description="飞书消息")
+    monkeypatch.setattr(
+        connector_skills,
+        "connector_skill_cache_dir",
+        lambda name: bundled if name == "feishu" else tmp_path / name,
+    )
+
+    monkeypatch.setattr(manager, "effective_connectors", lambda *args, **kwargs: set())
+    assert manager.connector_skill_scope("s1") == ([], set())
+
+    monkeypatch.setattr(manager, "effective_connectors", lambda *args, **kwargs: {"feishu"})
+    monkeypatch.setattr(cli_connectors, "state", lambda name: (True, False))
+    assert manager.connector_skill_scope("s1") == ([], set())
+
+    monkeypatch.setattr(cli_connectors, "state", lambda name: (True, True))
+    directories, names = manager.connector_skill_scope("s1")
+    assert directories == [bundled]
+    assert names == {"lark-im"}
+    assert "lark-im" in manager.effective_skill_names("s1")
 
 
 def test_empty_catalog_is_safe(tmp_path):

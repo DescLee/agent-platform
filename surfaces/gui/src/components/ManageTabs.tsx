@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   allowUser,
   connectConnector,
+  connectorCliAction,
   connectManaged,
   connectMcpBacked,
   disallowUser,
@@ -16,6 +17,7 @@ import {
   type ModelSettings,
 } from "../api";
 import { Icon } from "./Icon";
+import { CLI_CONNECTOR_NAMES } from "../connectors/catalog";
 import { CloudSignInInline, CloudStatusPending } from "./connectors/CloudSignIn";
 import { ModelChecklist } from "./ModelChecklist";
 import { ProviderCards, ProviderForm, ProviderMark, useProviderSetup } from "../providers/ProviderSetup";
@@ -476,6 +478,8 @@ export function ConnectSetup({
   const [busy, setBusy] = useState(false);
   const [waiting, setWaiting] = useState(false); // managed flow: browser is open
   const [error, setError] = useState<string | null>(null);
+  const [cliReady, setCliReady] = useState(!!c.cli_ready);
+  const cliConnector = CLI_CONNECTOR_NAMES.has(c.name);
 
   const submit = async () => {
     setBusy(true);
@@ -504,8 +508,48 @@ export function ConnectSetup({
     else setError(res.error || "无法开始连接");
   };
 
+  const cliAction = async () => {
+    const action = cliReady ? "connect" : "install";
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await connectorCliAction(c.name, action);
+      if (!res.ok) {
+        setError(action === "install" ? "安装失败" : "连接失败");
+      } else if (action === "install") {
+        setCliReady(true);
+      } else if (res.started) {
+        setWaiting(true);
+      } else {
+        onConnected();
+      }
+    } catch {
+      setError(action === "install" ? "安装失败" : "连接失败");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="border-t border-line px-3.5 py-3 space-y-3">
+      {cliConnector && (
+        <div className="space-y-2" data-testid="cli-connect">
+          <button className={BTN_ACCENT} onClick={cliAction} disabled={busy || waiting}>
+            {waiting
+              ? "请在浏览器中完成操作…"
+              : busy
+              ? cliReady
+                ? "连接中…"
+                : "安装中…"
+              : cliReady
+                ? `连接 ${c.title}`
+                : `安装 ${c.title}`}
+          </button>
+          {!cliReady && (
+            <div className="text-[12px] text-faint">第一次安装时间比较久，请耐心等待。</div>
+          )}
+        </div>
+      )}
       {c.mcp && !manualOnly && (
         /* MCP-backed one-click needs no cloud sign-in — the OAuth flow is local. */
         <div className="space-y-2" data-testid="mcp-connect">
@@ -551,14 +595,14 @@ export function ConnectSetup({
           )}
         </div>
       )}
-      {c.instructions.length > 0 && (
+      {!cliConnector && c.instructions.length > 0 && (
         <ol className="list-decimal pl-4 text-[13px] text-muted leading-relaxed space-y-1">
           {c.instructions.map((step, i) => (
             <li key={i}>{localizedConnectorInstruction(c.name, step, i)}</li>
           ))}
         </ol>
       )}
-      {c.fields.map((f) => (
+      {!cliConnector && c.fields.map((f) => (
         <label className="conn-field" key={f.key}>
           <span className="conn-field-label">
             {localizedConnectorField(c.name, f.label)}
@@ -574,11 +618,13 @@ export function ConnectSetup({
           {f.help && <span className="conn-field-help">{f.help}</span>}
         </label>
       ))}
-      <div>
-        <button className={BTN_ACCENT} onClick={submit} disabled={busy}>
-          {busy ? "验证中…" : "连接"}
-        </button>
-      </div>
+      {!cliConnector && (!c.mcp || c.fields.length > 0) && (
+        <div>
+          <button className={BTN_ACCENT} onClick={submit} disabled={busy}>
+            {busy ? "验证中…" : "连接"}
+          </button>
+        </div>
+      )}
       {error && <div className="text-[13px] text-danger">{error}</div>}
     </div>
   );

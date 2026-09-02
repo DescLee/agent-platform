@@ -124,6 +124,101 @@ def test_dingtalk_self_sender_uses_authenticated_cli(monkeypatch):
     assert calls[1][0:6] == ["/usr/local/bin/dws", "chat", "message", "send", "--user", "u-self"]
 
 
+def test_cli_connector_state_detection(monkeypatch):
+    from coworker.connectors import cli_connectors
+
+    class Result:
+        returncode = 0
+        stdout = ""
+
+    monkeypatch.setattr(cli_connectors.shutil, "which", lambda name: f"/bin/{name}")
+
+    def run(cmd, **kwargs):
+        result = Result()
+        result.stdout = {
+            "dws": '{"authenticated": true}',
+            "lark-cli": '{"identity": "user"}',
+            "wecom-cli": '{"id": "user-1"}',
+        }[cmd[0].rsplit("/", 1)[-1]]
+        return result
+
+    monkeypatch.setattr(cli_connectors.subprocess, "run", run)
+    assert cli_connectors.state("dingtalk") == (True, True)
+    assert cli_connectors.state("feishu") == (True, True)
+    assert cli_connectors.state("wecom") == (True, True)
+
+
+def test_feishu_connect_opens_verification_urls(monkeypatch):
+    from coworker.connectors import cli_connectors
+
+    opened = []
+    commands = []
+
+    class Stream:
+        def __init__(self):
+            self.lines = iter(["Open https://open.feishu.cn/device?code=abc\n", ""])
+
+        def readline(self):
+            return next(self.lines, "")
+
+    class Process:
+        returncode = 0
+
+        def __init__(self, cmd, **kwargs):
+            commands.append(cmd)
+            self.args = cmd
+            self.stdout = Stream()
+
+        def poll(self):
+            return 0
+
+    monkeypatch.setattr(cli_connectors.shutil, "which", lambda name: "/bin/lark-cli")
+    monkeypatch.setattr(cli_connectors.subprocess, "Popen", Process)
+    monkeypatch.setattr(cli_connectors.webbrowser, "open", opened.append)
+    result = cli_connectors.connect_feishu_interactive()
+    assert result.returncode == 0
+    assert len(commands) == 2
+    assert opened == ["https://open.feishu.cn/device?code=abc", "https://open.feishu.cn/device?code=abc"]
+
+
+def test_dingtalk_skill_bundle_installs_under_named_folder(tmp_path, monkeypatch):
+    import io
+    import json
+
+    from coworker.connectors import connector_skills
+
+    files = {
+        "connectors/dingtalk/skills/SKILL.md": b"---\nname: dingtalk\ndescription: test\n---\n",
+        "connectors/dingtalk/skills/references/chat.md": b"chat reference",
+    }
+    tree = json.dumps(
+        {"tree": [{"path": path, "type": "blob"} for path in files]}
+    ).encode()
+
+    class Response(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            self.close()
+
+    monkeypatch.setattr(
+        connector_skills,
+        "connector_skill_cache_dir",
+        lambda name: tmp_path / "connector-skills" / name,
+    )
+    def urlopen(request, timeout=60):
+        if "api.github.com" in request.full_url:
+            return Response(tree)
+        path = request.full_url.split("/main/", 1)[1]
+        return Response(files[path])
+
+    monkeypatch.setattr(connector_skills.urllib.request, "urlopen", urlopen)
+    installed = connector_skills.install_connector_skills("dingtalk")
+    assert (installed / "dingtalk" / "SKILL.md").is_file()
+    assert (installed / "dingtalk" / "references" / "chat.md").is_file()
+
+
 # -- settings / authorization --------------------------------------------------
 def test_is_authorized():
     s = ConnectorSettings(platform="telegram", allowed_users={"u1"})
@@ -374,6 +469,18 @@ def test_connector_list_pre_connect_copy(tmp_path):
         if d.available and not d.experimental and d.name not in ACCESS
     ]
     assert not missing, f"connectors missing curated access copy: {missing}"
+
+
+def test_new_china_connectors_are_available(tmp_path, monkeypatch):
+    from coworker.connectors import cli_connectors, connector_list
+
+    monkeypatch.setattr(cli_connectors, "state", lambda name: (False, False))
+    by_name = {
+        c["name"]: c for c in connector_list(SecretStore(tmp_path / "secrets.json"))
+    }
+    assert by_name["feishu"]["available"] and not by_name["feishu"]["cli_ready"]
+    assert by_name["wecom"]["available"] and not by_name["wecom"]["cli_ready"]
+    assert by_name["tencent_docs"]["available"] and by_name["tencent_docs"]["mcp"]
 
 
 def test_connector_list_connected_for_required_profiles(tmp_path):

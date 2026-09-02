@@ -28,6 +28,31 @@ const BTN_BORDERED =
 const QUIET_ROW =
   "w-full flex items-center gap-2 px-4 pt-2 mt-6 text-[13px] text-muted select-none";
 
+const EXPERT_CACHE_KEY = "openworker:expert-directory:v1";
+const EXPERT_CACHE_TTL = 24 * 60 * 60 * 1000;
+type ExpertCache = {
+  savedAt: number;
+  personas: Persona[];
+  internal: boolean;
+  experts: CatalogPersona[];
+  categories: CatalogCategory[];
+};
+
+function readExpertCache(): ExpertCache | null {
+  try {
+    const value = JSON.parse(localStorage.getItem(EXPERT_CACHE_KEY) || "null") as ExpertCache | null;
+    return value && Array.isArray(value.personas) && Array.isArray(value.experts) && Array.isArray(value.categories)
+      ? value
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeExpertCache(value: ExpertCache) {
+  try { localStorage.setItem(EXPERT_CACHE_KEY, JSON.stringify(value)); } catch { /* cache is optional */ }
+}
+
 function RemoteExpertAvatar({ expert }: { expert: CatalogPersona }) {
   const primary = expert.fallback_avatar_url || expert.avatar_url;
   const [src, setSrc] = useState(primary);
@@ -52,22 +77,23 @@ function RemoteExpertAvatar({ expert }: { expert: CatalogPersona }) {
 }
 
 export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?: (id: string) => void; onSummonPersona?: (id: string, prompt?: string) => void }) {
-  const [personas, setPersonas] = useState<Persona[]>([]);
-  const [catalog, setCatalog] = useState<CatalogPersona[]>([]);
-  const [categories, setCategories] = useState<CatalogCategory[]>([]);
+  const cached = useRef(readExpertCache()).current;
+  const [personas, setPersonas] = useState<Persona[]>(cached?.personas ?? []);
+  const [catalog, setCatalog] = useState<CatalogPersona[]>(cached?.experts ?? []);
+  const [categories, setCategories] = useState<CatalogCategory[]>(cached?.categories ?? []);
   const [category, setCategory] = useState("all");
   const categoryScrollRef = useRef<HTMLDivElement | null>(null);
   const [categoryEdges, setCategoryEdges] = useState({ left: false, right: false });
   const [catalogError, setCatalogError] = useState("");
-  const [indexLoaded, setIndexLoaded] = useState(false);
-  const [catalogLoaded, setCatalogLoaded] = useState(false);
+  const [indexLoaded, setIndexLoaded] = useState(!!cached);
+  const [catalogLoaded, setCatalogLoaded] = useState(!!cached);
   const [showLoadRetry, setShowLoadRetry] = useState(false);
   const loadAttemptRef = useRef(0);
   const loadRetryTimerRef = useRef<number | null>(null);
   const [summoning, setSummoning] = useState<CatalogPersona | null>(null);
   const [selectedRemote, setSelectedRemote] = useState<CatalogPersona | null>(null);
   const [summonError, setSummonError] = useState("");
-  const [internal, setInternal] = useState(false);
+  const [internal, setInternal] = useState(cached?.internal ?? false);
   const [mode, setMode] = useState<"git" | "dir" | "zip">("git");
   const [src, setSrc] = useState("");
   const [busy, setBusy] = useState(false);
@@ -93,8 +119,10 @@ export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?
 
   const loadExperts = () => {
     const attempt = ++loadAttemptRef.current;
-    setIndexLoaded(false);
-    setCatalogLoaded(false);
+    if (!cached) {
+      setIndexLoaded(false);
+      setCatalogLoaded(false);
+    }
     setCatalogError("");
     setShowLoadRetry(false);
     if (loadRetryTimerRef.current) window.clearTimeout(loadRetryTimerRef.current);
@@ -104,15 +132,23 @@ export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?
 
     void Promise.allSettled([getPersonasIndex(), getPersonaCatalog()]).then(([indexResult, catalogResult]) => {
       if (loadAttemptRef.current !== attempt) return;
+      const nextPersonas = indexResult.status === "fulfilled" ? indexResult.value.personas : personas;
+      const nextInternal = indexResult.status === "fulfilled" ? indexResult.value.internal : internal;
+      const catalogOk = catalogResult.status === "fulfilled" && catalogResult.value.ok;
+      const nextExperts = catalogOk ? catalogResult.value.experts : catalog;
+      const nextCategories = catalogOk ? catalogResult.value.categories : categories;
       if (indexResult.status === "fulfilled") {
-        setPersonas(indexResult.value.personas);
-        setInternal(indexResult.value.internal);
+        setPersonas(nextPersonas);
+        setInternal(nextInternal);
       }
-      if (catalogResult.status === "fulfilled" && catalogResult.value.ok) {
-        setCatalog(catalogResult.value.experts);
-        setCategories(catalogResult.value.categories);
+      if (catalogOk) {
+        setCatalog(nextExperts);
+        setCategories(nextCategories);
       } else {
         setCatalogError(catalogResult.status === "fulfilled" ? catalogResult.value.error || "专家目录加载失败" : "专家目录加载失败");
+      }
+      if (indexResult.status === "fulfilled" && catalogOk) {
+        writeExpertCache({ savedAt: Date.now(), personas: nextPersonas, internal: nextInternal, experts: nextExperts, categories: nextCategories });
       }
       setIndexLoaded(true);
       setCatalogLoaded(true);
@@ -121,7 +157,7 @@ export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?
     });
   };
   useEffect(() => {
-    loadExperts();
+    if (!cached || Date.now() - cached.savedAt >= EXPERT_CACHE_TTL) loadExperts();
     return () => {
       loadAttemptRef.current += 1;
       if (loadRetryTimerRef.current) window.clearTimeout(loadRetryTimerRef.current);
@@ -166,7 +202,10 @@ export function PersonasTab({ onOpenPersona, onSummonPersona }: { onOpenPersona?
       return;
     }
     setConsent(r.consent || []);
-    if (r.personas) setPersonas(r.personas);
+    if (r.personas) {
+      setPersonas(r.personas);
+      writeExpertCache({ savedAt: Date.now(), personas: r.personas, internal, experts: catalog, categories });
+    }
     setMsg(`已导入 ${(r.consent || []).length} 个专家，请在下方检查能力。`);
     setSrc("");
   };

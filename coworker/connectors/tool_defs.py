@@ -419,6 +419,55 @@ TOOL_DEFS: tuple[ConnectorToolDef, ...] = (
         "write",
         "Post a comment or reply on an item.",
     ),
+    # -- Tencent Docs official hosted MCP (curated stable top-level tools) -------
+    ConnectorToolDef(
+        "tencent_docs", "mcp__tencent_docs__query_space_node", "查看空间内容",
+        "read", "查看已授权腾讯文档空间中的文件和文件夹。",
+    ),
+    ConnectorToolDef(
+        "tencent_docs", "mcp__tencent_docs__search_space_file", "搜索文件",
+        "read", "搜索已授权的腾讯文档文件。",
+    ),
+    ConnectorToolDef(
+        "tencent_docs", "mcp__tencent_docs__get_content", "读取文档",
+        "read", "读取已授权腾讯文档的内容。",
+    ),
+    ConnectorToolDef(
+        "tencent_docs", "mcp__tencent_docs__create_smartcanvas_by_markdown", "创建智能文档",
+        "write", "根据标记文本创建腾讯智能文档。",
+    ),
+    ConnectorToolDef(
+        "tencent_docs", "mcp__tencent_docs__create_excel_by_markdown", "创建电子表格",
+        "write", "根据标记文本创建腾讯电子表格。",
+    ),
+    ConnectorToolDef(
+        "tencent_docs", "mcp__tencent_docs__create_slide_by_markdown", "创建幻灯片",
+        "write", "根据标记文本创建腾讯幻灯片。",
+    ),
+    ConnectorToolDef(
+        "tencent_docs", "mcp__tencent_docs__create_mind_by_markdown", "创建思维导图",
+        "write", "根据标记文本创建腾讯思维导图。",
+    ),
+    ConnectorToolDef(
+        "tencent_docs", "mcp__tencent_docs__create_flowchart_by_mermaid", "创建流程图",
+        "write", "根据流程图描述创建腾讯流程图。",
+    ),
+    ConnectorToolDef(
+        "tencent_docs", "mcp__tencent_docs__create_word_by_markdown", "创建文字文档",
+        "write", "根据标记文本创建文字格式的腾讯文档。",
+    ),
+    ConnectorToolDef(
+        "tencent_docs", "mcp__tencent_docs__create_space_node", "创建空间内容",
+        "write", "在腾讯文档空间中创建文件或文件夹。",
+    ),
+    ConnectorToolDef(
+        "tencent_docs", "mcp__tencent_docs__delete_space_node", "删除空间内容",
+        "write", "删除腾讯文档空间中的文件或文件夹。",
+    ),
+    ConnectorToolDef(
+        "tencent_docs", "mcp__tencent_docs__batch_update_sheet_range", "更新电子表格",
+        "write", "批量更新腾讯电子表格中的指定区域。",
+    ),
     # -- asana via their hosted V2 MCP server (one-click path; the asana_* REST
     # tools below stay the manual-token set — profile mode picks, as with jira) ---
     ConnectorToolDef(

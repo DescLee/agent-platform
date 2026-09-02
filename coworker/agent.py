@@ -253,9 +253,14 @@ def build_engine(
     if extra_tools:
         registry.register_all(extra_tools)
     # Messaging personas (Cowork / Ops / MyHelper) expose send_message; MyHelper also uses it as
-    # the reply path for inbound Telegram/Slack super-agent sessions.
+    # the reply path for inbound Telegram/Slack super-agent sessions. DingTalk credentials live
+    # in the DWS CLI rather than ConnectorSettings, so include its connector status explicitly.
     secrets = secrets or SecretStore()
-    if agent.messaging and any(s.enabled for s in load_settings(secrets).values()):
+    dingtalk_connected = any(
+        c.get("name") == "dingtalk" and c.get("connected") and c.get("enabled")
+        for c in connector_list(secrets)
+    )
+    if agent.messaging and (any(s.enabled for s in load_settings(secrets).values()) or dingtalk_connected):
         registry.register(make_send_message_tool(secrets))
         # send_file (§34): hand deliverables into the chat — same targets, but its OWN
         # approval surface (a thread's standing send_message grant never covers uploads).

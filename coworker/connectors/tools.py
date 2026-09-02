@@ -22,9 +22,9 @@ _SCHEMA = {
     "function": {
         "name": "send_message",
         "description": (
-            "Send a message to a connected chat (Slack or Telegram). `target` is the "
+            "Send a message to a connected chat (Slack, Telegram, or DingTalk). `target` is the "
             "reply handle from an inbound message (e.g. 'telegram:12345' or 'slack:C0123', "
-            "optionally with a ':<thread>' suffix) — or, for Slack, just the channel NAME "
+            "or 'dingtalk:userId' / 'dingtalk:self'; optionally with a ':<thread>' suffix) — or, for Slack, just the channel NAME "
             "('#general' or 'general'; resolved against the connected workspaces). Use this to "
             "actually reach a person — plain assistant text is not delivered anywhere."
         ),
@@ -152,8 +152,8 @@ def make_send_message_tool(
             chat_id, err = _resolve_slack_channel(secrets, chat_id)
             if err:
                 return {"error": err}
-        token = _resolve_token(secrets, platform, chat_id)
-        if not token:
+        token = "" if platform == "dingtalk" else _resolve_token(secrets, platform, chat_id)
+        if platform != "dingtalk" and not token:
             return {"error": f"no bot token for {platform} — connect it first"}
         if platform == "slack":
             from .attribution import sender_prefix

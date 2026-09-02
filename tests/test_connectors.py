@@ -101,6 +101,29 @@ def test_send_message_bad_target(tmp_path):
     assert "error" in tool(target="nonsense", text="x")
 
 
+def test_dingtalk_self_sender_uses_authenticated_cli(monkeypatch):
+    from coworker.connectors import senders
+
+    calls = []
+
+    class Result:
+        def __init__(self, code, stdout="", stderr=""):
+            self.returncode, self.stdout, self.stderr = code, stdout, stderr
+
+    monkeypatch.setattr(senders.shutil, "which", lambda name: "/usr/local/bin/dws")
+
+    def run(cmd, **kwargs):
+        calls.append(cmd)
+        if cmd[1:3] == ["auth", "status"]:
+            return Result(0, '{"user_id":"u-self"}')
+        return Result(0, '{"openTaskId":"task-1"}')
+
+    monkeypatch.setattr(senders.subprocess, "run", run)
+    result = senders._send_dingtalk("", "self", "hello")
+    assert result.ok and result.message_id == "task-1"
+    assert calls[1][0:6] == ["/usr/local/bin/dws", "chat", "message", "send", "--user", "u-self"]
+
+
 # -- settings / authorization --------------------------------------------------
 def test_is_authorized():
     s = ConnectorSettings(platform="telegram", allowed_users={"u1"})

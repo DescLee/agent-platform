@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useState } from "react";
 import {
+  dingtalkAction,
   disconnectConnector,
   getCloudStatus,
   getConnectors,
@@ -56,12 +57,21 @@ export function ConnectorsSection({ onNavigate }: { onNavigate?: () => void } = 
   const [detail, setDetail] = useState<string | null>(null);
   useLayoutEffect(() => { onNavigate?.(); }, [detail, onNavigate]);
   const [connectors, setConnectors] = useState<Connector[]>([]);
+  const [connectorsLoaded, setConnectorsLoaded] = useState(false);
   const [mcpServers, setMcpServers] = useState<McpServer[]>([]);
   const [cloud, setCloud] = useState<CloudStatus | null>(null);
   const [slack, setSlack] = useState<SlackStatus | null>(null);
 
   const refresh = () => {
-    getConnectors().then(setConnectors).catch(() => setConnectors([]));
+    getConnectors()
+      .then((items) => {
+        setConnectors(items);
+        setConnectorsLoaded(true);
+      })
+      .catch(() => {
+        setConnectors([]);
+        setConnectorsLoaded(true);
+      });
     getMcpServers().then(setMcpServers).catch(() => setMcpServers([]));
     getCloudStatus().then(setCloud).catch(() => setCloud(null));
     getSlackStatus().then(setSlack).catch(() => setSlack(null));
@@ -142,6 +152,7 @@ export function ConnectorsSection({ onNavigate }: { onNavigate?: () => void } = 
     <ConnectorsList
       connectors={connectors}
       mcpServers={mcpServers}
+      loading={!connectorsLoaded}
       cloud={cloud}
       slack={slack}
       onOpen={setDetail}
@@ -160,6 +171,29 @@ function GenericDetail({
   onChanged,
   onGone,
 }: DetailProps & { onGone: () => void }) {
+  const [resetting, setResetting] = useState(false);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+
+  const resetDingtalk = async () => {
+    setResetConfirmOpen(false);
+    setResetting(true);
+    setResetError(null);
+    try {
+      const result = await dingtalkAction("reset");
+      if (!result.ok) {
+        setResetError(result.error || "重置连接失败");
+        return;
+      }
+      onChanged();
+      onGone();
+    } catch {
+      setResetError("重置连接失败，请稍后重试");
+    } finally {
+      setResetting(false);
+    }
+  };
+
   return (
     <div>
       <div className="flex items-center gap-3.5 mb-5">
@@ -171,19 +205,31 @@ function GenericDetail({
             {c.account || (c.auth === "none" ? "内置" : "已连接")}
           </div>
         </div>
-        {c.auth !== "none" && (
+        {(c.auth !== "none" || c.name === "dingtalk") && (
           <button
             className="text-[13px] text-danger/80 hover:text-danger shrink-0"
+            disabled={resetting}
             onClick={async () => {
-              await disconnectConnector(c.name);
+              if (c.name === "dingtalk") {
+                setResetConfirmOpen(true);
+                return;
+              } else {
+                await disconnectConnector(c.name);
+              }
               onChanged();
               onGone();
             }}
           >
-            断开连接
+          {c.name === "dingtalk" ? (resetting ? "重置中…" : "重置连接") : "断开连接"}
           </button>
         )}
       </div>
+
+      {resetError && (
+        <div className="mb-4 rounded-lg border border-danger/30 bg-danger/5 px-3 py-2 text-[13px] text-danger" role="alert">
+          {resetError}
+        </div>
+      )}
 
       <div className={GRP}>
         <ConnectorTools c={c} onChanged={onChanged} />
@@ -196,6 +242,19 @@ function GenericDetail({
           {/* Channel subscriptions are a chat-platform concept — GitHub is two_way via the
               relay (inbound mentions) but has no channels. */}
           {c.channels && <ListeningSessionsBlock c={c} />}
+        </div>
+      )}
+
+      {resetConfirmOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/30 px-4" role="dialog" aria-modal="true" aria-labelledby="dingtalk-reset-title">
+          <div className="w-full max-w-[420px] rounded-xl border border-line bg-panel p-5 shadow-xl">
+            <h3 id="dingtalk-reset-title" className="text-[16px] font-semibold text-ink">重置钉钉连接？</h3>
+            <p className="mt-2 text-[13px] leading-5 text-muted">这会清除本机钉钉登录状态，之后需要重新扫码或登录。</p>
+            <div className="mt-5 flex justify-end gap-3">
+              <button className="text-[13px] text-muted hover:text-ink" onClick={() => setResetConfirmOpen(false)}>取消</button>
+              <button className="rounded-md bg-danger px-3 py-1.5 text-[13px] text-white hover:bg-danger/90" onClick={() => void resetDingtalk()}>确认重置</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

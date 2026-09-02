@@ -54,6 +54,8 @@ ABOUT: dict[str, str] = {
     "asana": "Keep up with your Asana work — search and read tasks and "
     "projects, create tasks, and comment. Connects with a personal access "
     "token from the Asana developer console.",
+    "dingtalk": "Use the locally authenticated DingTalk Workspace CLI to send "
+    "messages to your own DingTalk account or another user.",
 }
 
 # What connecting actually grants, as short honest bullets. Write powers always
@@ -173,6 +175,10 @@ ACCESS: dict[str, list[str]] = {
     "figma": [
         "Reads design files and comments; exports assets.",
         "Comments as you — never edits a design.",
+    ],
+    "dingtalk": [
+        "Sends text messages through your locally authenticated DingTalk account.",
+        "The recipient must be your own account or an explicitly supplied userId.",
     ],
     "close": [
         "Reads leads, contacts, and opportunities.",

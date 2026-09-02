@@ -1,9 +1,8 @@
 """Stateless outbound senders — one-shot HTTP POSTs, no SDK, no live connection.
 
-These power the `send_message` tool (and the super-agent's replies). Both Telegram and
-Slack outbound are simple HTTP calls, so we use a synchronous `httpx` client and avoid the
-heavy SDKs (those are only needed for the inbound listeners). Sync fits the ToolRegistry's
-`execute` contract (the engine runs it in a thread).
+These power the `send_message` tool (and the super-agent's replies). Telegram and Slack use
+simple HTTP calls; DingTalk delegates to the locally authenticated DWS CLI. Sync fits the
+ToolRegistry's `execute` contract (the engine runs it in a thread).
 
 A `Sender` is `(token, chat_id, text, thread_id) -> SendResult`. The registry is swappable so
 tests inject fakes — no network.
@@ -12,6 +11,9 @@ tests inject fakes — no network.
 from __future__ import annotations
 
 import os
+import json
+import shutil
+import subprocess
 from typing import Callable, Optional
 
 from .base import SendResult
@@ -86,6 +88,53 @@ def _send_slack(
     return SendResult(False, error=err)
 
 
+def _send_dingtalk(
+    _token: str, chat_id: str, text: str, _thread_id: Optional[str] = None
+) -> SendResult:
+    """Send a DingTalk direct message through the locally authenticated DWS CLI.
+
+    The CLI owns the OAuth token, so the generic sender token argument is intentionally
+    unused. ``dingtalk:self`` resolves to the user id returned by ``dws auth status``.
+    """
+    dws = shutil.which("dws")
+    if not dws:
+        return SendResult(False, error="dws CLI is not installed — connect DingTalk first")
+    recipient = chat_id.strip()
+    if recipient == "self":
+        try:
+            status = subprocess.run(
+                [dws, "auth", "status", "-f", "json"],
+                capture_output=True,
+                text=True,
+                timeout=_TIMEOUT,
+            )
+            data = json.loads(status.stdout or "{}")
+            recipient = str(data.get("user_id") or "").strip()
+        except (OSError, subprocess.SubprocessError, ValueError) as exc:
+            return SendResult(False, error=f"无法读取钉钉登录用户: {exc}")
+    if not recipient:
+        return SendResult(False, error="缺少钉钉收件人 userId")
+    try:
+        result = subprocess.run(
+            [dws, "chat", "message", "send", "--user", recipient, "--content", text, "-y", "-f", "json"],
+            capture_output=True,
+            text=True,
+            timeout=_TIMEOUT,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return SendResult(False, error=str(exc))
+    try:
+        data = json.loads(result.stdout or "{}")
+    except ValueError:
+        data = {}
+    if result.returncode == 0 and not data.get("error"):
+        return SendResult(True, message_id=str(data.get("openTaskId") or data.get("task_id") or ""))
+    error = data.get("error")
+    if isinstance(error, dict):
+        error = error.get("message") or error.get("reason")
+    return SendResult(False, error=str(error or result.stderr or "dingtalk send failed").strip())
+
+
 def _slack_blocks(text: str, buttons) -> list[dict]:
     """A Block Kit message: a text section + a row of action buttons (action_id `ocw_<i>`,
     value = the encoded item id + resolution)."""
@@ -141,6 +190,7 @@ def _send_slack_interactive(
 DEFAULT_SENDERS: dict[str, Sender] = {
     "telegram": _send_telegram,
     "slack": _send_slack,
+    "dingtalk": _send_dingtalk,
 }
 
 

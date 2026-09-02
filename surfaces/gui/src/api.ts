@@ -648,6 +648,8 @@ export interface Connector {
   managed_paused?: boolean; // one-click temporarily off (e.g. Google CASA pending) — badge "Coming soon"
   managed_profile: boolean; // current profile came from managed OAuth (vs manual paste)
   mode?: string; // "relay" for the managed cloud path; "" for manual/token connect
+  cli_ready?: boolean;
+  authenticated?: boolean;
   workspaces?: SlackWorkspace[]; // Slack only: connected workspaces (managed relay)
   // Gmail/Calendar: email-keyed rows; generic account connectors (notion,
   // attio, posthog, …): AccountRow. The detail pages narrow by connector.
@@ -777,6 +779,11 @@ export async function connectConnector(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ fields }),
   });
+  return res.json();
+}
+
+export async function dingtalkAction(action: "install" | "connect" | "reset"): Promise<{ ok: boolean; error?: string }> {
+  const res = await fetch(`${httpBase()}/v1/connectors/dingtalk/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) });
   return res.json();
 }
 

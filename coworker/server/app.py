@@ -1379,6 +1379,37 @@ def create_app(manager: SessionManager) -> FastAPI:
     def connectors_list() -> dict[str, Any]:
         return {"connectors": manager.list_connectors()}
 
+    @app.post("/v1/connectors/dingtalk/action")
+    async def dingtalk_action(body: dict[str, Any] | None = None) -> dict[str, Any]:
+        import shutil, subprocess
+        action = (body or {}).get("action")
+        if action == "install":
+            try:
+                root = subprocess.run(["npm", "root", "-g"], capture_output=True, text=True, timeout=10)
+                if root.returncode == 0:
+                    package_root = Path(root.stdout.strip())
+                    for candidate in package_root.glob(".dingtalk-workspace-cli-*"):
+                        shutil.rmtree(candidate, ignore_errors=True)
+                    shutil.rmtree(package_root / "dingtalk-workspace-cli", ignore_errors=True)
+            except (OSError, subprocess.SubprocessError):
+                pass
+        cmd = (
+            ["npm", "install", "-g", "dingtalk-workspace-cli", "--force"]
+            if action == "install"
+            else [shutil.which("dws") or "dws", "auth", "login", "-y"]
+            if action == "connect"
+            else [shutil.which("dws") or "dws", "auth", "reset", "-y"]
+            if action == "reset"
+            else None
+        )
+        if cmd is None:
+            return {"ok": False, "error": "不支持的操作"}
+        try:
+            result = await asyncio.to_thread(subprocess.run, cmd, capture_output=True, text=True, timeout=300)
+        except (OSError, subprocess.SubprocessError) as exc:
+            return {"ok": False, "error": str(exc)}
+        return {"ok": True} if result.returncode == 0 else {"ok": False, "error": (result.stderr or result.stdout or "操作失败").strip()}
+
     async def _refresh_listeners_if_two_way(name: str) -> None:
         # New/removed creds only take effect when the platform socket reconnects (Socket Mode
         # authenticates at connect time) — hot-reload the listeners in-process so pasting

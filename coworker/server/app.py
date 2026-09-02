@@ -15,6 +15,7 @@ import os
 import re
 import secrets
 import uuid
+import threading
 from collections import deque
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -53,6 +54,17 @@ _WS_RATE_LIMIT_COUNT = 30
 _WS_RATE_LIMIT_WINDOW_SECONDS = 10.0
 _MAX_MESSAGE_TEXT_CHARS = 200_000
 _MAX_ATTACHMENTS_BYTES = 15_000_000  # leaves JSON overhead below the 16 MiB frame cap
+_LVZHOU_QUERY_LOCK = threading.Lock()
+
+
+def _lvzhou_query(operation: Any, *args: Any) -> Any:
+    """KIM's local IPC service is not reliable under concurrent requests."""
+    if not _LVZHOU_QUERY_LOCK.acquire(timeout=15):
+        raise RuntimeError("绿舟查询繁忙，请稍后重试")
+    try:
+        return operation(*args)
+    finally:
+        _LVZHOU_QUERY_LOCK.release()
 
 
 def _json_value_size(value: Any) -> int:
@@ -1420,6 +1432,43 @@ def create_app(manager: SessionManager) -> FastAPI:
     @app.get("/v1/connectors")
     def connectors_list() -> dict[str, Any]:
         return {"connectors": manager.list_connectors()}
+
+    @app.get("/v1/lvzhou/messages")
+    async def lvzhou_messages(date: str) -> dict[str, Any]:
+        """Read and group local Lvzhou messages for one UTC calendar date."""
+        try:
+            from ..lvzhou.client import KimIpcClient, KimIpcError
+            groups = await asyncio.to_thread(lambda: _lvzhou_query(KimIpcClient(timeout=30).get_chats_for_date, date))
+            return {"date": date, "groups": groups}
+        except (KimIpcError, RuntimeError) as exc:
+            return JSONResponse({"date": date, "groups": [], "error": str(exc)}, status_code=502)
+
+    @app.get("/v1/lvzhou/conversations")
+    async def lvzhou_conversations(start: str, end: str, unread: str = "all", page_size: int = 20, cursor: str | None = None) -> dict[str, Any]:
+        try:
+            from ..lvzhou.client import KimIpcClient, KimIpcError
+            client = KimIpcClient(timeout=10.0)
+            chats = await asyncio.to_thread(lambda: _lvzhou_query(client.get_chats_for_date, start[:10]))
+            offset = int(cursor or 0)
+            selected = chats[offset:offset + max(1, min(page_size, 100))]
+            items = []
+            for chat in selected:
+                detail = await asyncio.to_thread(client.get_conversation_messages, chat["id"], start, end, unread, 20, None, chat)
+                if detail["messages"]:
+                    items.append({"conversation_id": chat["id"], "name": chat["name"], "type": chat.get("type"), "message_count": len(detail["messages"]), "unread_count": sum(not m["is_read"] for m in detail["messages"])})
+            next_cursor = str(offset + len(selected)) if offset + len(selected) < len(chats) else None
+            return {"start": start, "end": end, "items": items, "next_cursor": next_cursor}
+        except (KimIpcError, RuntimeError) as exc:
+            return JSONResponse({"items": [], "error": str(exc)}, status_code=502)
+
+    @app.get("/v1/lvzhou/conversations/{conversation_id}/messages")
+    async def lvzhou_conversation_messages(conversation_id: str, start: str, end: str, unread: str = "all", page_size: int = 20, cursor: str | None = None) -> dict[str, Any]:
+        try:
+            from ..lvzhou.client import KimIpcClient, KimIpcError
+            client = KimIpcClient(timeout=30)
+            return await asyncio.to_thread(lambda: _lvzhou_query(client.get_conversation_messages, conversation_id, start, end, unread, page_size, cursor))
+        except (KimIpcError, RuntimeError) as exc:
+            return JSONResponse({"messages": [], "error": str(exc)}, status_code=502)
 
     cli_connecting: dict[str, object] = {}
 

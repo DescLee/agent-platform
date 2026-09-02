@@ -1094,19 +1094,6 @@ export function Sidebar(props: Props) {
         </button>
       </div>
 
-      <div className="px-2.5 mt-1">
-        <button
-          className={
-            "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] text-left hover:bg-chromeHover hover:text-ink " +
-            (props.greenboatActive ? "text-ink bg-chromeHover" : "text-muted")
-          }
-          data-testid="nav-greenboat-assistant"
-          onClick={props.onOpenGreenboat}
-        >
-          <Icon name="sparkle" size={15} className="shrink-0" /> 绿舟助理
-        </button>
-      </div>
-
       {/* Automations: a first-class nav row (UX-023) — the account menu keeps its entry.
           The badge is the cross-automation unseen-run total. */}
       <div className="px-2.5 mt-1">

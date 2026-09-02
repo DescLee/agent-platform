@@ -298,3 +298,115 @@ class KimIpcClient:
             if message.get("type") == "kim-text" and message.get("content", {}).get("text") == text.strip():
                 return message
         return None
+
+    def get_chats_for_date(self, date: str) -> list[dict[str, Any]]:
+        """Return chat groups containing messages sent on an ISO date.
+
+        KIM returns large latest-message payloads, so this deliberately uses
+        small pages and bounds both chat and history traversal.
+        """
+        from datetime import datetime, time, timedelta
+        from zoneinfo import ZoneInfo
+
+        try:
+            day = datetime.strptime(date, "%Y-%m-%d").date()
+        except ValueError as exc:
+            raise KimIpcError("日期格式必须为 YYYY-MM-DD") from exc
+        tz = ZoneInfo("Asia/Shanghai")
+        start = datetime.combine(day, time.min, tzinfo=tz).timestamp() * 1000
+        end = (datetime.combine(day, time.min, tzinfo=tz) + timedelta(days=1)).timestamp() * 1000
+        result: list[dict[str, Any]] = []
+        chats_result = self.call("getChatList", [{"count": 20}])
+        chats = chats_result.get("chats", []) if isinstance(chats_result, dict) else []
+        for chat in chats[:10]:
+            if not isinstance(chat, dict) or not chat.get("id"):
+                continue
+            messages: list[dict[str, Any]] = []
+            query: dict[str, Any] = {"count": 20, "order": 1}
+            try:
+                # The list endpoint is a summary view. One small history page
+                # is enough to determine whether this recent conversation has
+                # messages in the requested window; full paging belongs to the
+                # detail endpoint.
+                for _ in range(1):
+                    page = self.call("getHistoryMessages", [str(chat["id"]), query])
+                    rows = page.get("messages", []) if isinstance(page, dict) else []
+                    messages.extend(
+                        m for m in rows
+                        if isinstance(m, dict) and start <= float(m.get("sentTime") or 0) < end
+                    )
+                    if rows and min(float(m.get("sentTime") or 0) for m in rows) < start:
+                        break
+                    cursor = page.get("cursor") if isinstance(page, dict) else None
+                    if not cursor or cursor == query.get("cursor"):
+                        break
+                    query["cursor"] = cursor
+            except KimIpcError:
+                continue
+            if messages:
+                result.append({
+                    "id": str(chat["id"]),
+                    "name": chat.get("name") or str(chat["id"]),
+                    "type": chat.get("type"),
+                    "unreadCount": int(chat.get("unreadCount") or 0),
+                    "messages": sorted(messages, key=lambda m: float(m.get("sentTime") or 0)),
+                })
+        return result
+
+    @staticmethod
+    def _parse_range(start: str, end: str) -> tuple[float, float]:
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        try:
+            tz = ZoneInfo("Asia/Shanghai")
+            left = datetime.fromisoformat(start).replace(tzinfo=tz) if len(start) == 16 else datetime.fromisoformat(start)
+            right = datetime.fromisoformat(end).replace(tzinfo=tz) if len(end) == 16 else datetime.fromisoformat(end)
+            values = left.timestamp() * 1000, right.timestamp() * 1000
+        except ValueError as exc:
+            raise KimIpcError("时间格式必须为 YYYY-MM-DDTHH:MM") from exc
+        if values[0] >= values[1]:
+            raise KimIpcError("结束时间必须晚于开始时间")
+        return values
+
+    def get_conversation_messages(self, conversation_id: str, start: str, end: str, unread: str = "all", page_size: int = 20, cursor: str | None = None, chat: dict[str, Any] | None = None) -> dict[str, Any]:
+        start_ms, end_ms = self._parse_range(start, end)
+        if unread not in {"all", "only", "exclude"}:
+            raise KimIpcError("unread 必须是 all、only 或 exclude")
+        # getChat is slow/unreliable on some desktop versions. The list result
+        # already supplies the metadata we need, and individual messages carry
+        # their own read status, so never block a detail request on getChat.
+        chat = chat or {"id": str(conversation_id)}
+        last_read = str(chat.get("lastReadSeq") or "") if isinstance(chat, dict) else ""
+        rows: list[dict[str, Any]] = []
+        query: dict[str, Any] = {"count": max(1, min(int(page_size), 100)), "order": 1}
+        if cursor:
+            query["cursor"] = cursor
+        next_cursor = None
+        for _ in range(20):
+            page = self.call("getHistoryMessages", [str(conversation_id), query])
+            messages = page.get("messages", []) if isinstance(page, dict) else []
+            for message in messages:
+                if not isinstance(message, dict):
+                    continue
+                sent = float(message.get("sentTime") or 0)
+                read_status = message.get("messageReadStatus")
+                is_unread = (
+                    isinstance(read_status, dict) and read_status.get("isRead") is False
+                ) or bool(last_read and str(message.get("seq") or "") > last_read)
+                if start_ms <= sent < end_ms and (unread == "all" or is_unread == (unread == "only")):
+                    content = message.get("content") if isinstance(message.get("content"), dict) else {}
+                    rows.append({
+                        "id": str(message.get("id") or ""),
+                        "sender_uid": str(message.get("senderUid") or ""),
+                        "sent_time": int(sent),
+                        "type": str(message.get("type") or ""),
+                        "text": str(content.get("text") or content.get("name") or ""),
+                        "is_read": not is_unread,
+                    })
+            if messages and min(float(m.get("sentTime") or 0) for m in messages) < start_ms:
+                break
+            next_cursor = page.get("cursor") if isinstance(page, dict) else None
+            if not next_cursor or next_cursor == query.get("cursor"):
+                break
+            break
+        return {"conversation": {"id": str(chat.get("id") or conversation_id), "name": chat.get("name") or str(conversation_id), "type": chat.get("type")}, "messages": sorted(rows, key=lambda m: m["sent_time"]), "next_cursor": next_cursor}

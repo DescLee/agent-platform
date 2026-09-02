@@ -62,6 +62,38 @@ export async function getHealth(): Promise<Health> {
   return res.json();
 }
 
+export interface LvzhouMessageGroup {
+  id: string;
+  name: string;
+  type?: number;
+  unreadCount: number;
+  messages: Array<{ id: string; sentTime?: number; type?: string; content?: any }>;
+}
+
+export interface LvzhouConversationPage {
+  items: Array<{ conversation_id: string; name: string; type?: number; message_count: number; unread_count: number }>;
+  next_cursor?: string | null;
+}
+
+export async function getLvzhouConversations(start: string, end: string, unread = "all", pageSize = 20, cursor?: string): Promise<LvzhouConversationPage> {
+  const params = new URLSearchParams({ start, end, unread, page_size: String(pageSize) });
+  if (cursor) params.set("cursor", cursor);
+  const res = await fetch(`${httpBase()}/v1/lvzhou/conversations?${params}`);
+  return res.json();
+}
+
+export async function getLvzhouConversationMessages(id: string, start: string, end: string, unread = "all", pageSize = 20, cursor?: string): Promise<{ conversation?: { id: string; name: string; type?: number }; messages: Array<{ id: string; sender_uid: string; sent_time: number; type: string; text: string; is_read: boolean }>; next_cursor?: string | null }> {
+  const params = new URLSearchParams({ start, end, unread, page_size: String(pageSize) });
+  if (cursor) params.set("cursor", cursor);
+  const res = await fetch(`${httpBase()}/v1/lvzhou/conversations/${encodeURIComponent(id)}/messages?${params}`);
+  return res.json();
+}
+
+export async function getLvzhouMessages(date: string): Promise<{ date: string; groups: LvzhouMessageGroup[]; error?: string }> {
+  const res = await fetch(`${httpBase()}/v1/lvzhou/messages?date=${encodeURIComponent(date)}`);
+  return res.json();
+}
+
 export async function getRecentWorkspaces(): Promise<RecentWorkspace[]> {
   const res = await fetch(`${httpBase()}/v1/workspaces/recent`);
   return (await res.json()).workspaces ?? [];

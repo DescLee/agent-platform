@@ -147,12 +147,21 @@ class KimIpcClient:
         correlation_id, request = encode_request(method, payload)
         path = find_engine_socket(self.temp_dir)
         pending = b""
+        deadline = time.monotonic() + self.timeout
         try:
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
-                conn.settimeout(self.timeout)
+                conn.settimeout(max(0.001, deadline - time.monotonic()))
                 conn.connect(os.fspath(path))
                 conn.sendall(request)
                 while True:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise KimIpcError(f"绿舟后台接口 {method} 调用超时")
+                    # A busy KIM socket can continuously deliver unrelated events.
+                    # Reapply the remaining absolute deadline before every recv;
+                    # a plain socket timeout is only an idle timeout and would be
+                    # reset forever by that unrelated traffic.
+                    conn.settimeout(remaining)
                     chunk = conn.recv(64 * 1024)
                     if not chunk:
                         break
@@ -246,10 +255,7 @@ class KimIpcClient:
 
     def send_self_text(self, text: str) -> dict[str, Any]:
         """Send text to the currently logged-in user's verified self chat."""
-        deadline = time.monotonic() + self.timeout
         current = self.get_self_chat()
-        if time.monotonic() >= deadline:
-            raise KimIpcError("绿舟发送超时，请确认绿舟客户端正在运行")
         status, chat = current["status"], current["chat"]
         uid, chat_id = str(status["uid"]), str(chat["id"])
         if status.get("isOnline") is False or status.get("status") != 2:

@@ -363,6 +363,7 @@ def test_orphan_session_keeps_scratch_primary_single_scratch_root(tmp_path):
     # ws == scratch: exactly one scratch root, never doubled.
     assert len(roots) == 1 and roots[0]["primary"] and roots[0]["writable"]
     assert Path(roots[0]["path"]) == (mgr.scratch_base() / sid).resolve()
+    assert "write_file" in engine.registry.names()
 
 
 def test_gated_session_artifacts_list_scratch_not_repo(tmp_path):

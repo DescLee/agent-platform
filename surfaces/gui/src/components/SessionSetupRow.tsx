@@ -4,7 +4,7 @@ import { chooseFolder } from "../tauri";
 import { baseName } from "../paths";
 import { Icon } from "./Icon";
 
-// Draft folder selection stays above the composer.
+// Draft folder selection stays below the composer.
 
 interface Props {
   // The folder chip renders only for personas that work in a folder (Chat hides it).
@@ -12,7 +12,7 @@ interface Props {
   // The user's explicit folder pick for this draft, if any (never a temporary dir's path).
   folderName: string | null;
   onPickFolder: (path: string, branch?: string | null) => void;
-
+  inline?: boolean;
 }
 
 export function SessionSetupRow(props: Props) {
@@ -30,7 +30,7 @@ export function SessionSetupRow(props: Props) {
   const pickFolder = async (path: string) => {
     const res = await openWorkspace(path);
     if (!res.ok) {
-      setError(res.error || "could not open that folder");
+      setError(res.error || "无法打开该文件夹");
       return;
     }
     setOpenMenu(null);
@@ -46,7 +46,10 @@ export function SessionSetupRow(props: Props) {
     "relative inline-flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[13px] text-muted hover:text-ink hover:bg-paper cursor-pointer select-none whitespace-nowrap";
 
   return (
-    <div className="max-w-3xl mx-auto mb-1.5 px-1 flex items-center gap-1.5" data-testid="setup-row">
+    <div
+      className={props.inline ? "flex items-center" : "max-w-3xl mx-auto mt-1.5 px-1 flex items-center gap-1.5"}
+      data-testid="setup-row"
+    >
       {openMenu && <div className="fixed inset-0 z-20" onClick={() => setOpenMenu(null)} />}
 
       {/* Folder chip — only for personas that work in a folder. */}
@@ -54,7 +57,9 @@ export function SessionSetupRow(props: Props) {
         <div className="relative">
           <button className={chip} data-testid="folder-chip" onClick={() => toggle("folder")}>
             <Icon name="folder" size={13} />
-            <span className="max-w-[220px] truncate">{props.folderName || "选择文件夹"}</span>
+            <span className="max-w-[420px] truncate">
+              {props.folderName ? baseName(props.folderName) : "选择文件夹"}
+            </span>
             <Icon name="chevronDown" size={12} className="text-faint" />
           </button>
           {openMenu === "folder" && (
@@ -81,7 +86,7 @@ export function SessionSetupRow(props: Props) {
                   className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-paper text-[12px] text-accent"
                   onClick={() => void browse()}
                 >
-                  {props.folderName ? "Choose another folder…" : "Choose a folder…"}
+                  {props.folderName ? "选择其他文件夹…" : "选择文件夹…"}
                 </button>
               </div>
               {error && <div className="px-2.5 py-1 text-[12px] text-warnInk">{error}</div>}

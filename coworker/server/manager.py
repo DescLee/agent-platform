@@ -352,6 +352,12 @@ class SessionManager:
 
     # -- workspaces -------------------------------------------------------------
     def open_workspace(self, path: str, *, create: bool = False) -> dict[str, Any]:
+        """校验并打开一个工作区，同时返回分支和命令信任状态。
+
+        工作区路径会先展开用户目录并解析为绝对路径；默认不自动创建不存在的目录，
+        只有调用方明确传入 ``create=True`` 才会创建。成功后更新最近工作区记录，供
+        文件夹选择器和后续会话恢复使用。
+        """
         resolved = Path(path).expanduser()
         if resolved.exists() and not resolved.is_dir():
             return {"path": str(resolved), "ok": False, "error": "not a directory"}
@@ -408,6 +414,12 @@ class SessionManager:
     def set_workspace_trust(
         self, path: str | Path, *, trusted: bool
     ) -> dict[str, Any]:
+        """设置工作区是否可信，并立即刷新该目录下现有引擎的命令白名单。
+
+        信任状态控制配置文件中的 allowed commands 以及工作区级 MCP 加载权限，因此
+        不能只影响新会话。修改后遍历缓存引擎，按规范化路径精确匹配并同步更新，避免
+        用户撤销信任后旧引擎仍沿用过期授权。
+        """
         if not str(path).strip():
             return {"ok": False, "error": "workspace path is required"}
         candidate = Path(path).expanduser()
@@ -578,6 +590,13 @@ class SessionManager:
         items_approver: Optional[Any] = None,
         initial_mode: Optional[Mode] = None,
     ) -> Optional[TurnEngine]:
+        """获取或创建会话对应的 TurnEngine，并注入本次请求的交互回调。
+
+        已缓存的引擎必须复用，以保留模型上下文、会话授权和运行时状态；如果是新会话，
+        则从会话记录或默认工作区恢复模型、权限模式和消息历史，再由 agent 工厂装配
+        工具。回调参数可以在每次请求时更新，因此同一个会话既能支持 GUI 的在线审批，
+        也能支持无人值守或消息渠道的审批实现。
+        """
         engine = self._engines.get(session_id)
         if engine is not None:
             if approver is not None:
@@ -609,14 +628,13 @@ class SessionManager:
             model, mode, messages = self.model, initial_mode or self.mode, None
 
         if not ws or not Path(ws).is_dir():
-            # Sessions without a folder start "orphan": auto-provision a per-conversation
-            # scratch directory (generalizes MyHelper's auto-workspace). Folder-gated
-            # personas (requires_folder) still demand a real directory picked by the user.
-            if not ag.requires_folder and (record is not None or messages):
+            # Non-folder-gated personas need their scratch BEFORE the engine is built:
+            # file and shell capabilities are registered from the initial workspace.
+            # Deferring provisioning until persistence left fresh Cowork sessions with a
+            # folder visible in the rail but no write_file tool for their entire lifetime.
+            if not ag.requires_folder:
                 ws = self._provision_scratch(session_id)
             else:
-                # Keep an untouched draft session folderless. The first persisted
-                # conversation will provision its per-session scratch directory.
                 ws = None
 
         if ws:
@@ -1168,7 +1186,9 @@ class SessionManager:
             self.save(session_id, engine)
 
     async def resolve_inbox(self, item_id: str, resolution: str) -> bool:
-        """Resolve an Inbox item from any surface (REST / Slack button / channel reply). If the
+        """从任意交互界面解决 Inbox 项，并在进程重启后恢复挂起回合。
+
+        Resolve an Inbox item from any surface (REST / Slack button / channel reply). If the
         asking agent is still suspended live, that await handles it. Otherwise the process restarted
         (or the engine was evicted) while blocked → durably resume: rebuild the engine from the
         saved thread and continue the turn."""
@@ -2690,6 +2710,133 @@ class SessionManager:
         out.sort(key=lambda a: a["modified_at"], reverse=True)
         return out[:80]
 
+    def list_knowledge_files(
+        self,
+        *,
+        query: str = "",
+        source: str = "all",
+        page: int = 1,
+        page_size: int = 20,
+    ) -> dict[str, Any]:
+        """Files explicitly exchanged in conversations, across all sessions.
+
+        This intentionally indexes user attachments and scratch artifacts only. It never
+        walks a selected project root, so the knowledge view cannot accidentally become a
+        source-code browser.
+        """
+        from ..attachments import ATTACHED_TEXT_PREFIX
+
+        out: list[dict[str, Any]] = []
+        for summary in self.list_sessions():
+            sid = summary["session_id"]
+            record = self.session_store.load(sid)
+            messages = record.messages if record else []
+            for message_index, message in enumerate(messages):
+                if message.get("role") != "user" or not isinstance(message.get("content"), list):
+                    continue
+                for part_index, part in enumerate(message["content"]):
+                    if not isinstance(part, dict):
+                        continue
+                    kind = ""
+                    name = ""
+                    size = 0
+                    ptype = part.get("type")
+                    if ptype == "image_url":
+                        url = str((part.get("image_url") or {}).get("url") or "")
+                        if not url.startswith("data:image/"):
+                            continue
+                        mime = url[5:].split(";", 1)[0]
+                        ext = mime.split("/", 1)[-1].replace("jpeg", "jpg")
+                        name, kind = f"图片.{ext}", "image"
+                        size = max(0, len(url.rsplit(",", 1)[-1]) * 3 // 4)
+                    elif ptype == "file":
+                        file_part = part.get("file") or {}
+                        name = str(file_part.get("filename") or "附件.pdf")
+                        data = str(file_part.get("file_data") or "")
+                        if not data.startswith("data:application/pdf"):
+                            continue
+                        kind = "pdf"
+                        size = max(0, len(data.rsplit(",", 1)[-1]) * 3 // 4)
+                    elif ptype == "text":
+                        body = str(part.get("text") or "")
+                        if not body.startswith(ATTACHED_TEXT_PREFIX):
+                            continue
+                        head, _, content = body.partition("]\n")
+                        name = head[len(ATTACHED_TEXT_PREFIX) :] or "文本附件"
+                        kind, size = _artifact_kind(Path(name)), len(content.encode("utf-8"))
+                    else:
+                        continue
+                    out.append({
+                        "id": f"uploaded:{sid}:{message_index}:{part_index}",
+                        "name": name,
+                        "kind": kind,
+                        "size": size,
+                        "modified_at": float(message.get("ts") or 0),
+                        "source": "uploaded",
+                        "session_id": sid,
+                        "session_title": summary["title"],
+                        "workspace": summary["workspace"],
+                        "agent": summary["agent"],
+                        "message_index": message_index,
+                        "part_index": part_index,
+                    })
+            for artifact in self.list_artifacts(sid):
+                out.append({
+                    **artifact,
+                    "id": f"generated:{sid}:{artifact['path']}",
+                    "source": "generated",
+                    "session_id": sid,
+                    "session_title": summary["title"],
+                    "workspace": summary["workspace"],
+                    "agent": summary["agent"],
+                })
+        out.sort(key=lambda item: item.get("modified_at") or 0, reverse=True)
+        needle = query.strip().casefold()
+        if needle:
+            out = [
+                item
+                for item in out
+                if needle in str(item.get("name", "")).casefold()
+                or needle in str(item.get("session_title", "")).casefold()
+            ]
+        if source in {"uploaded", "generated"}:
+            out = [item for item in out if item.get("source") == source]
+        page_size = min(100, max(1, page_size))
+        total = len(out)
+        pages = max(1, (total + page_size - 1) // page_size)
+        page = min(max(1, page), pages)
+        start = (page - 1) * page_size
+        return {
+            "files": out[start : start + page_size],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "pages": pages,
+        }
+
+    def read_knowledge_attachment(
+        self, session_id: str, message_index: int, part_index: int
+    ) -> dict[str, Any]:
+        from ..attachments import ATTACHED_TEXT_PREFIX
+
+        messages = self.session_messages(session_id)
+        try:
+            part = messages[message_index]["content"][part_index]
+        except (IndexError, KeyError, TypeError):
+            return {"ok": False, "error": "附件不存在"}
+        ptype = part.get("type") if isinstance(part, dict) else None
+        if ptype == "image_url":
+            return {"ok": True, "kind": "image", "data_url": (part.get("image_url") or {}).get("url", "")}
+        if ptype == "file":
+            file_part = part.get("file") or {}
+            return {"ok": True, "kind": "pdf", "path": file_part.get("filename", "附件.pdf"), "data_url": file_part.get("file_data", "")}
+        if ptype == "text":
+            body = str(part.get("text") or "")
+            if body.startswith(ATTACHED_TEXT_PREFIX):
+                _, _, content = body.partition("]\n")
+                return {"ok": True, "kind": "text", "content": content}
+        return {"ok": False, "error": "附件不存在"}
+
     MAX_BINARY_PREVIEW = 25 * 1024 * 1024  # base64-over-JSON gets heavy past this
 
     def _artifact_target(
@@ -3559,8 +3706,13 @@ class SessionManager:
             "threshold_pct": float(
                 self._prefs.get("compaction_threshold_pct") or DEFAULT_THRESHOLD_PCT
             ),
+            "context_window": int(self._prefs.get("compaction_context_window") or 192_000),
+            # Legacy installs/tests may still carry an explicit absolute cap. The new
+            # UI no longer exposes it, but honoring it keeps persisted behavior stable.
             "cap_tokens": int(
-                self._prefs.get("compaction_cap_tokens") or DEFAULT_CAP_TOKENS
+                self._prefs.get("compaction_cap_tokens")
+                or self._prefs.get("compaction_context_window")
+                or 192_000
             ),
             # "" → the session's own model (engine falls back to self.model).
             "model": str(self._prefs.get("compaction_model") or ""),
@@ -3572,6 +3724,7 @@ class SessionManager:
         return {
             "compaction_threshold_pct": settings["threshold_pct"],
             "compaction_cap_tokens": settings["cap_tokens"],
+            "compaction_context_window": settings["context_window"],
             "compaction_model": settings["model"],
         }
 
@@ -3580,6 +3733,7 @@ class SessionManager:
         threshold_pct: Any = None,
         cap_tokens: Any = None,
         model: Any = None,
+        context_window: Any = None,
     ) -> dict[str, Any]:
         """Persist the auto-compaction overrides (OPE-27). Threshold is a percentage of
         the model's context window (10–95); the cap is an absolute token ceiling; model
@@ -3605,8 +3759,35 @@ class SessionManager:
                 return {"ok": False, "error": "compaction_cap_tokens must be a number"}
         if model is not None:
             self._prefs["compaction_model"] = str(model)
+        if context_window is not None:
+            try:
+                self._prefs["compaction_context_window"] = max(10_000, min(int(context_window), 2_000_000))
+            except (TypeError, ValueError):
+                return {"ok": False, "error": "compaction_context_window must be a number"}
         self._save_prefs()
         return {"ok": True, **self.compaction_settings()}
+
+    async def compact_session(self, session_id: str) -> dict[str, Any]:
+        from ..compaction import estimate_tokens
+
+        engine = self._engines.get(session_id)
+        if engine is None:
+            return {"ok": False, "error": "会话尚未加载"}
+        notice = await engine._compact_now(force=True, trim_if_no_summary=False)
+        if not notice:
+            return {
+                "ok": True,
+                "compacted": False,
+                "message": "当前无需压缩",
+                "context_tokens": estimate_tokens(engine._outbound_messages()),
+            }
+        self.save(session_id, engine, touch=False)
+        return {
+            "ok": True,
+            "compacted": True,
+            "message": notice,
+            "context_tokens": estimate_tokens(engine._outbound_messages()),
+        }
 
     def set_pdf_settings(
         self,
@@ -4588,7 +4769,12 @@ class SessionManager:
         self._running_sessions.add(session_id)
 
     def try_mark_running(self, session_id: str) -> bool:
-        """Atomically claim an idle session for one turn on the server event loop."""
+        """原子地抢占一个空闲会话，防止同一会话并发运行多个回合。
+
+        该方法在服务器事件循环中执行，检查和写入集合之间没有 ``await``，因此对同一
+        会话的两个入口（WebSocket、后台消息、自唤醒）只能有一个成功。失败方应把消息
+        转为 steering，等待当前回合在下一步处理。
+        """
         if session_id in self._running_sessions:
             return False
         self._running_sessions.add(session_id)
@@ -4860,6 +5046,12 @@ class SessionManager:
         )
 
     async def _run_scheduled_task(self, task, trigger: str) -> TaskRun:
+        """执行一次定时任务，并把它作为独立、可继续的会话保存。
+
+        运行前先创建并广播运行记录，再构建专属引擎和工作区；运行期间产生的审批、工具
+        结果和回复都进入该会话。无论成功还是异常，finally 都会写入结束时间和运行记录，
+        这样任务历史不会因为模型或工具失败而丢失。
+        """
         run = TaskRun(
             task_id=task.id, trigger=trigger
         )  # __post_init__ sets run.session_id
@@ -5042,6 +5234,7 @@ class SessionManager:
     def update_automation(
         self, task_id: str, changes: dict[str, Any]
     ) -> dict[str, Any]:
+        """更新定时任务，并将撤销的授权同步到正在运行的任务引擎。"""
         task = self.task_store.get(task_id)
         if task is None:
             return {"ok": False, "error": "not found"}
@@ -5076,6 +5269,7 @@ class SessionManager:
         return {"ok": True, "task": task.public()}
 
     def delete_automation(self, task_id: str) -> dict[str, Any]:
+        """删除定时任务并返回存储层的删除结果。"""
         return {"ok": self.task_store.delete(task_id), "id": task_id}
 
     def prepare_manual_run(self, task_id: str) -> dict[str, Any]:
@@ -5129,6 +5323,12 @@ class SessionManager:
         return {"ok": True, "run": run.to_dict()}
 
     def save(self, session_id: str, engine: TurnEngine, touch: bool = True) -> None:
+        """将内存中的引擎状态转换为可恢复的会话记录并写入存储。
+
+        保存内容包括工作区、模型、权限模式、完整消息历史、额外根目录、会话授权和
+        压缩状态。这里从执行器读取真实 cwd，确保工作区提升或切换后持久化的是当前
+        生效目录，而不是创建会话时的旧目录。
+        """
         executor = getattr(engine, "executor", None)
         workspace = os.path.realpath(str(executor.cwd)) if executor else ""
         self.session_store.save(
@@ -6030,9 +6230,13 @@ class SessionManager:
             return {"ok": False, "error": str(exc)}
         return {"ok": True, "skill": moved}
 
-    def stage_skill_upload(self, data: bytes, filename: str = "") -> dict[str, Any]:
+    def stage_skill_upload(
+        self, data: bytes, filename: str = "", *, invalid_name_fallback: str = ""
+    ) -> dict[str, Any]:
         try:
-            preview = self.skill_store.stage_upload(data, filename)
+            preview = self.skill_store.stage_upload(
+                data, filename, invalid_name_fallback=invalid_name_fallback
+            )
         except ValueError as exc:
             return {"ok": False, "error": str(exc)}
         return {"ok": True, **preview}

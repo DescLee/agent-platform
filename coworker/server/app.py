@@ -169,6 +169,12 @@ from .manager import SessionManager
 
 
 def create_app(manager: SessionManager) -> FastAPI:
+    """创建并组装 OpenWorker 的 FastAPI 控制面。
+
+    该函数只负责路由、鉴权、中间件和生命周期的装配；实际会话状态由传入的
+    ``SessionManager`` 持有。启动时开启消息网关，关闭时统一停止网关、保存相关资源
+    并断开 MCP 连接，避免把连接管理散落在各个 REST/WS 路由中。
+    """
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         try:
@@ -194,6 +200,12 @@ def create_app(manager: SessionManager) -> FastAPI:
     }
 
     def _request_authenticated(request: Request) -> bool:
+        """校验 HTTP 请求是否携带正确的本地 sidecar token。
+
+        使用常量时间比较避免直接比较字符串造成明显的时序差异；当服务没有配置
+        token 时由中间件按开发/本地模式放行。该函数只负责认证，不负责 Origin、路径
+        白名单或权限授权，后续中间件逻辑仍会分别处理这些边界。
+        """
         provided = request.headers.get("x-openworker-token", "")
         return bool(
             api_token
@@ -202,6 +214,12 @@ def create_app(manager: SessionManager) -> FastAPI:
         )
 
     def _websocket_authenticated(ws: WebSocket) -> bool:
+        """从 WebSocket 子协议列表中查找并校验 sidecar token。
+
+        WebSocket 没有普通 HTTP 请求体可用于传递认证信息，因此客户端把 token 放在
+        ``Sec-WebSocket-Protocol``。服务端只比较每个逗号分隔的协议项，不把 token 回显
+        到事件或错误消息中；未配置 token 时保持本地开发模式的兼容行为。
+        """
         if not api_token:
             return True
         protocols = {
@@ -213,6 +231,12 @@ def create_app(manager: SessionManager) -> FastAPI:
 
     @app.middleware("http")
     async def require_sidecar_token(request: Request, call_next):
+        """在请求进入业务路由前执行本地 sidecar 鉴权。
+
+        OPTIONS 预检和 OAuth 回调属于协议流程，健康检查保留最小匿名能力；普通 API
+        必须携带 token。工作区/看板等特殊路径是否允许访问由后续专用逻辑决定，这里
+        只做机器级入口拦截，避免未认证请求先触发会话、文件或工具操作。
+        """
         # Preflights carry the requested header name, not its value. CORS checks the
         # Origin; the actual state-changing request still must authenticate.
         if (
@@ -720,7 +744,11 @@ def create_app(manager: SessionManager) -> FastAPI:
             archive = skillhub_skill_archive(slug, namespace, version)
         except (httpx.HTTPError, ValueError, TypeError) as exc:
             return {"ok": False, "error": str(exc) or "SkillHub 技能下载失败"}
-        preview = manager.stage_skill_upload(archive, f"{slug}.zip")
+        # Catalog display names may contain Chinese or spaces. Local skill names are
+        # folder identifiers, so fall back to the stable catalog slug when needed.
+        preview = manager.stage_skill_upload(
+            archive, f"{slug}.zip", invalid_name_fallback=slug
+        )
         if not preview.get("ok"):
             return preview
         token = str(preview.get("token", ""))
@@ -888,6 +916,20 @@ def create_app(manager: SessionManager) -> FastAPI:
         return manager.reveal_artifact(
             session_id, str(body.get("path", "")), str(body.get("mode", "reveal"))
         )
+
+    @app.get("/v1/knowledge/files")
+    def knowledge_files(
+        q: str = "", source: str = "all", page: int = 1, page_size: int = 20
+    ) -> dict[str, Any]:
+        return manager.list_knowledge_files(
+            query=q, source=source, page=page, page_size=page_size
+        )
+
+    @app.get("/v1/knowledge/attachments/read")
+    def knowledge_attachment_read(
+        session_id: str, message_index: int, part_index: int
+    ) -> dict[str, Any]:
+        return manager.read_knowledge_attachment(session_id, message_index, part_index)
 
     # Agent teams (OPE-96): the session's board (workspace-keyed space) + journal
     # overview. Mutations act as the USER — the human side of the gates.
@@ -2148,9 +2190,13 @@ def create_app(manager: SessionManager) -> FastAPI:
         b = body or {}
         return manager.set_compaction_settings(
             threshold_pct=b.get("compaction_threshold_pct"),
-            cap_tokens=b.get("compaction_cap_tokens"),
             model=b.get("compaction_model"),
+            context_window=b.get("compaction_context_window"),
         )
+
+    @app.post("/v1/sessions/{session_id}/compact")
+    async def session_compact(session_id: str) -> dict[str, Any]:
+        return await manager.compact_session(session_id)
 
     @app.post("/v1/attachments/inspect-pdf")
     def attachments_inspect_pdf(body: dict) -> dict[str, Any]:
@@ -2718,13 +2764,17 @@ def create_app(manager: SessionManager) -> FastAPI:
             manager.save(session_id, engine, touch=False)
             await manager.broadcast_session(session_id, {"type": "mode_notice", "data": data})
 
-        async def run_turn(content, *, retry: bool = False, display=None) -> None:
+        async def run_turn(
+            content, *, retry: bool = False, regenerate: bool = False, display=None
+        ) -> None:
             # The receive loop atomically claims this session before scheduling the task.
             # Keeping the claim outside prevents two back-to-back frames from both starting.
             try:
                 events = (
                     engine.retry()
                     if retry
+                    else engine.regenerate()
+                    if regenerate
                     else engine.run(content, display=display)
                 )
                 async for event in events:
@@ -2758,13 +2808,17 @@ def create_app(manager: SessionManager) -> FastAPI:
             # or flush an in-progress assistant stream in the GUI.
             await ws.send_json({"type": "input_rejected", "data": {"error": reason}})
 
-        async def claim_turn(*, retry: bool = False, content=None, display=None) -> None:
+        async def claim_turn(
+            *, retry: bool = False, regenerate: bool = False, content=None, display=None
+        ) -> None:
             if not manager.try_mark_running(session_id):
                 await reject_input(
                     "This session is already running a turn. Wait for it to finish or stop it."
                 )
                 return
-            asyncio.create_task(run_turn(content, retry=retry, display=display))
+            asyncio.create_task(
+                run_turn(content, retry=retry, regenerate=regenerate, display=display)
+            )
 
         try:
             while True:
@@ -2854,6 +2908,8 @@ def create_app(manager: SessionManager) -> FastAPI:
                     # Re-run after a provider error (engine guards on the error-notice
                     # tail, so a stray frame is a no-op that still ends with turn_done).
                     await claim_turn(retry=True)
+                elif kind == "regenerate":
+                    await claim_turn(regenerate=True)
                 elif kind == "set_mode":
                     try:
                         new_mode = Mode(message.get("mode"))

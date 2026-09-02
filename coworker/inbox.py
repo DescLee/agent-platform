@@ -139,6 +139,11 @@ class InboxStore:
         questions=None,
         tool_call_id: Optional[str] = None,
     ) -> InboxItem:
+        """创建并持久化一个 Inbox 项，作为用户交互的可靠挂起点。
+
+        ``tool_call_id`` 用于恢复时幂等复用原项目，避免进程重启或消息重试导致重复
+        弹出审批卡。项目写盘后才返回，后续 wait 可以由当前进程或恢复流程继续完成。
+        """
         # Idempotent by (session_id, tool_call_id): a durable resume re-raises the same prompt, and
         # must reuse the existing (possibly already-resolved) item rather than re-prompt.
         if tool_call_id:
@@ -360,7 +365,9 @@ class InboxStore:
         return closed
 
     async def wait(self, item_id: str) -> str:
-        """Await an item's resolution; returns the resolution string. Used by the approver to
+        """等待 Inbox 项解决，并返回用户提交的原始 resolution 字符串。
+
+        Await an item's resolution; returns the resolution string. Used by the approver to
         suspend the agent until a human answers (from any surface)."""
         item = self._items.get(item_id)
         if item is not None and item.state == STATE_RESOLVED:

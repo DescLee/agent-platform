@@ -133,6 +133,7 @@ interface Props {
   // setup-row picker (UX-029).
   onOpenPersona: (id: string) => void;
   onOpenCoworkers: () => void;
+  onOpenKnowledge?: () => void;
   onOpenScheduled: () => void;
   // Scheduled-band row click: open the Automations surface ON that automation (UX-023).
   onOpenAutomation: (id: string) => void;
@@ -141,6 +142,7 @@ interface Props {
   onOpenInbox: () => void;
   onOpenGreenboat?: () => void;
   coworkersActive: boolean;
+  knowledgeActive?: boolean;
   scheduledActive: boolean;
   integrationsActive: boolean;
   auditActive: boolean;
@@ -1076,6 +1078,19 @@ export function Sidebar(props: Props) {
           onClick={props.onOpenCoworkers}
         >
           <Icon name="sparkle" size={15} className="shrink-0" /> 专家·技能·连接器
+        </button>
+      </div>
+
+      <div className="px-2.5 mt-1">
+        <button
+          className={
+            "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] text-left hover:bg-chromeHover hover:text-ink " +
+            (props.knowledgeActive ? "text-ink bg-chromeHover" : "text-muted")
+          }
+          data-testid="nav-knowledge"
+          onClick={props.onOpenKnowledge}
+        >
+          <Icon name="book" size={15} className="shrink-0" /> 知识库
         </button>
       </div>
 

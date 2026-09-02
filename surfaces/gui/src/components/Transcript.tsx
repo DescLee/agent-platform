@@ -34,7 +34,17 @@ function ClampedUserText({ text }: { text: string }) {
 // Lives in a ZERO-HEIGHT strip under the bubble (absolute, inside the transcript's 20px gap)
 // so revealing it on group-hover never shifts the layout. `ts` is unix seconds — canonical
 // messages carry it, pre-stamp history doesn't, so the time simply omits itself when absent.
-function BubbleMeta({ text, ts, align }: { text: string; ts?: number; align: "left" | "right" }) {
+function BubbleMeta({
+  text,
+  ts,
+  align,
+  onRegenerate,
+}: {
+  text: string;
+  ts?: number;
+  align: "left" | "right";
+  onRegenerate?: () => void;
+}) {
   const [copied, setCopied] = useState(false);
   const when = typeof ts === "number" ? new Date(ts * 1000) : null;
   const copy = () => {
@@ -64,6 +74,17 @@ function BubbleMeta({ text, ts, align }: { text: string; ts?: number; align: "le
         >
           {copied ? "已复制" : <Icon name="copy" size={11} />}
         </button>
+        {onRegenerate && (
+          <button
+            className="flex items-center cursor-pointer hover:text-muted"
+            data-testid="bubble-retry"
+            title="重新生成"
+            aria-label="重新生成本条回复"
+            onClick={onRegenerate}
+          >
+            <Icon name="refresh" size={11} />
+          </button>
+        )}
         {when && (
           <span data-testid="bubble-ts" title={when.toLocaleString()}>
             {when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
@@ -428,6 +449,8 @@ interface Props {
   // Re-run the failed turn (no new user message). Offered only on a retriable notice that
   // is the transcript tail of an idle session — anywhere else the error is history.
   onRetry?: () => void;
+  // Re-generate the latest completed assistant response.
+  onRegenerate?: () => void;
   // mcp_error notices: "Open Connectors" jumps to the Connectors page (Integrations surface).
   onOpenConnectors?: () => void;
   // MEMORY-SPEC §5.1: undo a just-announced write. `previous` (set when the write was
@@ -495,7 +518,7 @@ function McpNotice({
 }
 
 
-export function Transcript({ items, running, streamingText, streamingAnswerVisible, onRetry, onOpenConnectors, onUndoMemory, onAllowAnyway, sessionId, workspace }: Props) {
+export function Transcript({ items, running, streamingText, streamingAnswerVisible, onRetry, onRegenerate, onOpenConnectors, onUndoMemory, onAllowAnyway, sessionId, workspace }: Props) {
   const [skillNames, setSkillNames] = useState<Record<string, string>>({});
   useEffect(() => {
     if (!sessionId) return;
@@ -552,6 +575,9 @@ export function Transcript({ items, running, streamingText, streamingAnswerVisib
   flush(!!running);
 
   const lastTurnIndex = blocks.reduce((acc, b, i) => ("turn" in b ? i : acc), -1);
+  const latestAssistant = [...items].reverse().find(
+    (item): item is AssistantItem => item.kind === "assistant" && !!item.text,
+  );
   return (
     <div className="transcript">
       {blocks.map((block, bi) => {
@@ -610,7 +636,12 @@ export function Transcript({ items, running, streamingText, streamingAnswerVisib
                 <div className="who">绿巨人</div>
                 {item.reasoning && <ThinkingBlock text={item.reasoning} />}
                 <Markdown text={item.text} />
-                <BubbleMeta text={item.text} ts={item.ts} align="left" />
+                <BubbleMeta
+                  text={item.text}
+                  ts={item.ts}
+                  align="left"
+                  onRegenerate={!running && item === latestAssistant ? onRegenerate : undefined}
+                />
               </div>
             );
           case "dirreq":
@@ -663,7 +694,7 @@ export function Transcript({ items, running, streamingText, streamingAnswerVisib
                 {item.text}
                 {item.retriable && !running && onRetry && block.i === retryAnchor(items) && (
                   <button className="btn ml-2" data-testid="notice-retry" onClick={onRetry}>
-                    Retry
+                    重试
                   </button>
                 )}
               </div>

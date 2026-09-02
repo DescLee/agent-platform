@@ -99,7 +99,7 @@ export function itemsFromMessages(messages: ConversationMessage[]): Item[] {
             ? { kind: "notice", tone: "info", text: cleanModelSwitch(m.text || "Model switched") }
             : m.kind === "compacted"
               ? // The subtle "compacted here" divider (OPE-27) — the transcript itself is intact.
-                { kind: "notice", tone: "info", text: m.text || "Context compacted" }
+                { kind: "notice", tone: "info", text: m.text || "上下文已压缩" }
               : m.kind === "mcp_error"
                 ? // A configured MCP server failed to start for this session — informational,
                   // NOT retriable (retry re-runs the model turn, which can't fix a dead server).

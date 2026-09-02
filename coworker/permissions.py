@@ -341,6 +341,12 @@ class PermissionEngine:
             self.roots = [{"path": self.workspace_root, "writable": True}]
 
     def _resolved_roots(self) -> list[tuple[Path, bool]]:
+        """把多种根目录表示统一解析为“绝对路径 + 是否可写”元组。
+
+        根目录可能来自旧版单路径配置、字典、RootDir 对象或运行时新增目录。每次
+        权限检查都重新解析，保证用户在会话进行中增删目录后，下一次写操作立即使用
+        最新范围；解析失败不会扩大权限范围。
+        """
         out: list[tuple[Path, bool]] = []
         for r in self.roots or []:
             if isinstance(r, dict):
@@ -355,6 +361,14 @@ class PermissionEngine:
     def evaluate(
         self, tool_name: str, arguments: dict[str, Any], metadata: Any = None
     ) -> Decision:
+        """根据工具风险、工作区范围和当前权限模式计算一次授权决策。
+
+        该函数是权限系统的单一决策入口，返回值只描述“是否可执行”以及“是否需要
+        用户参与”，不直接弹窗也不执行工具。判定采用从严格到宽松的顺序：先阻止自我
+        保护文件和只读模式下的副作用，再校验写入路径，随后处理持久化权限、受保护
+        项目文件、会话授权、命令/域名白名单，最后才允许普通低风险操作。任何无法
+        确定目标范围的情况都默认收紧，避免信息缺失被误判成安全。
+        """
         arguments = arguments or {}
         is_connector = getattr(metadata, "category", "") == "connector"
         risk = classify(tool_name, metadata, self.risk_overrides)
@@ -546,6 +560,12 @@ class PermissionEngine:
         return False
 
     def _under_writable_root(self, path: str) -> bool:
+        """判断目标路径是否位于任一可写根目录内。
+
+        使用 Path.relative_to 做路径边界判断，避免简单字符串前缀把 ``project-old``
+        错当成 ``project`` 的子目录。调用方通常会在此基础上继续检查受保护文件，
+        因此“在根目录内”只代表范围合法，不代表可以无条件执行。
+        """
         candidate = self._candidate(path)
         for rp, writable in self._resolved_roots():
             if not writable:

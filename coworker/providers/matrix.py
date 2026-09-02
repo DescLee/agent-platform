@@ -288,7 +288,11 @@ def model_labels() -> dict[str, str]:
 
 
 def model_context_windows() -> dict[str, int]:
-    """Full-id → context-window map (verified entries only), for the GUI's fill meter."""
+    """返回已确认模型的上下文窗口映射，供压缩策略和 GUI 进度条共同使用。
+
+    未登记窗口的模型不会被伪造为某个固定值；调用方可据此回退默认窗口或隐藏百分比。
+    因此切换模型后必须重新读取该映射，不能继续使用旧模型的窗口大小。
+    """
     return {
         mid: e.context_window for mid, e in MATRIX.items() if e.context_window
     }

@@ -46,7 +46,6 @@ _SCHEMA = {
     },
 }
 
-
 def file_tools(workspace: str, roots: Optional[list] = None) -> list:
     """Windowed read_file rooted at `workspace`. With `roots` (RootDir list), absolute
     paths inside ANY root also resolve — multi-root sessions (universal scratch) address
@@ -123,4 +122,5 @@ def file_tools(workspace: str, roots: Optional[list] = None) -> list:
         requires_approval=False,
     )
     read_file.__coworker_schema__ = _SCHEMA
+
     return [read_file]

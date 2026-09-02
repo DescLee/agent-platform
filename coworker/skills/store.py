@@ -51,6 +51,28 @@ def validate_name(name: str) -> str:
     return name
 
 
+def normalize_name(name: str, fallback: str = "skill") -> str:
+    """Turn an external catalog slug into a safe, stable local folder name."""
+    normalized = re.sub(r"[^A-Za-z0-9._-]+", "-", (name or "").strip())
+    normalized = re.sub(r"\.{2,}", ".", normalized).strip("._-")[:_MAX_NAME]
+    if not normalized or not normalized[0].isalnum():
+        normalized = fallback
+    return validate_name(normalized)
+
+
+def _replace_frontmatter_name(md: Path, name: str) -> None:
+    """Replace only the YAML name field, preserving catalog-specific metadata."""
+    text = md.read_text(encoding="utf-8")
+    end = text.find("\n---", 3) if text.startswith("---") else -1
+    if end < 0:
+        raise ValueError("The skill needs YAML frontmatter with at least a skill name.")
+    frontmatter = text[:end]
+    replaced, count = re.subn(r"(?m)^name\s*:.*$", f"name: {name}", frontmatter, count=1)
+    if count == 0:
+        replaced += f"\nname: {name}"
+    md.write_text(replaced + text[end:], encoding="utf-8")
+
+
 def _frontmatter_source(md: Path) -> str:
     """Read the optional ``source:`` frontmatter key (``uploaded`` etc.). Absent → created here."""
     try:
@@ -294,7 +316,9 @@ class SkillStore:
             )
 
     # -- uploads: stage → preview → confirm -----------------------------------------
-    def stage_upload(self, data: bytes, filename: str = "") -> dict[str, Any]:
+    def stage_upload(
+        self, data: bytes, filename: str = "", *, invalid_name_fallback: str = ""
+    ) -> dict[str, Any]:
         """Stage an upload and return the parsed preview. Accepts a ``.zip`` (folder skill)
         or a bare ``SKILL.md`` with YAML frontmatter. Nothing is installed until
         :meth:`confirm_upload`. (A ``.skill`` file is a renamed zip and still unpacks —
@@ -339,8 +363,11 @@ class SkillStore:
         try:
             validate_name(name)
         except ValueError:
-            shutil.rmtree(staged, ignore_errors=True)
-            raise
+            if not invalid_name_fallback:
+                shutil.rmtree(staged, ignore_errors=True)
+                raise
+            name = normalize_name(invalid_name_fallback)
+            _replace_frontmatter_name(staged / "SKILL.md", name)
         extras = sorted(
             str(p.relative_to(staged))
             for p in staged.rglob("*")
@@ -393,6 +420,12 @@ class SkillStore:
         scope: str = GLOBAL_SCOPE,
         workspace: Optional[str | Path] = None,
     ) -> dict[str, Any]:
+        """确认并安装一个暂存技能。
+
+        这里才会把暂存目录移动到全局或项目技能目录；移动前重新解析和校验技能名，
+        并拒绝覆盖已有技能。安装完成后再写入来源元数据，保证技能扫描器不会看到
+        半成品目录。
+        """
         staged = self._staging_dir / str(token)
         if not (staged / "SKILL.md").is_file():
             raise ValueError("Unknown or expired upload.")

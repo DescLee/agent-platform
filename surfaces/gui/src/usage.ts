@@ -16,7 +16,11 @@ const num = (v: any): number => {
   return Number.isFinite(n) && n > 0 ? n : 0;
 };
 
-/** Fold one turn's usage sidecar into the session accumulation. */
+/**
+ * 合并一轮 usage：byModel 跨回合累计，context 只记录最近一轮 prompt 总量。
+ * 后者代表当前上下文窗口占用，不能把每轮重新发送的历史重复累加；非法或缺失字段
+ * 按 0 处理，以兼容旧服务端和不返回 usage 的 provider。
+ */
 export function addTurnUsage(prev: SessionUsage, raw: any): SessionUsage {
   if (!raw || typeof raw !== "object") return prev;
   const turn: TurnUsage = {
@@ -45,7 +49,7 @@ export function addTurnUsage(prev: SessionUsage, raw: any): SessionUsage {
   };
 }
 
-/** Rebuild the accumulation from a replayed transcript (session load/switch). */
+/** 从持久化消息重建统计；只读取 assistant 的 usage sidecar，避免重复计算。 */
 export function usageFromMessages(messages: ConversationMessage[]): SessionUsage {
   let acc = emptyUsage();
   for (const m of messages || []) {

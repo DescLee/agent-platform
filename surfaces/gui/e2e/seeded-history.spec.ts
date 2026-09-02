@@ -26,7 +26,7 @@ const RICH_HISTORY = [
     reasoning: "Compared the log against the changelog; both entries line up.",
     ts: TS + 40,
   },
-  { role: "notice", kind: "compacted", text: "Context compacted" },
+  { role: "notice", kind: "compacted", text: "上下文已压缩" },
   { role: "assistant", content: "Anything else before I file the summary?" },
 ];
 
@@ -40,7 +40,7 @@ test("a reopened session replays rich history: tools, filters, reasoning, notice
   // Plain items replay as they rendered live.
   await expect(page.getByText("Audit the release branch")).toBeVisible();
   await expect(page.locator(".md strong", { hasText: "two checks" })).toBeVisible();
-  await expect(page.getByText("Context compacted")).toBeVisible();
+  await expect(page.getByText("上下文已压缩")).toBeVisible();
 
   // The turn's tools fold into a collapsed step group; the filter count rides the summary.
   const group = page.locator(".stepgroup").first();

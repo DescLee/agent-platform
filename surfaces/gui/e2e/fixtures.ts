@@ -917,7 +917,7 @@ export async function mockApi(page: import("@playwright/test").Page) {
         if (/compact the context/i.test(msg.text)) {
           send("compacting", {});
           setTimeout(() => {
-            send("compacted", { text: "Context compacted — earlier turns were summarized" });
+            send("compacted", { text: "上下文已压缩 — 之前的对话已总结" });
             send("assistant_message", { text: "Still on it — continuing where I left off." });
             send("turn_done");
           }, 400);
@@ -1222,6 +1222,46 @@ export async function mockApi(page: import("@playwright/test").Page) {
       });
     }
     if (/\/v1\/sessions\/[^/]+\/artifacts\/reveal$/.test(p)) return json({ ok: true });
+    if (p.endsWith("/v1/knowledge/files")) {
+      return json({
+        total: 22,
+        page: Number(new URL(req.url()).searchParams.get("page") || 1),
+        page_size: 20,
+        pages: 2,
+        files: [
+          {
+            id: "uploaded:pinned-cowork-1:0:1",
+            name: "travel-notes.txt",
+            kind: "text",
+            size: 128,
+            modified_at: Math.floor(Date.now() / 1000),
+            source: "uploaded",
+            session_id: "pinned-cowork-1",
+            session_title: "Draft the launch note",
+            workspace: "/tmp/picked-folder",
+            agent: "cowork",
+            message_index: 0,
+            part_index: 1,
+          },
+          {
+            id: "generated:pinned-cowork-1:reports/security-review.html",
+            path: "reports/security-review.html",
+            name: "security-review.html",
+            kind: "html",
+            size: 2048,
+            modified_at: Math.floor(Date.now() / 1000) - 60,
+            source: "generated",
+            session_id: "pinned-cowork-1",
+            session_title: "Draft the launch note",
+            workspace: "/tmp/picked-folder",
+            agent: "cowork",
+          },
+        ],
+      });
+    }
+    if (p.endsWith("/v1/knowledge/attachments/read")) {
+      return json({ ok: true, kind: "text", content: "Meet at the south gate." });
+    }
     // Item detail (merged event timeline + attachments) for the detail pane.
     if (/\/v1\/sessions\/[^/]+\/board\/item$/.test(p)) {
       const id = Number(new URL(req.url()).searchParams.get("id"));

@@ -23,7 +23,7 @@ from typing import Any, Optional
 DEFAULT_THRESHOLD_PCT = 0.8
 DEFAULT_CAP_TOKENS = 250_000
 # Models without a verified context_window entry in the matrix.
-DEFAULT_CONTEXT_WINDOW = 128_000
+DEFAULT_CONTEXT_WINDOW = 192_000
 # The newest slice kept verbatim, as a fraction of the trigger (a token budget, not a
 # turn count — one huge tool loop shouldn't starve the working set).
 KEEP_RECENT_FRACTION = 0.25
@@ -46,8 +46,12 @@ _TRIM_FRACTION = 0.10
 
 
 def estimate_tokens(messages: list[dict[str, Any]]) -> int:
-    """chars/4 over the serialized messages — the fallback signal for providers that
-    never report usage (documented in the metering code)."""
+    """用序列化后的字符数近似估算消息 token 数。
+
+    这是在 provider 没有返回真实 usage 时使用的保守信号，不代表具体 tokenizer 的
+    精确结果。函数逐条序列化并按约 4 个字符一个 token 换算；遇到不能 JSON 序列化
+    的值时退回 ``str``，因此估算失败不会阻断正常会话，只可能让压缩触发点略有偏差。
+    """
     total = 0
     for msg in messages:
         try:
@@ -63,6 +67,12 @@ def trigger_tokens(
     threshold_pct: float = DEFAULT_THRESHOLD_PCT,
     cap_tokens: int = DEFAULT_CAP_TOKENS,
 ) -> int:
+    """计算触发压缩的 token 阈值。
+
+    阈值取“上下文窗口 × 百分比”和绝对上限 ``cap_tokens`` 中较小者。这样大窗口
+    模型也不会等到接近硬上限才压缩，给摘要调用、工具结果和 tokenizer 误差预留空间。
+    未提供模型窗口时使用默认窗口；该函数只计算数值，不读取或修改会话状态。
+    """
     window = context_window or DEFAULT_CONTEXT_WINDOW
     return min(int(threshold_pct * window), int(cap_tokens))
 
@@ -74,6 +84,7 @@ def should_compact(
     threshold_pct: float = DEFAULT_THRESHOLD_PCT,
     cap_tokens: int = DEFAULT_CAP_TOKENS,
 ) -> bool:
+    """判断当前上下文信号是否已经达到自动压缩阈值。"""
     return signal >= trigger_tokens(
         context_window, threshold_pct=threshold_pct, cap_tokens=cap_tokens
     )
@@ -309,7 +320,9 @@ def _cap_user_messages(
 
 # -- summarizer ---------------------------------------------------------------
 
-SUMMARY_SYSTEM_PROMPT = """你正在压缩 AI 协作助手的会话历史，以便它在更小的上下文中继续工作。请为下方对话编写结构化摘要。这是助手对这些轮次的唯一记忆，必须保留所有关键内容。
+SUMMARY_SYSTEM_PROMPT = """You are compacting an AI coworker conversation. Primary request and intent must be preserved.
+
+你正在压缩 AI 协作助手的会话历史，以便它在更小的上下文中继续工作。请为下方对话编写结构化摘要。这是助手对这些轮次的唯一记忆，必须保留所有关键内容。
 
 按以下顺序输出全部章节，每章使用 Markdown 标题：
 
@@ -328,7 +341,7 @@ SUMMARY_SYSTEM_PROMPT = """你正在压缩 AI 协作助手的会话历史，以�
 - 只输出上述摘要章节，不要前言。"""
 
 CONTINUATION_CONTRACT = (
-    "从中断处继续，严格接续摘要中的当前工作和下一步。不要重复询问已回答的问题，不要回顾，也不要提及"
+    "从中断处继续，严格接续摘要中的当前工作和下一步。不要重复询问已回答的问题，不要回顾（do not recap），也不要提及"
     "上下文已被压缩。若需要上述文件的内容，请重新读取。"
 )
 
@@ -421,7 +434,9 @@ def build_state(
     keep_tokens: int,
     prior: Optional[CompactionState] = None,
 ) -> Optional[CompactionState]:
-    """Summarize everything older than the picked boundary into a new CompactionState.
+    """把边界之前的旧消息总结成新的压缩状态。
+
+    Summarize everything older than the picked boundary into a new CompactionState.
     On repeated compaction the prior summary heads the new span. Returns None when there
     is nothing to compact; raises when the summarizer fails (caller applies policy)."""
     boundary = pick_boundary(messages, keep_tokens=keep_tokens)
@@ -523,7 +538,9 @@ def compacted_block(state: CompactionState) -> str:
 def apply_to_outbound(
     messages: list[dict[str, Any]], state: Optional[CompactionState]
 ) -> list[dict[str, Any]]:
-    """The outbound view: [system?] + the compacted block (as a user message) + the
+    """生成发送给模型的压缩后视图：系统消息、摘要消息和未压缩尾部。
+
+    The outbound view: [system?] + the compacted block (as a user message) + the
     verbatim tail. Canonical history is untouched; provider-private sidecars in the
     summarized span vanish with it (replay chains legally restart after a compaction
     point). No-op when state is absent or stale."""

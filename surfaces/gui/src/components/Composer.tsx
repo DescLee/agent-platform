@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import type { Attachment, SessionUsage } from "../types";
 import { isPdfFile, readFile } from "../attach";
 import { ProjectBindMenu } from "./ProjectBindMenu";
-import { getSettings, inspectPdf, sessionSkills, setAutoApprove, type SessionSkillRow } from "../api";
+import { compactSession, getSettings, inspectPdf, sessionSkills, setAutoApprove, type SessionSkillRow } from "../api";
 import { formatTokens, totalTokens } from "../usage";
 import { Dropdown, type Option } from "./Dropdown";
 import { Icon } from "./Icon";
@@ -85,6 +85,7 @@ function HighlightedSkillName({ value, query }: { value: string; query: string }
 
 interface Props {
   expertSlot?: ReactNode;
+  folderSlot?: ReactNode;
   mode: string;
   model: string;
   models?: string[];
@@ -724,6 +725,8 @@ export function Composer(props: Props) {
             />
           ) : null}
 
+          {!dictation?.recording && props.folderSlot}
+
           {dictationBusy === "正在转写…" && <span className="text-[12px] text-accent">正在转写…</span>}
 
           <span className="ml-auto" />
@@ -735,9 +738,9 @@ export function Composer(props: Props) {
             <UsageChip
               usage={props.usage}
               contextWindow={props.contextWindow}
-              contextBar={props.contextBar}
               model={props.model}
               modelLabels={props.modelLabels}
+              sessionId={props.sessionId}
             />
           )}
 
@@ -832,23 +835,28 @@ export function Composer(props: Props) {
 function UsageChip({
   usage,
   contextWindow,
-  contextBar,
   model,
   modelLabels,
+  sessionId,
 }: {
   usage: SessionUsage;
   contextWindow?: number;
-  contextBar?: boolean;
   model: string;
   modelLabels?: Record<string, string>;
+  sessionId?: string;
 }) {
+  // context 是最近一次请求的 prompt 侧 token 数，而不是整个会话累计消耗。
+  // 进度条因此表示当前上下文窗口占用；byModel 中的累计值属于另一种统计口径。
   const [open, setOpen] = useState(false);
+  const [compacting, setCompacting] = useState(false);
+  const [toast, setToast] = useState("");
+  const [displayContext, setDisplayContext] = useState(usage.context);
+  useEffect(() => setDisplayContext(usage.context), [usage.context, sessionId]);
   const total = totalTokens(usage);
   const pct = contextWindow
-    ? Math.min(100, Math.round((usage.context / contextWindow) * 100))
+    ? Math.min(100, Math.round((displayContext / contextWindow) * 100))
     : null;
   // Settings can hide the bar; without a known window there is nothing to fill either.
-  const showBar = pct !== null && contextBar === true;
   // Release hold (owner call 2026-08-24): cumulative session totals need more vetting
   // before they ship — cache-read sums across turns read like a bill. Until then the
   // chip and popover speak context-window only. Flip this to restore the breakdown.
@@ -865,41 +873,38 @@ function UsageChip({
     </div>
   );
   return (
-    <div className="relative">
+    <div className="relative" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+      {toast && <div className="fixed left-1/2 top-7 z-[80] -translate-x-1/2 rounded-xl border border-line bg-panel px-4 py-3 text-[13px] text-ink shadow-xl" role="status">{toast}</div>}
       <button
-        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[12px] text-muted hover:text-ink hover:bg-paper shrink-0"
-        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-muted hover:text-ink hover:bg-paper shrink-0"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Token 使用情况"
         title={
           pct !== null
-            ? `上下文窗口已使用 ${pct}%：${formatTokens(usage.context)} / ${formatTokens(contextWindow as number)}`
-            : `当前上下文：${formatTokens(usage.context)} Token`
+            ? `上下文窗口已使用 ${pct}%：${formatTokens(displayContext)} / ${formatTokens(contextWindow as number)}`
+            : `当前上下文：${formatTokens(displayContext)} Token`
         }
         data-testid="usage-chip"
       >
         {/* The bar is the context-window fill. With totals on release hold, the numeric
             fallback is the in-context size — the one figure we trust — never the
             cumulative session total. */}
-        {showBar ? (
-          <span className="w-12 h-1.5 rounded-full bg-line overflow-hidden" aria-hidden="true">
-            <span
-              className="block h-full bg-accent transition-all"
-              style={{ width: `${Math.max(pct as number, 4)}%` }}
-            />
-          </span>
-        ) : (
-          <span className="tabular-nums">
-            {SHOW_SESSION_TOTALS ? formatTokens(total) : formatTokens(usage.context)}
-          </span>
-        )}
+        <svg
+          width="22"
+          height="22"
+          viewBox="0 0 22 22"
+          aria-hidden="true"
+          className={compacting ? "animate-spin" : "-rotate-90"}
+        >
+          <circle cx="11" cy="11" r="8" fill="none" stroke="currentColor" strokeOpacity="0.18" strokeWidth="3" />
+          <circle cx="11" cy="11" r="8" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" pathLength="100" strokeDasharray={`${pct ?? 0} 100`} />
+        </svg>
       </button>
       {open && (
-        <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+        <div className="absolute z-40 bottom-full right-0 w-[280px] pb-2">
           <div
-            className="absolute z-40 bottom-full mb-1 right-0 w-[280px] rounded-xl border border-line bg-panel shadow-2xl p-3"
+            className="rounded-xl border border-line bg-panel shadow-2xl p-3"
             role="menu"
             data-testid="usage-popover"
           >
@@ -915,12 +920,12 @@ function UsageChip({
                   />
                 </div>
                 <div className="mt-1 text-[12px] text-muted tabular-nums">
-                  {formatTokens(usage.context)} / {formatTokens(contextWindow)} · {pct}%
+                  {formatTokens(displayContext)} / {formatTokens(contextWindow)} · {pct}%
                 </div>
               </div>
-            ) : usage.context > 0 ? (
+            ) : displayContext > 0 ? (
               <div className="mb-2.5 text-[12px] text-muted tabular-nums">
-                当前上下文：{formatTokens(usage.context)} Token
+                当前上下文：{formatTokens(displayContext)} Token
               </div>
             ) : null}
             {SHOW_SESSION_TOTALS && (<>
@@ -958,13 +963,43 @@ function UsageChip({
               <span className="text-ink tabular-nums">{formatTokens(total)} Token</span>
             </div>
             </>)}
+            <button
+              className="mt-2 text-[12px] text-accent underline underline-offset-2 disabled:opacity-50"
+              disabled={compacting || !sessionId}
+              onClick={async () => {
+                if (!sessionId) return;
+                setCompacting(true);
+                const [result] = await Promise.all([
+                  compactSession(sessionId).catch(() => ({ ok: false, error: "压缩失败" })),
+                  new Promise<void>((resolve) => window.setTimeout(resolve, 1000)),
+                ]);
+                setCompacting(false);
+                setOpen(false);
+                if (result.ok && "context_tokens" in result && typeof result.context_tokens === "number") {
+                  setDisplayContext(result.context_tokens);
+                }
+                setToast(
+                  result.ok
+                    ? ("compacted" in result && result.compacted === false ? "当前无需压缩" : "压缩完毕")
+                    : "压缩失败，请稍后重试",
+                );
+                window.setTimeout(() => setToast(""), 3000);
+              }}
+            >
+              {compacting ? (
+                <span className="inline-flex items-center gap-1.5 no-underline">
+                  <span className="h-3 w-3 animate-spin rounded-full border border-line border-t-accent" aria-hidden="true" />
+                  压缩中…
+                </span>
+              ) : "手动压缩"}
+            </button>
             {model && !modelLabels?.[model] && contextWindow === undefined && (
               <div className="mt-1 text-[11px] text-faint leading-snug">
                 自定义模型暂不支持上下文用量显示。
               </div>
             )}
           </div>
-        </>
+        </div>
       )}
     </div>
   );

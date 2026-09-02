@@ -282,6 +282,13 @@ class TurnEngine:
         source: Optional[dict[str, Any]] = None,
         display: Optional[str] = None,
     ) -> AsyncIterator[Event]:
+        """执行一次完整的用户回合，并以事件流形式向界面报告进度。
+
+        这里先把用户消息写入内存历史，再重置本回合专属的取消状态和审核器拒绝计数，
+        最后交给 ``_loop`` 驱动模型与工具反复交互。需要注意的是，方法本身不负责把
+        消息落盘；持久化由上层 SessionManager 在回合结束后统一完成，这样可以避免把
+        尚未完成的半截工具调用当成有效历史保存下来。
+        """
         # `user_input` is a string, or OpenAI content-parts (text + image_url) for attachments.
         # `source` (a MessageSource dict) is a display-only sidecar for connector messages: it
         # rides on the persisted user message + the TURN_START event, but is stripped before the
@@ -352,6 +359,12 @@ class TurnEngine:
         return text
 
     def _history_has_images(self) -> bool:
+        """检查历史消息中是否包含图片内容块。
+
+        会话历史统一保存为 OpenAI 风格的 content-part 列表，因此不能只检查字符串
+        消息。该结果用于模型切换提示：如果新模型没有视觉能力，历史图片仍会保留，
+        但发送给新模型时只能降级为占位信息。
+        """
         return any(
             isinstance(p, dict) and p.get("type") == "image_url"
             for msg in self.messages
@@ -389,6 +402,20 @@ class TurnEngine:
         is the intended recovery path (owner-hit 2026-07-23)."""
         if not self._tail_is_retriable_error():
             return
+        self._cancel.clear()
+        yield Event(EventType.TURN_START, {"input": ""})
+        async for event in self._loop():
+            yield event
+
+    async def regenerate(self) -> AsyncIterator[Event]:
+        """Replace the latest completed assistant reply without repeating its user input.
+
+        Tool results from the turn remain in history, so regeneration rewrites the answer
+        without executing already-completed side effects a second time.
+        """
+        if not self.messages or self.messages[-1].get("role") != "assistant":
+            return
+        self.messages.pop()
         self._cancel.clear()
         yield Event(EventType.TURN_START, {"input": ""})
         async for event in self._loop():
@@ -439,6 +466,13 @@ class TurnEngine:
         return []
 
     async def _loop(self) -> AsyncIterator[Event]:
+        """驱动“模型生成 → 工具执行 → 结果回传”的主循环。
+
+        每一轮最多处理一个模型响应，但一个响应可以包含多个工具调用。循环在调用
+        模型前检查上下文压缩，在模型请求工具后交给 ``_handle_tool_calls`` 做权限和
+        并发策略判断；模型不再请求工具时自然结束。所有异常、取消和达到迭代上限的
+        路径都产出明确的 TURN_END，保证前端不会一直等待一个永不结束的回合。
+        """
         iterations = 0
         while True:
             if iterations >= self.max_iterations:
@@ -564,6 +598,12 @@ class TurnEngine:
 
     # -- auto-compaction (OPE-27) ------------------------------------------------
     def _compaction_config(self) -> dict[str, Any]:
+        """合并会话实时配置与压缩模块默认值，得到当前生效配置。
+
+        配置优先读取 SessionManager 提供的动态 getter，使用户在设置页修改阈值后
+        无需重建引擎即可生效；缺失的上下文窗口则根据当前模型能力表补齐。该方法只
+        组装配置，不执行压缩，也不修改会话状态。
+        """
         cfg = dict(self.compaction_settings() or {}) if self.compaction_settings else {}
         if not cfg.get("context_window"):
             from .providers.matrix import model_context_windows
@@ -589,7 +629,9 @@ class TurnEngine:
             cap_tokens=int(cfg["cap_tokens"]),
         )
 
-    async def _compact_now(self, *, force: bool = False) -> Optional[str]:
+    async def _compact_now(
+        self, *, force: bool = False, trim_if_no_summary: bool = True
+    ) -> Optional[str]:
         """Run the compaction policy. Callers gate on `_compaction_due()` (or `force`,
         the overflow path). Returns the user-facing notice text when the outbound view
         changed, else None. Failure policy per spec: retry once (both modes); attended →
@@ -651,8 +693,11 @@ class TurnEngine:
         if state is not None:
             self.compaction_state = state
             self._last_context_tokens = None  # stale once the outbound view shrank
-            return "Context compacted — earlier turns were summarized"
-        if failed or force:
+            return "上下文已压缩 — 之前的对话已总结"
+        # A forced overflow recovery may need to trim even when there are too few
+        # summarizable turns. Manual compaction must not: a large system/tool prompt
+        # can make usage look high while there is no conversation history to condense.
+        if failed or (force and trim_if_no_summary):
             trimmed = _compaction.trim_state(self.messages, prior=self.compaction_state)
             if trimmed is not None:
                 self.compaction_state = trimmed
@@ -713,7 +758,13 @@ class TurnEngine:
     async def _handle_tool_calls(
         self, tool_calls: list[ToolCall]
     ) -> AsyncIterator[Event]:
-        """Run one assistant turn's tool calls: authorize all of them first (sequentially —
+        """处理模型本次响应中的全部工具调用。
+
+        先按调用顺序逐个授权，确保交互式审批不会串卡；授权通过后，再让低风险的读
+        操作并发执行，而写入、命令和其他有副作用的操作严格保持顺序。这样既减少等待，
+        又避免多个写操作同时改变同一工作区造成竞态。
+
+        Run one assistant turn's tool calls: authorize all of them first (sequentially —
         approval prompts are interactive), then execute. Low-risk calls (reads, searches)
         run concurrently; everything else runs one at a time in call order."""
         # Auto-Approve: fire the reviewer for every call that will need it, all at once,
@@ -1079,7 +1130,13 @@ class TurnEngine:
             await asyncio.gather(*list(self._shadow_tasks), return_exceptions=True)
 
     async def _authorize(self, tool_call: ToolCall) -> "AsyncIterator[Event | bool]":
-        """Permission flow for one call (TOOL_PROPOSED is emitted by the caller). Yields
+        """完成单个工具调用的安全闸门，并在最后产出是否允许执行的布尔值。
+
+        授权顺序非常重要：先做工具存在性与基础风险判定，再应用受保护文件、下载后
+        执行、持久化权限等强制人工审核规则，最后才考虑会话授权、审核器和用户批准。
+        拒绝时会同步追加工具错误消息，避免模型历史中出现没有结果的孤立 tool call。
+
+        Permission flow for one call (TOOL_PROPOSED is emitted by the caller). Yields
         its events, then True/False (allowed) last. Denied/unknown calls get their
         tool-error message appended here."""
         from .permissions import standing_rule_candidate
@@ -1355,13 +1412,25 @@ class TurnEngine:
         yield True
 
     def _execute_sync(self, tool_call: ToolCall) -> tuple[Any, str]:
-        """Execute one authorized call (runs in a worker thread)."""
+        """执行一个已经通过授权的工具调用，并把异常转换为结构化结果。
+
+        工具本身可能是阻塞函数，调用方会将本方法放到线程池中运行，从而不阻塞
+        asyncio 事件循环。这里不再做权限判断，职责仅限于调用注册表并统一区分成功
+        与失败；失败信息会作为工具结果回传给模型，允许模型决定下一步如何处理。
+        """
         try:
             return self.registry.execute(tool_call.name, tool_call.arguments), "ok"
         except Exception as exc:
             return {"error": str(exc), "error_type": type(exc).__name__}, "error"
 
     def _record_result(self, tool_call: ToolCall, result: Any, status: str) -> Event:
+        """记录工具结果、审计信息和用户界面事件，并追加到对话历史。
+
+        工具返回值中的 ``_display`` 只供界面展示，必须从发给模型的结果中剥离；审批
+        来源、隐私过滤数量等元数据也遵循同样的 sidecar 规则。成功结果还会更新会话
+        文件来源事实，最后统一生成 TOOL_FINISHED，确保持久化历史、审计日志和实时
+        UI 三者使用同一份执行结果。
+        """
         self._step += 1
         if status == "ok":
             # Only successful calls: a write that raised left nothing on disk to run.
@@ -1471,7 +1540,9 @@ class TurnEngine:
             pass
 
     async def _handle_items_proposal(self, tool_call: ToolCall) -> AsyncIterator[Event]:
-        """The decomposition gate: emit the proposed items, await the user's decision.
+        """处理工作项拆分提案：展示提案、等待确认，再把结果回传模型。
+
+        The decomposition gate: emit the proposed items, await the user's decision.
         Approval creates them on the board (server-side, inside the approver) and the
         result carries their ids; rejection returns feedback for a revised split."""
         args = tool_call.arguments or {}
@@ -1523,7 +1594,9 @@ class TurnEngine:
         )
 
     async def _handle_team_proposal(self, tool_call: ToolCall) -> AsyncIterator[Event]:
-        """The staffing gate: emit the proposed roster, await the user's out-of-band
+        """处理团队组建提案：先展示成员和协作配置，再等待用户确认。
+
+        The staffing gate: emit the proposed roster, await the user's out-of-band
         decision. Approval PRE-SPAWNS the worker sessions (server-side, inside the
         approver) and the result carries the roster with actor ids so the lead can
         assign; rejection returns the user's feedback for a revised proposal."""
@@ -1573,7 +1646,12 @@ class TurnEngine:
         )
 
     async def _handle_plan_proposal(self, tool_call: ToolCall) -> AsyncIterator[Event]:
-        """Emit the plan for review, await the user's out-of-band decision, and apply it:
+        """处理计划提案，并在批准后切换当前会话的权限模式。
+
+        计划批准只改变实时 PermissionEngine 的模式，不会清空已经收集的上下文；拒绝
+        则保留计划模式并把反馈作为工具结果返回，让模型继续修订计划。
+
+        Emit the plan for review, await the user's out-of-band decision, and apply it:
         approval flips the live PermissionEngine out of plan mode (the same session keeps
         going, with all its exploration context); rejection keeps plan mode and returns
         the user's feedback so the agent can revise."""

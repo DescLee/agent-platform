@@ -177,6 +177,57 @@ def test_artifacts_list_and_read_previewable_files(tmp_path):
     assert "<h1>Preview</h1>" in html["content"]
 
 
+def test_knowledge_files_aggregates_uploads_and_generated_artifacts(tmp_path):
+    manager = SessionManager(workspace=tmp_path, provider=ScriptedProvider([]))
+    sid = "knowledge-session"
+    manager.session_store.save(
+        SessionRecord(
+            session_id=sid,
+            workspace=str(tmp_path),
+            model="gpt-5.5",
+            mode="interactive",
+            title="旅行资料整理",
+            agent="cowork",
+            messages=[{
+                "role": "user",
+                "ts": 100,
+                "content": [
+                    {"type": "text", "text": "请整理附件"},
+                    {"type": "file", "file": {"filename": "行程.pdf", "file_data": "data:application/pdf;base64,JVBERg=="}},
+                    {"type": "text", "text": "[Attached file: 备注.txt]\n集合地点：南门"},
+                ],
+            }],
+        )
+    )
+    scratch = manager.scratch_base() / sid
+    scratch.mkdir(parents=True)
+    (scratch / "攻略.md").write_text("# 攻略", encoding="utf-8")
+
+    client = TestClient(create_app(manager))
+    response = client.get("/v1/knowledge/files", params={"page_size": 2}).json()
+    files = response["files"]
+    assert response["total"] == 3
+    assert response["pages"] == 2
+    assert len(files) == 2
+    files += client.get("/v1/knowledge/files", params={"page": 2, "page_size": 2}).json()["files"]
+    by_name = {item["name"]: item for item in files}
+    assert by_name["行程.pdf"]["source"] == "uploaded"
+    assert by_name["备注.txt"]["session_title"] == "旅行资料整理"
+    assert by_name["攻略.md"]["source"] == "generated"
+
+    filtered = client.get(
+        "/v1/knowledge/files", params={"q": "行程", "source": "uploaded"}
+    ).json()
+    assert filtered["total"] == 1
+    assert filtered["files"][0]["name"] == "行程.pdf"
+
+    text = client.get(
+        "/v1/knowledge/attachments/read",
+        params={"session_id": sid, "message_index": 0, "part_index": 2},
+    ).json()
+    assert text == {"ok": True, "kind": "text", "content": "集合地点：南门"}
+
+
 def test_artifact_read_folder_returns_listing(tmp_path):
     """A linked directory (e.g. a skill package dir) renders as a listing, never a dead
     'not found' (owner report 2026-07-27). Dirs first, then files, sizes on files only."""

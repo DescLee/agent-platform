@@ -87,12 +87,12 @@ describe("itemsFromMessages compaction", () => {
   it("replays the persisted compacted marker as an info notice (the divider)", () => {
     const items = itemsFromMessages([
       { role: "user", content: "hi" },
-      { role: "notice", kind: "compacted", text: "Context compacted — earlier turns were summarized" },
+      { role: "notice", kind: "compacted", text: "上下文已压缩 — 之前的对话已总结" },
     ] as any);
     expect(items[1]).toEqual({
       kind: "notice",
       tone: "info",
-      text: "Context compacted — earlier turns were summarized",
+      text: "上下文已压缩 — 之前的对话已总结",
     });
   });
 });

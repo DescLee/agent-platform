@@ -232,6 +232,13 @@ def build_engine(
     # its skills are readable by load_skill, not just listed by the filter.
     extra_skill_dirs: Optional[list[str | Path]] = None,
 ) -> TurnEngine:
+    """根据会话上下文组装一个可运行的 TurnEngine。
+
+    组装过程把 provider、工具注册表、工作区执行器、权限引擎、技能过滤器和各种
+    交互回调连接起来；这些依赖被集中注入后，TurnEngine 可以专注于回合编排。函数
+    不负责执行模型请求，也不负责保存会话，调用方应在得到引擎后通过 ``run`` 驱动，
+    并由 SessionManager 在适当时机持久化。
+    """
     ws = Path(workspace).expanduser().resolve() if workspace else None
     if agent.requires_folder and ws is None:
         raise ValueError(f"agent '{agent.name}' requires a workspace")

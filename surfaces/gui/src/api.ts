@@ -192,8 +192,8 @@ export interface ConversationMessage {
   [key: string]: any;
 }
 
-export async function getSessionMessages(sessionId: string): Promise<ConversationMessage[]> {
-  const res = await fetch(`${httpBase()}/v1/sessions/${sessionId}/messages`);
+export async function getSessionMessages(sessionId: string, signal?: AbortSignal): Promise<ConversationMessage[]> {
+  const res = await fetch(`${httpBase()}/v1/sessions/${sessionId}/messages`, { signal });
   return (await res.json()).messages ?? [];
 }
 
@@ -405,6 +405,64 @@ export async function revealArtifact(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ path, mode }),
   });
+  return res.json();
+}
+
+export interface KnowledgeFile {
+  id: string;
+  name: string;
+  kind: string;
+  size: number;
+  modified_at: number;
+  source: "uploaded" | "generated";
+  session_id: string;
+  session_title: string;
+  workspace: string;
+  agent: string;
+  path?: string;
+  abs_path?: string;
+  message_index?: number;
+  part_index?: number;
+}
+
+export interface KnowledgeFilesPage {
+  files: KnowledgeFile[];
+  total: number;
+  page: number;
+  page_size: number;
+  pages: number;
+}
+
+export async function getKnowledgeFiles(params: {
+  query?: string;
+  source?: "all" | "uploaded" | "generated";
+  page?: number;
+  pageSize?: number;
+} = {}): Promise<KnowledgeFilesPage> {
+  const q = new URLSearchParams({
+    q: params.query || "",
+    source: params.source || "all",
+    page: String(params.page || 1),
+    page_size: String(params.pageSize || 20),
+  });
+  const res = await fetch(`${httpBase()}/v1/knowledge/files?${q.toString()}`);
+  const body = await res.json();
+  return {
+    files: body.files ?? [],
+    total: body.total ?? 0,
+    page: body.page ?? 1,
+    page_size: body.page_size ?? params.pageSize ?? 20,
+    pages: body.pages ?? 1,
+  };
+}
+
+export async function readKnowledgeAttachment(file: KnowledgeFile): Promise<ArtifactContent> {
+  const q = new URLSearchParams({
+    session_id: file.session_id,
+    message_index: String(file.message_index ?? -1),
+    part_index: String(file.part_index ?? -1),
+  });
+  const res = await fetch(`${httpBase()}/v1/knowledge/attachments/read?${q.toString()}`);
   return res.json();
 }
 
@@ -917,6 +975,7 @@ export interface ModelSettings {
   // Optional so the GUI is robust to an older backend.
   compaction_threshold_pct?: number; // default 0.8, 0.10–0.95
   compaction_cap_tokens?: number; // default 250000
+  compaction_context_window?: number; // default 192000
   compaction_model?: string;
 }
 
@@ -940,7 +999,7 @@ export async function setPdfSettings(
 
 export interface CompactionSettings {
   compaction_threshold_pct: number;
-  compaction_cap_tokens: number;
+  compaction_context_window: number;
   compaction_model: string;
 }
 
@@ -954,6 +1013,23 @@ export async function setCompactionSettings(
     body: JSON.stringify(patch),
   });
   return res.json();
+}
+
+export async function compactSession(sessionId: string): Promise<{ ok: boolean; compacted?: boolean; error?: string; message?: string; context_tokens?: number }> {
+  const res = await fetch(`${httpBase()}/v1/sessions/${encodeURIComponent(sessionId)}/compact`, { method: "POST" });
+  if (res.status === 404) {
+    return { ok: false, error: "压缩接口尚未加载，请重启应用后重试" };
+  }
+  let result: { ok?: boolean; compacted?: boolean; error?: string; message?: string; context_tokens?: number } = {};
+  try {
+    result = await res.json();
+  } catch {
+    return { ok: false, error: `压缩请求失败（HTTP ${res.status}）` };
+  }
+  if (!res.ok) {
+    return { ok: false, error: result.error || `压缩请求失败（HTTP ${res.status}）` };
+  }
+  return { ok: result.ok === true, compacted: result.compacted, error: result.error, message: result.message, context_tokens: result.context_tokens };
 }
 
 /** Local page/size probe for a PDF data URL — the composer's attach-time threshold check. */
@@ -2659,6 +2735,10 @@ export class Session {
   // guards on the history tail so a stray frame is a no-op.
   retry() {
     this.send({ type: "retry" });
+  }
+
+  regenerate() {
+    this.send({ type: "regenerate" });
   }
 
   setMode(mode: string) {

@@ -73,6 +73,7 @@ import { PersonasSection, SettingsView } from "./components/SettingsView";
 import { PersonaView } from "./components/PersonaView";
 import { PersonaGlyph } from "./components/personaIcon";
 import { AuditView } from "./components/AuditView";
+import { KnowledgeView } from "./components/KnowledgeView";
 import { ApprovalCard } from "./components/ApprovalCard";
 import { ToolRequestCard } from "./components/ToolRequestCard";
 import { DirectoryRequestCard } from "./components/DirectoryRequestCard";
@@ -208,9 +209,9 @@ export function App() {
   // {full model id → context window in tokens} from the curated matrix (verified only);
   // drives the composer usage chip's context-fill meter.
   const [modelContextWindows, setModelContextWindows] = useState<Record<string, number>>({});
+  const [contextWindowSize, setContextWindowSize] = useState(192_000);
   // Settings: show the composer's context-window fill bar. OFF by default (owner ask),
   // so an older backend without the field also shows the session total.
-  const [contextBar, setContextBar] = useState(false);
   // Per-session token usage (OPE-42): rebuilt from the transcript on session load,
   // accumulated live from assistant_message events, reset with the transcript.
   const [usage, setUsage] = useState<SessionUsage>(emptyUsage());
@@ -256,6 +257,10 @@ export function App() {
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [projects, setProjects] = useState<RecentWorkspace[]>([]);
   const [sessionId, setSessionId] = useState<string>(newId());
+  const [sessionSwitching, setSessionSwitching] = useState(false);
+  const [sessionLoadError, setSessionLoadError] = useState("");
+  const sessionLoadSequence = useRef(0);
+  const sessionLoadAbort = useRef<AbortController | null>(null);
   // Automation-run context (§ owner ask 2026-07-04): which task an open __run__ session belongs
   // to, driving the banner + "Back to runs". Best-effort — a run session without context still
   // shows a generic banner (detected by its __run__ id).
@@ -285,7 +290,7 @@ export function App() {
   const homeModelSave = useRef<Promise<void>>(Promise.resolve());
   const [homeModelSaveError, setHomeModelSaveError] = useState(false);
   const [surface, setSurface] = useState<
-    "session" | "coworkers" | "scheduled" | "integrations" | "audit" | "inbox" | "greenboat" | "persona" | "settings"
+    "session" | "coworkers" | "knowledge" | "scheduled" | "integrations" | "audit" | "inbox" | "greenboat" | "persona" | "settings"
   >("session");
   useEffect(() => {
     if (surface !== "session") return;
@@ -599,7 +604,7 @@ export function App() {
         setModels(s.models || []);
         setModelLabels(s.model_labels || {});
         setModelContextWindows(s.model_context_windows || {});
-        setContextBar(s.context_bar === true);
+        setContextWindowSize(s.compaction_context_window ?? 192_000);
         setModelReady(s.model_ready);
         setDefaultModel(s.model);
         if (s.surfaces) setSurfaces(s.surfaces);
@@ -908,7 +913,7 @@ export function App() {
         case "compacted":
           // Auto-compaction marker (OPE-27): outbound-only — the transcript stays intact,
           // this divider just shows where the model's memory was summarized.
-          setItems((p) => [...p, { kind: "notice", tone: "info", text: d.text || "Context compacted" }]);
+          setItems((p) => [...p, { kind: "notice", tone: "info", text: d.text || "上下文已压缩" }]);
           break;
         case "interrupted":
           flushPartialStream();
@@ -1193,6 +1198,22 @@ export function App() {
     });
     sessionRef.current?.retry();
   };
+  const regenerate = () => {
+    if (running) return;
+    setItems((current) => {
+      let index = -1;
+      for (let i = current.length - 1; i >= 0; i -= 1) {
+        const item = current[i];
+        if (item.kind === "assistant" && !!item.text) {
+          index = i;
+          break;
+        }
+      }
+      return index < 0 ? current : current.filter((_, itemIndex) => itemIndex !== index);
+    });
+    setRunning(true);
+    sessionRef.current?.regenerate();
+  };
   const changeMode = (m: string) => {
     preferredModeRef.current = m;
     localStorage.setItem("openworker:last-approval-mode", m);
@@ -1416,6 +1437,12 @@ export function App() {
   };
 
   const selectSession = async (id: string, ws: string, ag: string) => {
+    const loadSequence = ++sessionLoadSequence.current;
+    sessionLoadAbort.current?.abort();
+    const controller = new AbortController();
+    sessionLoadAbort.current = controller;
+    setSessionSwitching(true);
+    setSessionLoadError("");
     setUnreadCompletedSessions((current) => {
       if (!current.has(id)) return current;
       const next = new Set(current);
@@ -1424,6 +1451,8 @@ export function App() {
     });
     setSurface("session"); // selecting a conversation always returns to the conversation view
     setTodo([]);
+    setItems([]);
+    setUsage(emptyUsage());
     setStreaming("");
     setRunning(false);
     if (ag) setAgent(ag);
@@ -1437,12 +1466,20 @@ export function App() {
     }
     setSessionId(id);
     try {
-      const messages = await getSessionMessages(id);
+      const messages = await getSessionMessages(id, controller.signal);
+      if (sessionLoadSequence.current !== loadSequence) return;
       setItems(itemsFromMessages(messages));
       setUsage(usageFromMessages(messages));
-    } catch {
+    } catch (error) {
+      if (sessionLoadSequence.current !== loadSequence || controller.signal.aborted) return;
       setItems([]);
       setUsage(emptyUsage());
+      setSessionLoadError("会话加载失败，请重试");
+    } finally {
+      if (sessionLoadSequence.current === loadSequence) {
+        setSessionSwitching(false);
+        sessionLoadAbort.current = null;
+      }
     }
   };
   const switchAgent = async (name: string) => {
@@ -1805,6 +1842,7 @@ export function App() {
           openPersona(id, "session");
         }}
         onOpenCoworkers={() => setSurface("coworkers")}
+        onOpenKnowledge={() => setSurface("knowledge")}
         onOpenScheduled={() => setSurface("scheduled")}
         onOpenAutomation={(id) => {
           setScheduledOpenId(id);
@@ -1815,6 +1853,7 @@ export function App() {
         onOpenInbox={() => setSurface("inbox")}
         onOpenGreenboat={() => setSurface("greenboat")}
         coworkersActive={surface === "coworkers" || surface === "integrations" || (surface === "persona" && personaViewReturn === "coworkers")}
+        knowledgeActive={surface === "knowledge"}
         scheduledActive={surface === "scheduled"}
         integrationsActive={surface === "integrations"}
         auditActive={surface === "audit"}
@@ -1841,6 +1880,8 @@ export function App() {
           onRunNow={runTaskNow}
           initialOpenId={scheduledOpenId}
         />
+      ) : surface === "knowledge" ? (
+        <KnowledgeView onOpenSession={selectSession} />
       ) : surface === "settings" ? (
         <SettingsView
           key={settingsTab}
@@ -2003,7 +2044,19 @@ export function App() {
               </div>
             )}
             <div className="main-scroll" ref={scrollRef} onScroll={handleScroll}>
-              {idle ? (
+              {sessionSwitching ? (
+                <div className="h-full min-h-[280px] flex flex-col items-center justify-center text-center" data-testid="session-loading" aria-busy="true">
+                  <span className="h-6 w-6 animate-spin rounded-full border-2 border-line border-t-accent" aria-hidden="true" />
+                  <span className="mt-3 text-[13px] text-muted">正在加载会话…</span>
+                </div>
+              ) : sessionLoadError ? (
+                <div className="h-full min-h-[280px] flex flex-col items-center justify-center text-center">
+                  <span className="text-[13px] text-muted">{sessionLoadError}</span>
+                  <button className="mt-3 text-[13px] text-accent hover:underline" onClick={() => void selectSession(sessionId, workspace || "", agent)}>
+                    重新加载
+                  </button>
+                </div>
+              ) : idle ? (
                 agent === "cowork" ? (
                   <SessionIntro
                     key={sessionId}
@@ -2054,6 +2107,7 @@ export function App() {
                     onApprove={approve}
                     running={running}
                     onRetry={retry}
+                    onRegenerate={regenerate}
                     onOpenConnectors={() => setSurface("integrations")}
                     onAllowAnyway={allowAnyway}
                     onUndoMemory={(id, previous) => void undoMemorySave(id, previous)}
@@ -2073,7 +2127,7 @@ export function App() {
                   )}
                   {/* Compaction runs between provider turns (nothing streams during it), so
                       the transient takes over the waiting slot with a specific label. */}
-                  {running && compacting && <WaitingForAgent label="Compacting context…" />}
+                  {running && compacting && <WaitingForAgent label="上下文自动压缩中..." />}
                   {running &&
                     !compacting &&
                     !reasoningStream &&
@@ -2108,15 +2162,6 @@ export function App() {
               </div>
             )}
 
-            {/* Draft folder selection remains above the composer. */}
-            {idle && !sessionId.startsWith("__run__") && (
-              <SessionSetupRow
-                showFolder
-                folderName={workspace && !tempWorkspace ? baseName(workspace) : null}
-                onPickFolder={pickDraftFolder}
-
-              />
-            )}
             {/* A scheduled agent must never read as a dead one: while a self-wake is
                 pending and no turn is running, say so and offer the obvious action. */}
             {activeInfo?.liveness === "sleeping" && !running && (
@@ -2169,6 +2214,14 @@ export function App() {
                   </button>
                 );
               })() : undefined}
+              folderSlot={idle && !sessionId.startsWith("__run__") ? (
+                <SessionSetupRow
+                  inline
+                  showFolder
+                  folderName={workspace && !tempWorkspace ? workspace : null}
+                  onPickFolder={pickDraftFolder}
+                />
+              ) : undefined}
               mode={mode}
               model={model}
               models={models}
@@ -2190,8 +2243,8 @@ export function App() {
               prefill={composerPrefill}
               resetKey={composerResetKey}
               usage={usage}
-              contextWindow={modelContextWindows[model]}
-              contextBar={contextBar}
+              contextWindow={contextWindowSize || modelContextWindows[model]}
+              contextBar={true}
               reviewerPaused={reviewerPaused}
               placeholder={
                 agent === "code"

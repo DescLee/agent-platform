@@ -756,7 +756,7 @@ function CompactionCard() {
       .then((s) => {
         setCfg({
           compaction_threshold_pct: s.compaction_threshold_pct ?? 0.8,
-          compaction_cap_tokens: s.compaction_cap_tokens ?? 250_000,
+          compaction_context_window: s.compaction_context_window ?? 192_000,
           compaction_model: s.compaction_model ?? "",
         });
         setModels(s.models || []);
@@ -765,7 +765,7 @@ function CompactionCard() {
       .catch(() =>
         setCfg({
           compaction_threshold_pct: 0.8,
-          compaction_cap_tokens: 250_000,
+          compaction_context_window: 192_000,
           compaction_model: "",
         }),
       );
@@ -803,32 +803,32 @@ function CompactionCard() {
               })
             }
           />
-          <span className="text-[13px] text-muted">% 上下文窗口</span>
+          <span className="text-[13px] text-muted">%</span>
         </label>
         <label className="flex items-center gap-2.5">
-          <span className="text-[13px] text-ink">或达到</span>
+          <span className="text-[13px] text-ink">窗口大小</span>
           <input
             type="number"
             min={10_000}
             max={2_000_000}
             step={10_000}
-            value={cfg.compaction_cap_tokens}
+            value={cfg.compaction_context_window}
             data-testid="compaction-cap"
             className="w-28 px-2 py-1.5 rounded-lg border border-line bg-paper text-[13px] text-ink outline-none focus:border-accent"
             onChange={(e) =>
               save({
-                compaction_cap_tokens: Math.max(
+                compaction_context_window: Math.max(
                   10_000,
-                  Math.min(Number(e.target.value) || 250_000, 2_000_000),
+                  Math.min(Number(e.target.value) || 192_000, 2_000_000),
                 ),
               })
             }
           />
-          <span className="text-[13px] text-muted">Token，以较小值为准</span>
+          <span className="text-[13px] text-muted">Token</span>
         </label>
       </div>
       <div className={FIELD_HELP}>
-        上限可让超大上下文模型提前压缩，避免在达到标称限制前出现质量和速度下降。
+        达到窗口大小的压缩阈值后，系统会自动压缩较早的上下文。
       </div>
 
       <div className="mt-3 flex items-center gap-2.5">

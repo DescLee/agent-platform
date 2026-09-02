@@ -276,6 +276,20 @@ def test_upload_zip_slip_rejected(store, tmp_path):
     assert not (tmp_path / "evil").exists()
 
 
+def test_skillhub_upload_uses_slug_when_declared_name_is_not_folder_safe(store):
+    md = "---\nname: 搜索引擎\ndescription: 多引擎搜索\n---\n\nUse search.\n"
+    preview = store.stage_upload(
+        _zip_bytes({"search/SKILL.md": md}),
+        invalid_name_fallback="multi-search-engine",
+    )
+
+    assert preview["name"] == "multi-search-engine"
+    saved = store.confirm_upload(preview["token"], scope="global")
+    installed_md = Path(saved["path"]) / "SKILL.md"
+    assert saved["name"] == "multi-search-engine"
+    assert "name: multi-search-engine" in installed_md.read_text(encoding="utf-8")
+
+
 def test_upload_confirm_saves_previewed_content(store):
     preview = store.stage_upload(
         _zip_bytes({"greet/SKILL.md": SKILL_MD, "greet/notes.txt": "extra"})

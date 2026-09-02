@@ -174,6 +174,7 @@ const compactAge = (iso?: string | null): string => {
 // Sessions shown per group before "Show more" comes from Settings (sessions_peek, default 5).
 
 export function Sidebar(props: Props) {
+  const [avatarSrc, setAvatarSrc] = useState<string | null>(null);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [appMenuOpen, setAppMenuOpen] = useState(false);
   const [authToast, setAuthToast] = useState<string | null>(null);
@@ -186,6 +187,17 @@ export function Sidebar(props: Props) {
     () => localStorage.getItem("ocw:inbox-unlocked") === "1",
   );
   const refreshCloud = () => getCloudStatus().then(setCloud).catch(() => {});
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    const avatar = props.ruoyiUser?.avatar;
+    const token = localStorage.getItem("console_token");
+    if (!avatar || !token) { setAvatarSrc(null); return; }
+    fetch(avatar, { headers: { Authorization: `Bearer ${token}` }, referrerPolicy: "no-referrer" })
+      .then((res) => res.ok ? res.blob() : Promise.reject(new Error(`avatar ${res.status}`)))
+      .then((blob) => { objectUrl = URL.createObjectURL(blob); setAvatarSrc(objectUrl); })
+      .catch(() => setAvatarSrc(null));
+    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [props.ruoyiUser?.avatar]);
   useEffect(() => {
     if (!authToast) return;
     const timer = window.setTimeout(() => setAuthToast(null), 3000);
@@ -1228,7 +1240,7 @@ export function Sidebar(props: Props) {
               }
               aria-hidden
             >
-              {props.ruoyiUser?.avatar ? <img src={props.ruoyiUser.avatar} alt="" className="w-full h-full rounded-full object-cover" /> : cloud?.signed_in ? accountName.slice(0, 1).toUpperCase() : "?"}
+              {avatarSrc ? <img src={avatarSrc} alt="" className="w-full h-full rounded-full object-cover" /> : (props.ruoyiUser ? (props.ruoyiUser.nickName || props.ruoyiUser.userName).slice(0, 1) : cloud?.signed_in ? accountName.slice(0, 1).toUpperCase() : "?")}
             </span>
             <span className={"truncate " + (cloud?.signed_in ? "" : "text-muted")}>
               {props.ruoyiUser ? (props.ruoyiUser.nickName || props.ruoyiUser.userName) : cloud?.signed_in ? accountName : "未登录"}

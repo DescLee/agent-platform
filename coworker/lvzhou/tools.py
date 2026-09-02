@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from typing import Any, Callable
 
 import aisuite as ai
@@ -30,13 +31,40 @@ _SCHEMA = {
 
 def lvzhou_tools(client: KimIpcClient | None = None) -> list[Callable[..., Any]]:
     """Build the approval-gated Lvzhou self-message tool."""
-    kim = client or KimIpcClient()
+    # Keep the complete send flow bounded. It performs status, chat lookup and
+    # send RPCs, so a per-RPC timeout alone could leave one tool call waiting
+    # several times longer than the UI expects.
+    # Three sequential RPCs make the end-to-end upper bound about 9 seconds.
+    kim = client or KimIpcClient(timeout=3.0)
 
     def send_lvzhou_self_message(text: str) -> dict[str, Any]:
-        try:
-            message = kim.send_self_text(text)
-        except KimIpcError as exc:
-            return {"error": str(exc)}
+        # Bound the whole multi-RPC operation. A socket timeout alone does not
+        # protect the agent if a client implementation gets stuck between RPCs.
+        last_error = "绿舟发送失败"
+        for attempt in range(2):
+            executor = ThreadPoolExecutor(max_workers=1)
+            try:
+                future = executor.submit(kim.send_self_text, text)
+                message = future.result(timeout=10.0)
+                break
+            except FutureTimeoutError:
+                last_error = "绿舟发送超时（10 秒），请确认绿舟客户端仍在运行"
+            except KimIpcError as exc:
+                last_error = str(exc)
+            finally:
+                executor.shutdown(wait=False, cancel_futures=True)
+            # sendMessage may have been committed even when its response was
+            # lost. Verify persistence before retrying, otherwise a retry can
+            # duplicate the user's message.
+            try:
+                persisted = kim.find_recent_self_text(text)
+            except KimIpcError:
+                persisted = None
+            if persisted is not None:
+                message = persisted
+                break
+        else:
+            return {"error": f"{last_error}；已重试 1 次仍失败"}
         return {
             "ok": True,
             "message_id": str(message.get("id") or ""),

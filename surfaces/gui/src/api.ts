@@ -787,6 +787,11 @@ export async function connectorCliAction(name: string, action: "install" | "conn
   return res.json();
 }
 
+export async function setConnectorEnabled(name: string, enabled: boolean): Promise<{ ok: boolean; error?: string }> {
+  const res = await fetch(`${httpBase()}/v1/connectors/${encodeURIComponent(name)}/enabled`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled }) });
+  return res.json();
+}
+
 export async function disconnectConnector(name: string): Promise<{ ok: boolean }> {
   const res = await fetch(`${httpBase()}/v1/connectors/${encodeURIComponent(name)}/disconnect`, {
     method: "POST",

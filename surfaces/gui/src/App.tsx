@@ -73,7 +73,6 @@ import { PersonasSection, SettingsView } from "./components/SettingsView";
 import { PersonaView } from "./components/PersonaView";
 import { PersonaGlyph } from "./components/personaIcon";
 import { AuditView } from "./components/AuditView";
-import { GreenboatView } from "./components/GreenboatView";
 import { ApprovalCard } from "./components/ApprovalCard";
 import { ToolRequestCard } from "./components/ToolRequestCard";
 import { DirectoryRequestCard } from "./components/DirectoryRequestCard";
@@ -1849,8 +1848,6 @@ export function App() {
         />
       ) : surface === "audit" ? (
         <AuditView />
-      ) : surface === "greenboat" ? (
-        <GreenboatView />
       ) : surface === "persona" ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-6" onClick={() => setSurface(personaViewReturn)}>
           <div className="relative w-full max-w-[580px] max-h-[85vh] overflow-hidden rounded-2xl shadow-2xl" onClick={(e) => e.stopPropagation()}>

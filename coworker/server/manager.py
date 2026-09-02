@@ -1629,6 +1629,12 @@ class SessionManager:
         # validates the token by a live API call (sync httpx) — run off the event loop
         return connect_connector(self.secrets, name, fields, acknowledged=acknowledged)
 
+    def set_connector_enabled(self, name: str, enabled: bool) -> dict[str, Any]:
+        profile = self.secrets.get(f"{name}:default") or {}
+        profile["enabled"] = bool(enabled)
+        self.secrets.put(f"{name}:default", profile)
+        return {"ok": True, "enabled": bool(enabled)}
+
     def set_experimental_connectors(self, value: bool) -> dict[str, Any]:
         return set_experimental_enabled(self.secrets, value)
 
@@ -5876,6 +5882,10 @@ class SessionManager:
             dirs.append(self.skill_store.project_dir(workspace))
         loader = SkillLoader(dirs)
         names = set(loader.names())
+        # Greenboat is a local connector-backed builtin skill. Keep it completely
+        # out of the session catalog unless the connector is explicitly enabled.
+        if "lvzhou" not in self.effective_connectors(session_id, agent):
+            names.discard("greenboat-send")
         persona_dir, allow = self.persona_skill_scope(self._persona_of(session_id, agent))
         if persona_dir is not None:
             persona_names = set(SkillLoader([persona_dir]).names())

@@ -26,6 +26,7 @@ import { HubSpotDetail } from "./HubSpotDetail";
 import { SlackDetail } from "./SlackDetail";
 import { GRP, GRP_H, ROW } from "./ui";
 import { Toggle } from "../Toggle";
+import { LvzhouDetail } from "./LvzhouDetail";
 
 // Connectors surface = LIST ⇄ per-connector DETAIL SUBPAGE (UX-DECISIONS §21). The
 // Integrations sub-nav never grows per-connector items; detail pages live behind a
@@ -46,6 +47,7 @@ const DETAIL_PAGES: Record<string, (p: DetailProps) => JSX.Element> = {
   google_calendar: (p) => <CalendarDetail {...p} />,
   hubspot: (p) => <HubSpotDetail {...p} />,
   github: (p) => <GithubDetail {...p} />,
+  lvzhou: (p) => <LvzhouDetail {...p} />,
   // Generic multi-account connectors (accounts.py layer) share one page.
   notion: (p) => <AccountsDetail {...p} />,
   attio: (p) => <AccountsDetail {...p} />,
@@ -193,6 +195,9 @@ function SessionEnableRow({ sessionId, personaId, connector }: { sessionId: stri
     try {
       const result = await setSessionConnection(sessionId, connector, next);
       if (!result.ok) throw new Error(result.error || "保存失败");
+      const refreshed = await getSessionConnections(sessionId, personaId);
+      const row = refreshed.connected.find((item) => item.connector === connector);
+      setEnabled(row?.enabled ?? false);
       window.dispatchEvent(new CustomEvent("ocw-session-connections-changed", { detail: { sessionId } }));
     } catch {
       setEnabled(previous);
@@ -209,7 +214,14 @@ function SessionEnableRow({ sessionId, personaId, connector }: { sessionId: stri
           <span className="block text-[13px] font-medium">启用</span>
           <span className="block text-[12px] text-muted">允许当前会话使用此连接器。</span>
         </span>
-        <Toggle checked={enabled ?? false} disabled={enabled === null || saving} onChange={change} ariaLabel="在当前会话中启用连接器" />
+        {saving && <span className="h-3 w-3 animate-spin rounded-full border border-line border-t-accent" role="status" aria-label="切换中" />}
+        {saving ? (
+          <span className="w-[34px] h-[20px] shrink-0 flex items-center justify-center" role="status" aria-label="切换中">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-line border-t-accent" />
+          </span>
+        ) : (
+          <Toggle checked={enabled ?? false} disabled={enabled === null} onChange={change} ariaLabel="在当前会话中启用连接器" />
+        )}
       </div>
       {error && <div className="border-t border-line px-3 py-2 text-[12px] text-danger" role="alert">{error}</div>}
     </div>

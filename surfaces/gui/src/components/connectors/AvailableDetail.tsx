@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { type CloudStatus, type Connector } from "../../api";
+import { connectorCliAction, type CloudStatus, type Connector } from "../../api";
 import { ConnectorBadge } from "../../connectors/ConnectorIcon";
 import { AddConnectionModal } from "./AddConnectionModal";
 import { FOOT, GRP, GRP_H, PILL_ACCENT, ROW, TAG_QUIET } from "./ui";
@@ -34,7 +34,12 @@ export function AvailableDetail({
         <button
           className={PILL_ACCENT}
           data-testid="available-connect"
-          onClick={() => setConnecting(true)}
+          onClick={async () => {
+            if (c.name === "lvzhou") {
+              await connectorCliAction("lvzhou", "connect");
+              onChanged();
+            } else setConnecting(true);
+          }}
         >
           连接
         </button>

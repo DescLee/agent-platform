@@ -419,6 +419,12 @@ _ALLOWED_FIELD = Field(
 
 DESCRIPTORS: list[ConnectorDescriptor] = [
     ConnectorDescriptor(
+        name="lvzhou", title="绿舟", icon="◉",
+        blurb="连接本机正在运行的绿舟客户端，启用后提供绿舟能力。",
+        auth="none", two_way=False, fields=[], instructions=[],
+        brand_color="#2563eb", logo="lvzhou",
+    ),
+    ConnectorDescriptor(
         name="telegram",
         title="Telegram",
         icon="✈",

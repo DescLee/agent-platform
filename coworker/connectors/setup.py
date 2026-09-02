@@ -42,6 +42,13 @@ def _profile_connected(descriptor, profile: dict[str, Any]) -> bool:
     ]
     return bool(profile) and all(bool(profile.get(k)) for k in required)
 
+def _lvzhou_running() -> bool:
+    try:
+        from ..lvzhou import KimIpcClient
+        return bool(KimIpcClient(timeout=2).call("getStatus", {}).get("initialized"))
+    except Exception:
+        return False
+
 
 def _mcp_tokens_present(secrets: SecretStore, name: str) -> bool:
     # Lazy import: the mcp package pulls in the MCP SDK, which connector listing
@@ -61,7 +68,9 @@ def connector_list(secrets: SecretStore) -> list[dict[str, Any]]:
         if d.experimental and not show_experimental:
             continue
         profile = secrets.get(f"{d.name}:default") or {}
-        if d.name in {"dingtalk", "feishu", "wecom"}:
+        if d.name == "lvzhou":
+            connected = _lvzhou_running()
+        elif d.name in {"dingtalk", "feishu", "wecom"}:
             from .cli_connectors import state
 
             cli_ready, authenticated = state(d.name)
@@ -95,7 +104,7 @@ def connector_list(secrets: SecretStore) -> list[dict[str, Any]]:
             "instructions": d.instructions,
             "connected": connected,
             "account": profile.get("account"),
-            "enabled": bool(profile.get("enabled", True)) and connected,
+            "enabled": (bool(profile.get("enabled", False)) and connected) if d.name == "lvzhou" else bool(profile.get("enabled", True)) and connected,
             # The actual allow-list (the GUI manages it inline); was a bare count.
             "allowed_users": list(profile.get("allowed_users") or []),
             # Manual Socket Mode only: explicitly selected humans who may resolve

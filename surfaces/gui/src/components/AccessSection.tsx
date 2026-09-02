@@ -72,6 +72,7 @@ export function AccessSection({
 }) {
   const [open, setOpen] = useState(false);
   const [conns, setConns] = useState<SessionConnections | null>(null);
+  const [pendingToggles, setPendingToggles] = useState<Set<string>>(new Set());
   const [byName, setByName] = useState<ConnectorMap>({});
   const { roots, busy: rootsBusy, error: rootsError, addRoot, toggleAccess, removeRoot } =
     useRoots(sessionId, open ? 1 : 0);
@@ -80,7 +81,7 @@ export function AccessSection({
   const reload = useCallback(() => {
     // personaId hint: a brand-new session has no server-side record yet, so without it the
     // view would resolve to the DEFAULT persona's defaults/recommends.
-    getSessionConnections(sessionId, personaId)
+    return getSessionConnections(sessionId, personaId)
       .then(setConns)
       .catch(() => setConns(null));
   }, [sessionId, personaId]);
@@ -171,8 +172,17 @@ export function AccessSection({
   }, [open]);
 
   const toggleSession = async (connector: string, next: boolean) => {
-    await setSessionConnection(sessionId, connector, next);
-    reload();
+    setPendingToggles((current) => new Set(current).add(connector));
+    try {
+      await setSessionConnection(sessionId, connector, next);
+      await reload();
+    } finally {
+      setPendingToggles((current) => {
+        const nextSet = new Set(current);
+        nextSet.delete(connector);
+        return nextSet;
+      });
+    }
   };
   const channelsOf = (connector: string) =>
     subs.filter((s) => s.session_id === sessionId && platformOf(s.channel) === connector);
@@ -324,11 +334,17 @@ export function AccessSection({
                           </button>
                         )}
                       </div>
-                      <Toggle
-                        checked={c.enabled}
-                        onChange={(next) => toggleSession(c.connector, next)}
-                        title="On for this session. Off mutes it for this session only — the connector stays connected."
-                      />
+                      {pendingToggles.has(c.connector) ? (
+                        <span className="w-[34px] h-[20px] shrink-0 flex items-center justify-center" role="status" aria-label="切换中">
+                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-line border-t-accent" />
+                        </span>
+                      ) : (
+                        <Toggle
+                          checked={c.enabled}
+                          onChange={(next) => void toggleSession(c.connector, next)}
+                          title="On for this session. Off mutes it for this session only — the connector stays connected."
+                        />
+                      )}
                     </div>
                   ))}
                 </div>

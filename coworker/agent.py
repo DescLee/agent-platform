@@ -269,7 +269,14 @@ def build_engine(
     )
     # Lvzhou is a local desktop KIM engine, so it does not depend on connector tokens.
     # Every surface may load skills; expose the matching approval-gated tool everywhere.
-    registry.register_all(lvzhou_tools())
+    # Session-level connector_filter is the source of truth here. The Sources
+    # drawer can enable Lvzhou for a newly created session even when the global
+    # connector profile's opt-in flag has not been persisted yet.
+    if (connector_filter is not None and "lvzhou" in connector_filter) or (
+        connector_filter is None
+        and any(c.get("name") == "lvzhou" and c.get("connected") and c.get("enabled") for c in connector_list(secrets))
+    ):
+        registry.register_all(lvzhou_tools())
     if agent.messaging and (any(s.enabled for s in load_settings(secrets).values()) or dingtalk_connected):
         registry.register(make_send_message_tool(secrets))
         # send_file (§34): hand deliverables into the chat — same targets, but its OWN

@@ -1393,6 +1393,14 @@ def create_app(manager: SessionManager) -> FastAPI:
             reset,
         )
 
+        if name == "lvzhou":
+            if (body or {}).get("action") != "connect":
+                return {"ok": False, "error": "绿舟仅支持连接检测，不支持重置或断开"}
+            from ..connectors.setup import _lvzhou_running
+            running = _lvzhou_running()
+            return {"ok": running, "connected": running, "started": False,
+                    "error": None if running else "未检测到正在运行的绿舟客户端"}
+
         if name not in CLI_CONNECTORS:
             return {"ok": False, "error": "不是受支持的 CLI 连接器"}
         action = (body or {}).get("action")
@@ -1479,6 +1487,12 @@ def create_app(manager: SessionManager) -> FastAPI:
         if result.get("ok"):
             await _refresh_listeners_if_two_way(name)
         return result
+
+    @app.patch("/v1/connectors/{name}/enabled")
+    async def connector_enabled(name: str, body: dict[str, Any]) -> dict[str, Any]:
+        if name != "lvzhou":
+            return {"ok": False, "error": "仅绿舟支持此开关"}
+        return manager.set_connector_enabled(name, bool(body.get("enabled")))
 
     @app.post("/v1/connectors/{name}/mcp-connect")
     async def connector_mcp_connect(name: str) -> dict[str, Any]:

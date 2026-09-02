@@ -246,7 +246,10 @@ class KimIpcClient:
 
     def send_self_text(self, text: str) -> dict[str, Any]:
         """Send text to the currently logged-in user's verified self chat."""
+        deadline = time.monotonic() + self.timeout
         current = self.get_self_chat()
+        if time.monotonic() >= deadline:
+            raise KimIpcError("绿舟发送超时，请确认绿舟客户端正在运行")
         status, chat = current["status"], current["chat"]
         uid, chat_id = str(status["uid"]), str(chat["id"])
         if status.get("isOnline") is False or status.get("status") != 2:
@@ -260,3 +263,14 @@ class KimIpcClient:
         ):
             raise KimIpcError("绿舟返回的消息结果与本人自聊不匹配")
         return message
+
+    def find_recent_self_text(self, text: str) -> dict[str, Any] | None:
+        """Find a recently persisted self-chat message by exact text."""
+        current = self.get_self_chat()
+        chat_id = str(current["chat"]["id"])
+        result = self.call("getHistoryMessages", [chat_id, {"count": 20, "order": 1}])
+        messages = result.get("messages", []) if isinstance(result, dict) else []
+        for message in messages:
+            if message.get("type") == "kim-text" and message.get("content", {}).get("text") == text.strip():
+                return message
+        return None

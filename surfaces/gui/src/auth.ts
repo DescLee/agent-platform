@@ -2,6 +2,7 @@ export interface RuoyiUser {
   userId: string;
   userName: string;
   nickName?: string;
+  avatar?: string;
   token: string;
 }
 
@@ -41,7 +42,7 @@ export async function resolveRuoyiSession(): Promise<RuoyiUser | null> {
   const payload = await response.json();
   const user = payload.user || payload.data;
   if (payload.code !== 200 || !user) throw new Error(payload.msg || "用户信息无效");
-  const session: RuoyiUser = { userId: String(user.userId), userName: String(user.userName || ""), nickName: user.nickName, token };
+  const session: RuoyiUser = { userId: String(user.userId), userName: String(user.userName || ""), nickName: user.nickName, avatar: user.avatar, token };
   localStorage.setItem("userInfo", JSON.stringify(session));
   return session;
 }

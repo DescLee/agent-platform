@@ -110,7 +110,7 @@ function ConnectorDot({ subs }: { subs?: string[] }) {
 }
 
 interface Props {
-  ruoyiUser?: { userName: string; nickName?: string } | null;
+  ruoyiUser?: { userName: string; nickName?: string; avatar?: string } | null;
   onRuoyiLogout?: () => void;
   agent: string;
   workspace: string;
@@ -1228,7 +1228,7 @@ export function Sidebar(props: Props) {
               }
               aria-hidden
             >
-              {cloud?.signed_in ? accountName.slice(0, 1).toUpperCase() : "?"}
+              {props.ruoyiUser?.avatar ? <img src={props.ruoyiUser.avatar} alt="" className="w-full h-full rounded-full object-cover" /> : cloud?.signed_in ? accountName.slice(0, 1).toUpperCase() : "?"}
             </span>
             <span className={"truncate " + (cloud?.signed_in ? "" : "text-muted")}>
               {props.ruoyiUser ? (props.ruoyiUser.nickName || props.ruoyiUser.userName) : cloud?.signed_in ? accountName : "未登录"}

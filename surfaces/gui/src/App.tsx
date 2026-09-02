@@ -82,6 +82,7 @@ import { TeamRequestCard } from "./components/TeamRequestCard";
 import { WorkItemsCard } from "./components/WorkItemsCard";
 import { TeamChatView } from "./components/TeamChatView";
 import { WorkspaceTrustPrompt } from "./components/WorkspaceTrustPrompt";
+import { resolveRuoyiSession, type RuoyiUser } from "./auth";
 
 const newId = () =>
   (crypto as any).randomUUID ? crypto.randomUUID().slice(0, 12) : Math.random().toString(36).slice(2, 14);
@@ -170,6 +171,10 @@ function fallbackWorkspace(current: string | null, projects: RecentWorkspace[]):
 }
 
 export function App() {
+  const [ruoyiUser, setRuoyiUser] = useState<RuoyiUser | null>(null);
+  useEffect(() => {
+    resolveRuoyiSession().then((u) => { if (u) setRuoyiUser(u); }).catch(() => {});
+  }, []);
   const [workspace, setWorkspace] = useState<string | null>(null);
   const [branch, setBranch] = useState<string | null>(null);
   // UX-029: the active session runs in a temporary folder (never show its raw path —
@@ -1773,6 +1778,8 @@ export function App() {
         />
       )}
       <Sidebar
+        ruoyiUser={ruoyiUser}
+        onRuoyiLogout={() => setRuoyiUser(null)}
         agent={agent}
         workspace={workspace || ""}
         surfaces={surfaces}

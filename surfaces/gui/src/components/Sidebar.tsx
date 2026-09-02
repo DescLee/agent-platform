@@ -1,10 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
-  announceCloudChanged,
   AUTOMATIONS_CHANGED,
   CLOUD_CHANGED,
-  cloudLogin,
-  cloudLogout,
   getAutomations,
   getCloudStatus,
   getPersonas,
@@ -12,13 +9,13 @@ import {
   INBOX_UNLOCK,
   PERSONAS_CHANGED,
   setNavLayout,
-  waitForCloudSignIn,
   type Automation,
   type CloudStatus,
   type Persona,
   type RecentWorkspace,
   type SurfaceVisibility,
 } from "../api";
+import { beginSsoLogin, logoutRuoyi } from "../auth";
 import type { SessionInfo } from "../types";
 import { isProjectScoped, shortPersonaName } from "../personaScope";
 import { ConnectorIcon } from "../connectors/ConnectorIcon";
@@ -113,6 +110,8 @@ function ConnectorDot({ subs }: { subs?: string[] }) {
 }
 
 interface Props {
+  ruoyiUser?: { userName: string; nickName?: string } | null;
+  onRuoyiLogout?: () => void;
   agent: string;
   workspace: string;
   surfaces: SurfaceVisibility;
@@ -177,6 +176,7 @@ const compactAge = (iso?: string | null): string => {
 export function Sidebar(props: Props) {
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [appMenuOpen, setAppMenuOpen] = useState(false);
+  const [authToast, setAuthToast] = useState<string | null>(null);
   // The account row (§26): cloud sign-in status drives the avatar/name/dot; refreshed on
   // focus and whenever the menu opens (sign-in completes out-of-band in the browser).
   const [cloud, setCloud] = useState<CloudStatus | null>(null);
@@ -186,6 +186,11 @@ export function Sidebar(props: Props) {
     () => localStorage.getItem("ocw:inbox-unlocked") === "1",
   );
   const refreshCloud = () => getCloudStatus().then(setCloud).catch(() => {});
+  useEffect(() => {
+    if (!authToast) return;
+    const timer = window.setTimeout(() => setAuthToast(null), 3000);
+    return () => window.clearTimeout(timer);
+  }, [authToast]);
   useEffect(() => {
     refreshCloud();
     const onFocus = () => refreshCloud();
@@ -385,7 +390,7 @@ export function Sidebar(props: Props) {
 
   // Display identity for the account row: the cloud profile only carries the email, so the
   // row shows the capitalized local part ("rohit@…" → "Rohit"); the menu header shows it all.
-  const accountEmail = cloud?.signed_in ? cloud.account : "";
+  const accountEmail = props.ruoyiUser?.nickName || props.ruoyiUser?.userName || (cloud?.signed_in ? cloud.account : "");
   const accountName = accountEmail
     ? accountEmail.split("@")[0].replace(/^./, (c) => c.toUpperCase())
     : "";
@@ -1176,41 +1181,9 @@ export function Sidebar(props: Props) {
                 data-testid="account-menu"
                 role="menu"
               >
-                {cloud?.signed_in ? (
-                  /* Just the email — being signed in to OpenWorker Cloud is implicit. */
-                  <div
-                    className="px-3 py-1.5 mb-1 text-[11px] text-faint truncate border-b border-line"
-                    title={accountEmail}
-                  >
-                    {accountEmail}
-                  </div>
-                ) : (
-                  <>
-                    <div className="px-3 py-1.5 text-[11px] text-faint border-b border-line">
-                      尚未登录，一键连接功能需要绿巨人云服务
-                    </div>
-                    <button
-                      className="w-full flex items-center gap-2.5 px-3 py-1.5 mb-1 text-[13px] text-left text-accent hover:bg-paper"
-                      data-testid="account-sign-in"
-                      onClick={async () => {
-                        setAppMenuOpen(false);
-                        // Opens the system browser server-side; completion lands out-of-band,
-                        // so poll until it flips (refocusing the window also refetches).
-                        await cloudLogin().catch(() => {});
-                        waitForCloudSignIn((s) => {
-                          if (s) setCloud(s);
-                          // Other always-mounted consumers (Settings' telemetry card,
-                          // connector panes) refetch on this.
-                          if (s?.signed_in) announceCloudChanged();
-                        });
-                      }}
-                    >
-                      <Icon name="plug" size={15} className="shrink-0" /> 登录绿巨人云服务
-                    </button>
-                  </>
-                )}
-                {appMenuItem("plug", "连接器", props.onOpenIntegrations, props.integrationsActive)}
-                <div className="h-px bg-line my-1 mx-2" />
+                {!props.ruoyiUser && <button className="w-full flex items-center gap-2.5 px-3 py-1.5 mb-1 text-[13px] text-left text-ink hover:bg-paper" onClick={() => { setAppMenuOpen(false); beginSsoLogin(); }}>
+                  <Icon name="arrowLeft" size={15} className="shrink-0 text-ink" /> 登录
+                </button>}
                 {appMenuItem(
                   "gear",
                   "设置",
@@ -1220,15 +1193,14 @@ export function Sidebar(props: Props) {
                 )}
                 {/* No Automations here — the sidebar's top nav already carries it. */}
                 {appMenuItem("audit", "活动记录", props.onOpenAudit, props.auditActive)}
-                {cloud?.signed_in && (
-                  <>
-                    <div className="h-px bg-line my-1 mx-2" />
-                    {appMenuItem("signOut", "退出登录", async () => {
-                      await cloudLogout().catch(() => {});
-                      announceCloudChanged();
-                    })}
-                  </>
-                )}
+                {props.ruoyiUser && <>
+                  <div className="h-px bg-line my-1 mx-2" />
+                  <button className="w-full flex items-center gap-2.5 px-3 py-1.5 text-[13px] text-left text-muted hover:bg-paper" onClick={async () => {
+                    setAppMenuOpen(false);
+                    try { await logoutRuoyi(); props.onRuoyiLogout?.(); setAuthToast("注销成功"); }
+                    catch { setAuthToast("注销失败"); }
+                  }}><Icon name="signOut" size={15} className="shrink-0" /> 注销</button>
+                </>}
               </div>
             </>
           )}
@@ -1259,7 +1231,7 @@ export function Sidebar(props: Props) {
               {cloud?.signed_in ? accountName.slice(0, 1).toUpperCase() : "?"}
             </span>
             <span className={"truncate " + (cloud?.signed_in ? "" : "text-muted")}>
-              {cloud?.signed_in ? accountName : "未登录"}
+              {props.ruoyiUser ? (props.ruoyiUser.nickName || props.ruoyiUser.userName) : cloud?.signed_in ? accountName : "未登录"}
             </span>
             {cloud?.signed_in && (
               <span
@@ -1277,6 +1249,7 @@ export function Sidebar(props: Props) {
           </button>
         </div>
       </div>
+      {authToast && <div className="pointer-events-none fixed left-1/2 bottom-7 z-[70] -translate-x-1/2 rounded-xl border border-line bg-panel px-4 py-3 text-[13px] text-ink shadow-xl" role="status">{authToast}</div>}
 
       {searchModalOpen && (
         <SearchModal

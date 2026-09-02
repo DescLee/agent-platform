@@ -2342,14 +2342,10 @@ export function App() {
         <FolderGate
           create={gateCreate}
           onChoose={chooseWorkspace}
-          onCancel={
-            workspace
-              ? () => {
-                  setShowGate(false);
-                  setGateCreate(false);
-                }
-              : undefined
-          }
+          onCancel={() => {
+            setShowGate(false);
+            setGateCreate(false);
+          }}
         />
       )}
       {workspaceTrustRequest && (

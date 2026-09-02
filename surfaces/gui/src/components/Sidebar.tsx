@@ -507,6 +507,9 @@ export function Sidebar(props: Props) {
               {item("row-menu-archive", "archive", s.archived ? "取消归档" : "归档", () =>
                 props.onArchiveSession(s.session_id, !s.archived),
               )}
+              {item("row-menu-copy-id", "copy", "复制会话 ID", () => {
+                void navigator.clipboard?.writeText(s.session_id);
+              })}
               <div className="h-px bg-line my-1 mx-2" />
               {confirmDelId === s.session_id ? (
                 <button
@@ -1073,15 +1076,18 @@ export function Sidebar(props: Props) {
         </button>
       </div>
 
-      {/* Scroll area: Pinned band + the RECENT header (with group/filter control), then the body —
-          grouped (per-persona accordion) or flat (chronological list). */}
+      {/* The recent-session header stays fixed while its session list scrolls. */}
+      <div className="px-2.5 mt-[10px]">
+        {recentHeader()}
+      </div>
+      {/* Scroll area: pinned/scheduled bands and the recent-session body — grouped
+          (per-persona accordion) or flat (chronological list). */}
       {/* UX-040 rhythm: clear air between the fixed nav block and the content bands. */}
-      <div className="flex-1 overflow-y-auto px-2.5 mt-[22px] pb-2">
+      <div className="flex-1 overflow-y-auto px-2.5 mt-[10px] pb-2">
         <div className="space-y-5">
           {pinnedBand()}
           {scheduledBand()}
           <div>
-            {recentHeader()}
             {layout === "grouped" ? (
             <div className="space-y-1.5">
               {visibleSurfaces.map((s) => {
@@ -1213,7 +1219,7 @@ export function Sidebar(props: Props) {
                   <span className="text-[11px] text-faint">⌘ ,</span>,
                 )}
                 {/* No Automations here — the sidebar's top nav already carries it. */}
-                {appMenuItem("audit", "Activity", props.onOpenAudit, props.auditActive)}
+                {appMenuItem("audit", "活动记录", props.onOpenAudit, props.auditActive)}
                 {cloud?.signed_in && (
                   <>
                     <div className="h-px bg-line my-1 mx-2" />

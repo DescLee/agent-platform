@@ -611,10 +611,12 @@ class SessionManager:
             # Sessions without a folder start "orphan": auto-provision a per-conversation
             # scratch directory (generalizes MyHelper's auto-workspace). Folder-gated
             # personas (requires_folder) still demand a real directory picked by the user.
-            if not ag.requires_folder:
+            if not ag.requires_folder and (record is not None or messages):
                 ws = self._provision_scratch(session_id)
             else:
-                return None
+                # Keep an untouched draft session folderless. The first persisted
+                # conversation will provision its per-session scratch directory.
+                ws = None
 
         if ws:
             self.session_store.touch_workspace(ws)

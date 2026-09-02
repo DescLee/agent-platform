@@ -25,7 +25,7 @@ export function FolderGate({ onChoose, onCancel, create }: Props) {
     setError("");
     const res = await openWorkspace(p.trim(), doCreate);
     if (res.ok) onChoose(res.path, res.git_branch);
-    else setError(res.error || "could not open that folder");
+    else setError(res.error || "无法打开该文件夹");
   };
 
   const browse = async () => {
@@ -37,36 +37,37 @@ export function FolderGate({ onChoose, onCancel, create }: Props) {
   };
 
   return (
-    <div className="gate-overlay">
-      <div className="gate">
+    <div className="gate-overlay" onClick={onCancel} role={onCancel ? "presentation" : undefined}>
+      <div className="gate" onClick={(e) => e.stopPropagation()}>
         <div className="gate-mark">✦</div>
-        <h2>{create ? "New project" : "Choose a project folder"}</h2>
+        {onCancel && <button className="gate-close" onClick={onCancel} aria-label="关闭" title="关闭">×</button>}
+        <h2>{create ? "新建项目" : "选择项目文件夹"}</h2>
         <p className="gate-sub">
           {create
-            ? "Pick a folder or enter a path. If the path doesn't exist, it will be created."
-            : "This coworker needs a workspace to read, edit, and run in."}
+            ? "选择文件夹或输入路径。如果路径不存在，将自动创建。"
+            : "此专家需要一个工作区来读取、编辑和运行文件。"}
         </p>
 
         <div className="gate-input">
           <input
-            placeholder="/path/to/your/project"
+            placeholder="/项目路径"
             value={path}
             onChange={(e) => setPath(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && open(path, create)}
             autoFocus
           />
-          <button className="btn" onClick={browse} title="Pick a folder">
-            Browse…
+          <button className="btn" onClick={browse} title="选择文件夹">
+            浏览…
           </button>
           <button className="btn primary" onClick={() => open(path, create)} disabled={!path.trim()}>
-            {create ? "Create" : "Open"}
+            {create ? "创建" : "打开"}
           </button>
         </div>
         {error && <div className="gate-error">{error}</div>}
 
         {recents.length > 0 && (
           <>
-            <div className="gate-label">Recent</div>
+            <div className="gate-label">最近使用</div>
             <div className="gate-recents">
               {recents.map((w) => (
                 <div className="gate-recent" key={w.path} onClick={() => open(w.path)} title={w.path}>
@@ -81,7 +82,7 @@ export function FolderGate({ onChoose, onCancel, create }: Props) {
         {onCancel && (
           <div className="gate-foot">
             <button className="btn gate-cancel" onClick={onCancel}>
-              Cancel
+              取消
             </button>
           </div>
         )}

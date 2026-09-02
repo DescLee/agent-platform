@@ -1198,7 +1198,7 @@ DESCRIPTORS: list[ConnectorDescriptor] = [
         instructions=[],
         available=True,
         brand_color="#1677ff",
-        logo="",
+        logo="dingtalk",
     ),
     ConnectorDescriptor(
         name="feishu",
@@ -1211,7 +1211,7 @@ DESCRIPTORS: list[ConnectorDescriptor] = [
         instructions=[],
         available=True,
         brand_color="#3370ff",
-        logo="",
+        logo="feishu",
     ),
     ConnectorDescriptor(
         name="wecom",
@@ -1224,7 +1224,7 @@ DESCRIPTORS: list[ConnectorDescriptor] = [
         instructions=[],
         available=True,
         brand_color="#07c160",
-        logo="",
+        logo="wecom",
     ),
     ConnectorDescriptor(
         name="tencent_docs",
@@ -1237,7 +1237,7 @@ DESCRIPTORS: list[ConnectorDescriptor] = [
         instructions=["点击连接后，在浏览器中完成腾讯文档授权。"],
         available=True,
         brand_color="#2b7cff",
-        logo="",
+        logo="tencent_docs",
         aliases=("腾讯文档", "docs", "spreadsheet"),
         mcp_url="https://docs.qq.com/openapi/mcp",
     ),

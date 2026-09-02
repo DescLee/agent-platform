@@ -59,6 +59,15 @@ function pathLogo(d: string): LogoComponent {
   );
 }
 
+function cjkLogo(char: string): LogoComponent {
+  return () => (
+    <svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <text x="12" y="16" textAnchor="middle" fontSize="11" fontWeight="700" fill="currentColor">{char}</text>
+    </svg>
+  );
+}
+
 function brand(icon: SimpleIcon): ConnectorRegistryEntry {
   return { label: icon.title, logo: pathLogo(icon.path) };
 }
@@ -236,6 +245,10 @@ export const CONNECTORS: Record<string, ConnectorRegistryEntry> = {
   email: { label: "Email", logo: EmailLogo },
   browser: { label: "浏览器", logo: BrowserLogo },
   mcp: { label: "MCP", logo: McpLogo },
+  dingtalk: { label: "钉钉", logo: cjkLogo("钉") },
+  feishu: { label: "飞书", logo: cjkLogo("飞") },
+  wecom: { label: "企业微信", logo: cjkLogo("企") },
+  tencent_docs: { label: "腾讯文档", logo: cjkLogo("文") },
 };
 
 /**

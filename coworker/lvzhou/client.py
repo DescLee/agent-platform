@@ -226,16 +226,34 @@ class KimIpcClient:
         uid = str(status.get("uid") or "")
         if not status.get("initialized") or not uid:
             raise KimIpcError("绿舟消息引擎尚未登录")
-        result = self.call("getChatList", [{"count": 100}])
-        chats = result.get("chats", []) if isinstance(result, dict) else []
-        chat = next(
-            (
-                item
-                for item in chats
-                if item.get("type") == 1 and str(item.get("uid") or "") == uid
-            ),
-            None,
-        )
+        # Chat entries include the complete latest message/card payload. Asking
+        # for 100 entries can produce a multi-megabyte response and make the
+        # local KIM service miss the caller's short RPC deadline. The self chat
+        # is kept among the recent entries, so keep this discovery request
+        # deliberately small.
+        query: dict[str, Any] = {"count": 20}
+        chat = None
+        # Usually the self chat is in the first page. Only request more pages
+        # when needed so normal sends keep the small, fast response.
+        for _ in range(5):
+            result = self.call("getChatList", [query])
+            chats = result.get("chats", []) if isinstance(result, dict) else []
+            chat = next(
+                (
+                    item
+                    for item in chats
+                    if isinstance(item, dict)
+                    and item.get("type") == 1
+                    and str(item.get("uid") or "") == uid
+                ),
+                None,
+            )
+            if chat is not None:
+                break
+            cursor = result.get("cursor") if isinstance(result, dict) else None
+            if not cursor or cursor == query.get("cursor"):
+                break
+            query["cursor"] = cursor
         if chat is None:
             raise KimIpcError("没有在绿舟后台找到当前账号的本人自聊会话")
         return {"status": status, "chat": chat}

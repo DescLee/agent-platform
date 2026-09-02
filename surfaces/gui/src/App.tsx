@@ -74,6 +74,7 @@ import { PersonaView } from "./components/PersonaView";
 import { PersonaGlyph } from "./components/personaIcon";
 import { AuditView } from "./components/AuditView";
 import { KnowledgeView } from "./components/KnowledgeView";
+import { GreenboatView } from "./components/GreenboatView";
 import { ApprovalCard } from "./components/ApprovalCard";
 import { ToolRequestCard } from "./components/ToolRequestCard";
 import { DirectoryRequestCard } from "./components/DirectoryRequestCard";
@@ -1882,6 +1883,8 @@ export function App() {
         />
       ) : surface === "knowledge" ? (
         <KnowledgeView onOpenSession={selectSession} />
+      ) : surface === "greenboat" ? (
+        <GreenboatView />
       ) : surface === "settings" ? (
         <SettingsView
           key={settingsTab}

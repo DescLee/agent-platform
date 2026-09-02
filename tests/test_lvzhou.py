@@ -42,6 +42,7 @@ def test_send_self_text_rechecks_uid_chat_and_online():
         if method == "getStatus":
             return {"initialized": True, "status": 2, "isOnline": True, "uid": "u-1"}
         if method == "getChatList":
+            assert payload == [{"count": 20}]
             return {"chats": [{"id": "chat-1", "type": 1, "uid": "u-1"}]}
         if method == "sendMessage":
             return {

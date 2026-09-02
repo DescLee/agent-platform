@@ -34,8 +34,10 @@ def lvzhou_tools(client: KimIpcClient | None = None) -> list[Callable[..., Any]]
     # Keep the complete send flow bounded. It performs status, chat lookup and
     # send RPCs, so a per-RPC timeout alone could leave one tool call waiting
     # several times longer than the UI expects.
-    # Three sequential RPCs make the end-to-end upper bound about 9 seconds.
-    kim = client or KimIpcClient(timeout=3.0)
+    # Chat-list responses include latest-message payloads and can take several
+    # seconds to serialize in the desktop client. Keep each RPC bounded, but
+    # do not use a deadline shorter than the service's normal response time.
+    kim = client or KimIpcClient(timeout=10.0)
 
     def send_lvzhou_self_message(text: str) -> dict[str, Any]:
         # Bound the whole multi-RPC operation. A socket timeout alone does not
@@ -45,10 +47,10 @@ def lvzhou_tools(client: KimIpcClient | None = None) -> list[Callable[..., Any]]
             executor = ThreadPoolExecutor(max_workers=1)
             try:
                 future = executor.submit(kim.send_self_text, text)
-                message = future.result(timeout=10.0)
+                message = future.result(timeout=30.0)
                 break
             except FutureTimeoutError:
-                last_error = "绿舟发送超时（10 秒），请确认绿舟客户端仍在运行"
+                last_error = "绿舟发送超时（30 秒），请确认绿舟客户端仍在运行"
             except KimIpcError as exc:
                 last_error = str(exc)
             finally:

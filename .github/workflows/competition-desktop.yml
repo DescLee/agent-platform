@@ -1,0 +1,78 @@
+name: Competition desktop packages
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: macos-arm64
+          - os: macos-15-intel
+            target: macos-x64
+          - os: windows-latest
+            target: windows-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: surfaces/gui/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: surfaces/gui/src-tauri
+      - name: Install build dependencies
+        shell: bash
+        run: |
+          python -m venv .venv
+          if [ "$RUNNER_OS" = "Windows" ]; then VPY=.venv/Scripts/python; else VPY=.venv/bin/python; fi
+          "$VPY" -m pip install --upgrade pip
+          "$VPY" -m pip install -e '.[bedrock,messaging,browser,dev]' pyinstaller typer tzdata
+          npm ci --prefix surfaces/gui
+      - name: Frontend checks
+        shell: bash
+        run: |
+          cd surfaces/gui
+          npx vitest run src/components/Composer.skills.test.tsx src/greenboatReport.test.ts
+          node --test src-tauri/src/greenboat-export.test.cjs
+      - name: Build macOS
+        if: runner.os == 'macOS'
+        run: bash packaging/build_dmg.sh
+      - name: Build Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./packaging/build_windows.ps1
+      - name: Collect installers and portable bundles
+        run: python packaging/collect_desktop.py --target ${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.target }}
+          path: out/desktop/*/
+          if-no-files-found: error
+          retention-days: 14
+  assemble:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-*
+          path: packages
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenWorker-three-platforms
+          path: packages/
+          if-no-files-found: error
+          retention-days: 14

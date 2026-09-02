@@ -229,7 +229,7 @@ function VoiceInputSection() {
   };
 
   const remove = async () => {
-    if (!window.confirm("Delete the local Whisper model and disable Voice Input?")) return;
+    if (!window.confirm("删除本地中文语音模型并停用语音输入？")) return;
     setError(null);
     try {
       publish(await deleteDictationModel());
@@ -310,9 +310,9 @@ function VoiceInputSection() {
             <div className="p-4 flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-accentSoft text-accent grid place-items-center font-semibold">W</div>
               <div className="min-w-0 flex-1">
-                <div className="text-[13px] font-medium">Whisper Base · 英语</div>
+                <div className="text-[13px] font-medium">Whisper Base · 中文</div>
                 <div className="text-[12px] text-muted mt-0.5">
-                  {status?.model_verified ? `已安装并验证 · ${formatBytes(status.model_bytes)}` : `本地语音模型 · ${formatBytes(status?.model_bytes || 147_964_211)}`}
+                  {status?.model_verified ? `中文模型已安装并验证 · ${formatBytes(status.model_bytes)}` : `本地中文语音模型 · ${formatBytes(status?.model_bytes || 147_951_465)}`}
                 </div>
               </div>
               {status?.model_verified ? (

@@ -118,6 +118,7 @@ export interface Attachment {
   mime?: string;
   data_url?: string; // images + PDFs
   text?: string; // text files
+  knowledge_ref?: string; // knowledge-library reference; not a new upload
 }
 
 // Transcript items

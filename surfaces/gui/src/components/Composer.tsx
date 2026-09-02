@@ -2,7 +2,18 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import type { Attachment, SessionUsage } from "../types";
 import { isPdfFile, readFile } from "../attach";
 import { ProjectBindMenu } from "./ProjectBindMenu";
-import { compactSession, getSettings, inspectPdf, sessionSkills, setAutoApprove, type SessionSkillRow } from "../api";
+import {
+  compactSession,
+  getKnowledgeFiles,
+  getSettings,
+  inspectPdf,
+  readArtifact,
+  readKnowledgeAttachment,
+  sessionSkills,
+  setAutoApprove,
+  type KnowledgeFile,
+  type SessionSkillRow,
+} from "../api";
 import { formatTokens, totalTokens } from "../usage";
 import { Dropdown, type Option } from "./Dropdown";
 import { Icon } from "./Icon";
@@ -175,6 +186,52 @@ export function Composer(props: Props) {
   const pickSkill = (s: SessionSkillRow) => {
     setPendingSkill({ ...s, label: skillLabel(s) });
     setText("");
+    textareaRef.current?.focus();
+  };
+  // "@file" knowledge-library picker. It is deliberately attachment-backed: selecting a
+  // result adds the real file contents to this message instead of leaving a decorative token.
+  const mentionMatch = text.match(/@([^@\n]*)$/);
+  const mentionStart = mentionMatch?.index ?? -1;
+  const mentionQuery = mentionMatch && (mentionStart === 0 || /\s/.test(text[mentionStart - 1] || ""))
+    ? mentionMatch[1].trim()
+    : null;
+  const [mentionFiles, setMentionFiles] = useState<KnowledgeFile[] | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  useEffect(() => {
+    if (mentionQuery === null) {
+      setMentionFiles(null);
+      setMentionIndex(0);
+      return;
+    }
+    let active = true;
+    const timer = window.setTimeout(() => {
+      getKnowledgeFiles({ query: mentionQuery, pageSize: 8 })
+        .then((result) => { if (active) setMentionFiles(result.files); })
+        .catch(() => { if (active) setMentionFiles([]); });
+    }, mentionQuery ? 180 : 0);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [mentionQuery]);
+
+  const pickKnowledgeFile = async (file: KnowledgeFile) => {
+    const content = file.source === "uploaded"
+      ? await readKnowledgeAttachment(file)
+      : await readArtifact(file.session_id, file.path || "");
+    let attachment: Attachment | null = null;
+    if (content.ok && content.kind === "image" && content.data_url) {
+      attachment = { kind: "image", name: file.name, data_url: content.data_url };
+    } else if (content.ok && content.kind === "pdf" && content.data_url) {
+      attachment = { kind: "pdf", name: file.name, mime: "application/pdf", data_url: content.data_url };
+    } else if (content.ok && typeof content.content === "string") {
+      attachment = { kind: "text", name: file.name, text: content.content };
+    }
+    if (!attachment) {
+      showAttachNotice(`${file.name} 暂不支持在对话中引用`);
+      return;
+    }
+    attachment.knowledge_ref = file.id;
+    setAttachments((current) => mergeAttachments(current, [attachment!]));
+    setText((current) => current.slice(0, mentionStart).trimEnd());
+    setMentionFiles(null);
     textareaRef.current?.focus();
   };
   const [dragging, setDragging] = useState(false);
@@ -432,6 +489,29 @@ export function Composer(props: Props) {
         return;
       }
     }
+    if (mentionQuery !== null) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setMentionIndex((i) => Math.min(i + 1, Math.max((mentionFiles?.length || 1) - 1, 0)));
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setMentionIndex((i) => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setText((current) => current.slice(0, mentionStart).trimEnd());
+        return;
+      }
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        const chosen = mentionFiles?.[mentionIndex];
+        if (chosen) void pickKnowledgeFile(chosen);
+        return;
+      }
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       submit();
@@ -597,6 +677,29 @@ export function Composer(props: Props) {
                 </button>
               ))
             )}
+          </div>
+        )}
+        {mentionQuery !== null && slashQuery === null && (
+          <div className="px-2 pt-2" data-testid="knowledge-mention-popup" role="listbox" aria-label="知识库文件">
+            <div className="px-2 py-1 text-[10.5px] font-semibold tracking-wide uppercase text-faint">知识库文件</div>
+            {mentionFiles === null ? (
+              <div className="px-2 py-1.5 text-[12px] text-faint">正在搜索…</div>
+            ) : mentionFiles.length === 0 ? (
+              <div className="px-2 py-1.5 text-[12px] text-faint">没有匹配的文件</div>
+            ) : mentionFiles.map((file, index) => (
+              <button
+                key={file.id}
+                role="option"
+                aria-selected={index === mentionIndex}
+                className={"w-full flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left " + (index === mentionIndex ? "bg-paper" : "hover:bg-paper")}
+                onMouseEnter={() => setMentionIndex(index)}
+                onClick={() => void pickKnowledgeFile(file)}
+              >
+                <Icon name={file.kind === "image" ? "image" : file.kind === "code" || file.kind === "html" ? "fileCode" : "file"} size={15} className="shrink-0 text-muted" />
+                <span className="min-w-0 flex-1 truncate text-[13px] text-ink">{file.name}</span>
+                <span className="max-w-[180px] truncate text-[11px] text-faint">{file.session_title}</span>
+              </button>
+            ))}
           </div>
         )}
         {pendingSkill && (

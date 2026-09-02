@@ -2724,7 +2724,7 @@ class SessionManager:
         walks a selected project root, so the knowledge view cannot accidentally become a
         source-code browser.
         """
-        from ..attachments import ATTACHED_TEXT_PREFIX
+        from ..attachments import ATTACHED_TEXT_PREFIX, KNOWLEDGE_REF_PREFIX
 
         out: list[dict[str, Any]] = []
         for summary in self.list_sessions():
@@ -2734,6 +2734,7 @@ class SessionManager:
             for message_index, message in enumerate(messages):
                 if message.get("role") != "user" or not isinstance(message.get("content"), list):
                     continue
+                skip_referenced_attachment = False
                 for part_index, part in enumerate(message["content"]):
                     if not isinstance(part, dict):
                         continue
@@ -2741,6 +2742,14 @@ class SessionManager:
                     name = ""
                     size = 0
                     ptype = part.get("type")
+                    if ptype == "text" and str(part.get("text") or "").startswith(
+                        KNOWLEDGE_REF_PREFIX
+                    ):
+                        skip_referenced_attachment = True
+                        continue
+                    if skip_referenced_attachment:
+                        skip_referenced_attachment = False
+                        continue
                     if ptype == "image_url":
                         url = str((part.get("image_url") or {}).get("url") or "")
                         if not url.startswith("data:image/"):
@@ -2790,6 +2799,22 @@ class SessionManager:
                     "workspace": summary["workspace"],
                     "agent": summary["agent"],
                 })
+        # Backward compatibility for references sent before knowledge_ref was persisted.
+        # Those turns look exactly like uploads; an exact same-name/size generated file that
+        # predates the upload is the strongest available signal, so keep the original only.
+        generated = [item for item in out if item.get("source") == "generated"]
+        out = [
+            item
+            for item in out
+            if item.get("source") != "uploaded"
+            or not any(
+                candidate.get("name") == item.get("name")
+                and abs(int(candidate.get("size") or 0) - int(item.get("size") or 0)) <= 2
+                and float(candidate.get("modified_at") or 0)
+                <= float(item.get("modified_at") or 0)
+                for candidate in generated
+            )
+        ]
         out.sort(key=lambda item: item.get("modified_at") or 0, reverse=True)
         needle = query.strip().casefold()
         if needle:

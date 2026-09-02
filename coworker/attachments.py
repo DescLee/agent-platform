@@ -22,6 +22,7 @@ MAX_TEXT_CHARS = 200_000  # per text file, inlined
 # Marks an inlined text attachment inside a text part. `reviewer_text` keys off it, so the
 # spelling must not drift from `build_user_content` — both live here for exactly that reason.
 ATTACHED_TEXT_PREFIX = "[Attached file: "
+KNOWLEDGE_REF_PREFIX = "[OpenWorker knowledge reference: "
 
 
 def _is_data_image(url: Any) -> bool:
@@ -55,15 +56,22 @@ def build_user_content(
         if not isinstance(a, dict):
             continue
         kind = a.get("kind")
+        knowledge_ref = str(a.get("knowledge_ref") or "").replace("]", "")[:512]
+        marker = ({"type": "text", "text": f"{KNOWLEDGE_REF_PREFIX}{knowledge_ref}]"}
+                  if knowledge_ref else None)
         if kind == "image":
             url = a.get("data_url") or ""
             if _is_data_image(url) and len(url) <= MAX_IMAGE_CHARS:
+                if marker:
+                    parts.append(marker)
                 parts.append({"type": "image_url", "image_url": {"url": url}})
                 added += 1
         elif kind == "pdf":
             url = a.get("data_url") or ""
             if _is_data_pdf(url) and len(url) <= MAX_PDF_CHARS:
                 name = str(a.get("name") or "attachment.pdf")
+                if marker:
+                    parts.append(marker)
                 parts.append(
                     {"type": "file", "file": {"filename": name, "file_data": url}}
                 )
@@ -72,6 +80,8 @@ def build_user_content(
             body = str(a.get("text") or "")[:MAX_TEXT_CHARS]
             name = str(a.get("name") or "attachment")
             if body:
+                if marker:
+                    parts.append(marker)
                 parts.append(
                     {"type": "text", "text": f"{ATTACHED_TEXT_PREFIX}{name}]\n{body}"}
                 )
@@ -107,6 +117,8 @@ def reviewer_text(content: Any) -> str:
         ptype = part.get("type")
         if ptype == "text":
             text = str(part.get("text", "")).strip()
+            if text.startswith(KNOWLEDGE_REF_PREFIX):
+                continue
             if text.startswith(ATTACHED_TEXT_PREFIX):
                 name = text[len(ATTACHED_TEXT_PREFIX) :].split("]", 1)[0]
                 out.append(f"[user attached: {name or 'a file'}]")
@@ -132,7 +144,9 @@ def content_to_text(content: Any, *, image_placeholder: str = "[image]") -> str:
             if not isinstance(part, dict):
                 continue
             if part.get("type") == "text":
-                out.append(str(part.get("text", "")))
+                text = str(part.get("text", ""))
+                if not text.startswith(KNOWLEDGE_REF_PREFIX):
+                    out.append(text)
             elif part.get("type") == "image_url" and image_placeholder:
                 out.append(image_placeholder)
             elif part.get("type") == "file" and image_placeholder:

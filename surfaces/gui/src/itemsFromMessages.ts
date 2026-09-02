@@ -8,6 +8,7 @@
 import type { ConversationMessage } from "./api";
 import type { Attachment, Item } from "./types";
 
+const KNOWLEDGE_REF_PREFIX = "[OpenWorker knowledge reference: ";
 const cleanModelSwitch = (text: string) => text.replace(/custom-[a-z0-9]+:/gi, "");
 
 export function itemsFromMessages(messages: ConversationMessage[]): Item[] {
@@ -153,7 +154,8 @@ export function userItemFromContent(content: any): Extract<Item, { kind: "user" 
   for (const part of content) {
     if (!part || typeof part !== "object") continue;
     if (part.type === "text" && part.text) {
-      text.push(String(part.text));
+      const value = String(part.text);
+      if (!value.startsWith(KNOWLEDGE_REF_PREFIX)) text.push(value);
     } else if (part.type === "image_url") {
       const url = part.image_url?.url;
       if (typeof url === "string" && url.startsWith("data:image/")) {

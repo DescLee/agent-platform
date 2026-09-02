@@ -195,6 +195,8 @@ def test_knowledge_files_aggregates_uploads_and_generated_artifacts(tmp_path):
                     {"type": "text", "text": "请整理附件"},
                     {"type": "file", "file": {"filename": "行程.pdf", "file_data": "data:application/pdf;base64,JVBERg=="}},
                     {"type": "text", "text": "[Attached file: 备注.txt]\n集合地点：南门"},
+                    {"type": "text", "text": "[OpenWorker knowledge reference: generated:old:引用.md]"},
+                    {"type": "text", "text": "[Attached file: 引用.md]\n已有内容"},
                 ],
             }],
         )
@@ -202,11 +204,14 @@ def test_knowledge_files_aggregates_uploads_and_generated_artifacts(tmp_path):
     scratch = manager.scratch_base() / sid
     scratch.mkdir(parents=True)
     (scratch / "攻略.md").write_text("# 攻略", encoding="utf-8")
+    # Legacy @ references were persisted as ordinary uploads. A matching generated file
+    # should remain a single generated entry after migration-compatible aggregation.
+    (scratch / "引用.md").write_text("已有内容", encoding="utf-8")
 
     client = TestClient(create_app(manager))
     response = client.get("/v1/knowledge/files", params={"page_size": 2}).json()
     files = response["files"]
-    assert response["total"] == 3
+    assert response["total"] == 4
     assert response["pages"] == 2
     assert len(files) == 2
     files += client.get("/v1/knowledge/files", params={"page": 2, "page_size": 2}).json()["files"]
@@ -214,6 +219,7 @@ def test_knowledge_files_aggregates_uploads_and_generated_artifacts(tmp_path):
     assert by_name["行程.pdf"]["source"] == "uploaded"
     assert by_name["备注.txt"]["session_title"] == "旅行资料整理"
     assert by_name["攻略.md"]["source"] == "generated"
+    assert by_name["引用.md"]["source"] == "generated"
 
     filtered = client.get(
         "/v1/knowledge/files", params={"q": "行程", "source": "uploaded"}

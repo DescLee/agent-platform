@@ -15,7 +15,7 @@ import zlib
 
 import pytest
 
-from coworker.attachments import build_user_content, content_to_text
+from coworker.attachments import KNOWLEDGE_REF_PREFIX, build_user_content, content_to_text
 
 
 # -- a tiny solid-color PNG (stdlib) so tests need no fixtures -------------------
@@ -72,6 +72,23 @@ def test_text_attachment_is_inlined():
         and "notes.md" in content[0]["text"]
         and "# Title" in content[0]["text"]
     )
+
+
+def test_knowledge_reference_keeps_content_but_hides_internal_marker_from_text():
+    content = build_user_content(
+        "请参考",
+        [{
+            "kind": "text",
+            "name": "brief.md",
+            "text": "# Brief",
+            "knowledge_ref": "generated:session:brief.md",
+        }],
+    )
+    assert content[1]["text"].startswith(KNOWLEDGE_REF_PREFIX)
+    assert "# Brief" in content[2]["text"]
+    flattened = content_to_text(content)
+    assert "OpenWorker knowledge reference" not in flattened
+    assert "# Brief" in flattened
 
 
 def test_invalid_and_oversized_attachments_are_skipped():

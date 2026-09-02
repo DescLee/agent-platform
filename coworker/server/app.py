@@ -2964,6 +2964,7 @@ def create_app(manager: SessionManager) -> FastAPI:
                             attachment_kind = attachment.get("kind")
                             name = attachment.get("name")
                             mime = attachment.get("mime")
+                            knowledge_ref = attachment.get("knowledge_ref")
                             if attachment_kind not in {"image", "pdf", "text"}:
                                 reject = "Invalid attachment kind."
                             elif name is not None and (
@@ -2974,6 +2975,12 @@ def create_app(manager: SessionManager) -> FastAPI:
                                 not isinstance(mime, str) or len(mime) > 255
                             ):
                                 reject = "Invalid attachment MIME type."
+                            elif knowledge_ref is not None and (
+                                not isinstance(knowledge_ref, str)
+                                or not knowledge_ref
+                                or len(knowledge_ref) > 512
+                            ):
+                                reject = "Invalid knowledge reference."
                             elif attachment_kind == "image":
                                 data = attachment.get("data_url")
                                 if (

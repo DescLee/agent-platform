@@ -28,6 +28,7 @@ export type IconName =
   | "panelClose"
   | "panelOpen"
   | "plug"
+  | "radio"
   | "audit"
   | "chevronRight"
   | "chevronDown"
@@ -322,6 +323,13 @@ export function Icon({
       return (
         <svg {...s}>
           <path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0V7zM12 16v5" />
+        </svg>
+      );
+    case "radio":
+      return (
+        <svg {...s}>
+          <circle cx="12" cy="12" r="2.2" />
+          <path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4M4.8 4.8a10.2 10.2 0 0 0 0 14.4M19.2 4.8a10.2 10.2 0 0 1 0 14.4" />
         </svg>
       );
     case "audit":

@@ -66,6 +66,8 @@ coworker = [
     "personas/builtin/*.md",
     "personas/builtin/*/manifest.md",
     "personas/builtin/*/skills/*/SKILL.md",
+    "builtin_skills/*/SKILL.md",
+    "builtin_skills/*/scripts/*.py",
 ]
 
 [tool.pytest.ini_options]

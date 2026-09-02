@@ -77,6 +77,15 @@ export const setKeepAwake = (enabled: boolean) => invoke<boolean>("set_keep_awak
 /** Begin native window dragging from a custom title/header region. */
 export const startWindowDrag = () => invoke<boolean>("start_window_drag");
 
+/** Bring the main app window forward from the desktop pet. */
+export const showMainWindow = () => invoke<boolean>("show_main_window");
+
+/** Hide the desktop pet without closing the main app or its sidecar. */
+export const hidePetWindow = () => invoke<boolean>("hide_pet_window");
+
+/** Restore the desktop pet from the system tray. */
+export const showPetWindow = () => invoke<boolean>("show_pet_window");
+
 // Local dictation is native-only. The browser build deliberately keeps this unavailable rather
 // than silently sending microphone audio to a server.
 export const getDictationStatus = () => invoke<DictationStatus>("get_dictation_status");

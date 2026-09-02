@@ -400,6 +400,32 @@ fn start_window_drag(window: tauri::WebviewWindow) -> bool {
     window.start_dragging().is_ok()
 }
 
+/// Bring the main application window forward when the desktop pet is clicked.
+#[tauri::command]
+fn show_main_window(app: tauri::AppHandle) -> bool {
+    show_main(&app);
+    app.get_webview_window("main").is_some()
+}
+
+/// Hide only the desktop pet; the main window and task sidecar keep running.
+#[tauri::command]
+fn hide_pet_window(app: tauri::AppHandle) -> bool {
+    app.get_webview_window("pet")
+        .map(|window| window.hide().is_ok())
+        .unwrap_or(false)
+}
+
+fn show_pet(app: &tauri::AppHandle) -> bool {
+    app.get_webview_window("pet")
+        .map(|window| window.show().is_ok())
+        .unwrap_or(false)
+}
+
+#[tauri::command]
+fn show_pet_window(app: tauri::AppHandle) -> bool {
+    show_pet(&app)
+}
+
 // -- local dictation ---------------------------------------------------------------------------
 // The actual microphone/model code lives in the Tauri-free `ocw-stt` crate. This shell owns the
 // macOS permission prompt and translates the reusable API into React-friendly Tauri commands.
@@ -735,6 +761,9 @@ pub fn run() {
             get_keep_awake,
             set_keep_awake,
             start_window_drag,
+            show_main_window,
+            hide_pet_window,
+            show_pet_window,
             get_dictation_status,
             start_dictation,
             stop_dictation,
@@ -842,6 +871,48 @@ pub fn run() {
             }
             let win = builder.build()?;
 
+            // The pet is a separate transparent layer. It has no title bar or taskbar entry,
+            // and its own WebView keeps animation work away from the main transcript layout.
+            // The browser build remains a single normal window because this branch is Tauri-only.
+            // Position it in the bottom-right of the primary monitor's usable work area. Monitor
+            // bounds are physical pixels, while window positioning uses logical pixels on HiDPI
+            // displays, so convert both the origin and available size by the monitor scale.
+            let (pet_x, pet_y) = app
+                .primary_monitor()
+                .ok()
+                .flatten()
+                .map(|monitor| {
+                    let work_area = monitor.work_area();
+                    let scale = monitor.scale_factor();
+                    let work_x = f64::from(work_area.position.x) / scale;
+                    let work_y = f64::from(work_area.position.y) / scale;
+                    let work_width = f64::from(work_area.size.width) / scale;
+                    let work_height = f64::from(work_area.size.height) / scale;
+                    (
+                        work_x + work_width - 240.0 - 24.0,
+                        work_y + work_height - 260.0 - 24.0,
+                    )
+                })
+                .unwrap_or((40.0, 80.0));
+
+            let _pet =
+                WebviewWindowBuilder::new(app, "pet", WebviewUrl::App("index.html#/pet".into()))
+                    .title("桌面宠物")
+                    .inner_size(240.0, 260.0)
+                    .position(pet_x, pet_y)
+                    .transparent(true)
+                    .decorations(false)
+                    .shadow(false)
+                    .resizable(false)
+                    .always_on_top(true)
+                    .visible_on_all_workspaces(true)
+                    .skip_taskbar(true)
+                    .focusable(false)
+                    .focused(false)
+                    // The pet is opt-in on first launch; the settings bridge shows it after the user enables it.
+                    .visible(false)
+                    .build()?;
+
             // Close-to-tray: hide instead of quitting so the sidecar keeps running.
             let w = win.clone();
             win.on_window_event(move |event| {
@@ -853,9 +924,10 @@ pub fn run() {
 
             // 3. System tray: Open / Settings / Quit.
             let open_i = MenuItem::with_id(app, "open", "打开绿巨人", true, None::<&str>)?;
+            let pet_i = MenuItem::with_id(app, "pet", "显示桌面宠物", true, None::<&str>)?;
             let settings_i = MenuItem::with_id(app, "settings", "设置", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&open_i, &settings_i, &quit_i])?;
+            let menu = Menu::with_items(app, &[&open_i, &pet_i, &settings_i, &quit_i])?;
 
             // A monochrome template icon (black + alpha, raw RGBA 44×44) so the menu bar tints
             // it for light/dark automatically — not the full-color app icon.
@@ -867,6 +939,7 @@ pub fn run() {
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "open" => show_main(app),
+                    "pet" => { show_pet(app); }
                     "settings" => {
                         show_main(app);
                         if let Some(w) = app.get_webview_window("main") {

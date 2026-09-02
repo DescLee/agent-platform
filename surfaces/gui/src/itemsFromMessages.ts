@@ -94,7 +94,7 @@ export function itemsFromMessages(messages: ConversationMessage[]): Item[] {
       // the Transcript only offers the button when it's the transcript tail.
       items.push(
         m.kind === "interrupted"
-          ? { kind: "notice", tone: "warn", text: "Interrupted." }
+          ? { kind: "notice", tone: "warn", text: "已中断" }
           : m.kind === "model_switch"
             ? { kind: "notice", tone: "info", text: cleanModelSwitch(m.text || "Model switched") }
             : m.kind === "compacted"

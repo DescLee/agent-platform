@@ -290,7 +290,13 @@ def test_session_mute_roundtrip(tmp_path):
     client.post("/v1/skills", json=GREET)
     view = client.get("/v1/sessions/s1/skills").json()["skills"]
     assert view == [
-        {"name": "greet", "description": "says hello", "scope": "global", "enabled": True}
+        {"name": "greet", "description": "says hello", "scope": "global", "enabled": True},
+        {
+            "name": "greenboat-send",
+            "description": "通过绿舟桌面端本地 KIM IPC 向当前登录账号的本人自聊发送文本",
+            "scope": "coworker",
+            "enabled": True,
+        },
     ]
     after = client.post(
         "/v1/sessions/s1/skills", json={"skill": "greet", "enabled": False}

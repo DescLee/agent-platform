@@ -45,6 +45,7 @@ import { MemorySection } from "./MemorySection";
 import { PersonasTab } from "./PersonasTab";
 import { SkillsTab } from "./SkillsTab";
 import { ConnectorsSection } from "./connectors/ConnectorsSection";
+import { PET_ENABLED_KEY, PET_VISIBILITY_CHANGED } from "../pet/PetWindow";
 
 // Settings, restructured (Option 2) into a full-page surface that mirrors IntegrationsView's shell:
 // a left sub-nav (Appearance · Files · Models · Personas) + centered panel, replacing the old
@@ -422,6 +423,13 @@ export function PersonasSection({ onOpenPersona, onSummonPersona, onCreateSkill,
 // -- Appearance + app behaviour ------------------------------------------------
 function AppearanceSection() {
   const [theme, setTheme] = useThemePref();
+  const [petEnabled, setPetEnabled] = useState(() => {
+    try {
+      return localStorage.getItem(PET_ENABLED_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
   const [autostart, setAuto] = useState(false);
   const [keepAwake, setKeep] = useState(false);
   const desktop = isTauri();
@@ -435,6 +443,15 @@ function AppearanceSection() {
 
   const toggleAuto = async (v: boolean) => setAuto(!!(await setAutostart(v)));
   const toggleKeep = async (v: boolean) => setKeep(!!(await setKeepAwake(v)));
+  const togglePet = (next: boolean) => {
+    setPetEnabled(next);
+    try {
+      localStorage.setItem(PET_ENABLED_KEY, next ? "1" : "0");
+    } catch {
+      // Best effort: the window still follows this in-memory choice for the current run.
+    }
+    window.dispatchEvent(new CustomEvent(PET_VISIBILITY_CHANGED, { detail: next }));
+  };
   const runSetupAgain = async () => {
     await setOnboarded(false);
     window.dispatchEvent(new CustomEvent("coworker:open-onboarding"));
@@ -454,6 +471,25 @@ function AppearanceSection() {
           ))}
         </div>
         <div className={FIELD_HELP}>自动模式会跟随系统外观。</div>
+      </div>
+
+      <div className={CARD + " p-4 mb-4"} data-testid="pet-settings-card">
+        <div className={FIELD_LABEL}>宠物</div>
+        <label className="flex items-start gap-3 py-2">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            data-testid="pet-toggle"
+            checked={petEnabled}
+            onChange={(e) => void togglePet(e.target.checked)}
+          />
+          <span>
+            <span className="block text-[13px] text-ink">显示桌面宠物</span>
+            <span className="block text-[12px] text-muted">
+              开启后在桌面显示宠物窗口，并随任务状态变化。关闭后宠物会隐藏，设置会保留。
+            </span>
+          </span>
+        </label>
       </div>
 
       <SidebarCard />

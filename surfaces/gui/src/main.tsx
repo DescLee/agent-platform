@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { App } from "./App";
+import { PetWindow } from "./pet/PetWindow";
 import { initTheme } from "./theme";
 import { platformOS } from "./tauri";
 import "./tailwind.css";
@@ -17,8 +18,10 @@ document.documentElement.dataset.platform = platformOS();
 window.addEventListener("dragover", (e) => e.preventDefault());
 window.addEventListener("drop", (e) => e.preventDefault());
 
+const isPetWindow = window.location.hash.startsWith("#/pet");
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <App />
+    {isPetWindow ? <PetWindow /> : <App />}
   </React.StrictMode>,
 );

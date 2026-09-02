@@ -31,6 +31,7 @@ from .memory import (
     memory_tools,
     render_memory_block,
 )
+from .lvzhou import lvzhou_tools
 from .permissions import Mode, PermissionEngine
 from .project import load_agents_md
 from . import session_facts
@@ -38,7 +39,13 @@ from .roots import RootDir, normalize_roots, render_context
 from .providers import ProviderClient, ProviderRouter
 from .overrides import RiskOverrideStore
 from .secrets import SecretStore, state_dir
-from .skills import SkillLoader, save_skill_tool, skill_catalog_text, skill_tools
+from .skills import (
+    BUILTIN_SKILLS_DIR,
+    SkillLoader,
+    save_skill_tool,
+    skill_catalog_text,
+    skill_tools,
+)
 from .tools import ToolRegistry
 from .tools.ask import ask_user_tool
 from .tools.directories import request_directory_tool
@@ -159,7 +166,7 @@ def _loaded_skill_names(messages: list[dict[str, Any]]) -> set[str]:
 
 
 def _skill_dirs(workspace: Optional[Path]) -> list[Path]:
-    dirs = [state_dir() / "skills"]
+    dirs = [BUILTIN_SKILLS_DIR, state_dir() / "skills"]
     if workspace is not None:
         dirs.append(workspace / ".coworker" / "skills")
     return dirs
@@ -260,6 +267,9 @@ def build_engine(
         c.get("name") == "dingtalk" and c.get("connected") and c.get("enabled")
         for c in connector_list(secrets)
     )
+    # Lvzhou is a local desktop KIM engine, so it does not depend on connector tokens.
+    # Every surface may load skills; expose the matching approval-gated tool everywhere.
+    registry.register_all(lvzhou_tools())
     if agent.messaging and (any(s.enabled for s in load_settings(secrets).values()) or dingtalk_connected):
         registry.register(make_send_message_tool(secrets))
         # send_file (§34): hand deliverables into the chat — same targets, but its OWN

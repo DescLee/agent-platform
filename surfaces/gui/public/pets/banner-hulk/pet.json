@@ -1,0 +1,30 @@
+{
+  "id": "banner-hulk",
+  "displayName": "班纳 / 绿巨人",
+  "description": "原创像素风科学家变身绿色巨人桌面宠物。",
+  "renderer": "pixel-grid-v2",
+  "spriteVersionNumber": 2,
+  "artDirection": "16-bit handheld chunky pixel study; original character cues only",
+  "gridWidth": 32,
+  "gridHeight": 40,
+  "referenceInfluences": [
+    "PXLFLX Hulk Transformation Pixel Art Animation (Neo Geo Pocket / SNK vs Capcom cadence)",
+    "DinoPixel Bruce Banner / Hulk Transformation (clear body-scale storytelling)",
+    "Sethyuikora Hulk Sprite Sheet (clothing-tear and return-to-Bruce beats)"
+  ],
+  "referenceSources": [
+    "https://www.youtube.com/results?search_query=PXLFLX+Hulk+Transformation+Pixel+Art+Animation",
+    "https://dinopixel.com/bruce-banner-hulk-transformation-pixel-art-43817",
+    "https://www.deviantart.com/sethyuikora/art/Hulk-Sprite-Sheet-723035615"
+  ],
+  "cellWidth": 192,
+  "cellHeight": 208,
+  "states": {
+    "idle_banner": { "frames": 8, "fps": 6, "loop": true },
+    "transforming": { "frames": 10, "fps": 8, "loop": false },
+    "running_hulk": { "frames": 8, "fps": 8, "loop": true },
+    "returning": { "frames": 12, "fps": 8, "loop": false },
+    "failed_hulk": { "frames": 8, "fps": 5, "loop": true },
+    "waiting_banner": { "frames": 8, "fps": 5, "loop": true }
+  }
+}

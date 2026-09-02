@@ -62,7 +62,7 @@ describe("itemsFromMessages notices", () => {
     expect(items).toEqual([
       { kind: "user", text: "hi" },
       { kind: "assistant", text: "partial ans" },
-      { kind: "notice", tone: "warn", text: "Interrupted." },
+      { kind: "notice", tone: "warn", text: "已中断" },
       { kind: "user", text: "again" },
       { kind: "notice", tone: "warn", text: "Error: model down", retriable: true },
     ]);

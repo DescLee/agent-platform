@@ -123,8 +123,10 @@ def test_no_workspace_means_global_only(manager, tmp_path):
     ws = tmp_path / "elsewhere"
     (ws / ".coworker" / "skills").mkdir(parents=True)
     _skill(ws / ".coworker" / "skills", "local-only")
-    assert manager.effective_skill_names("s1") == {"everywhere"}
-    assert manager.effective_skill_names("s1", ws) == {"everywhere", "local-only"}
+    assert manager.effective_skill_names("s1") == {"everywhere", "greenboat-send"}
+    assert manager.effective_skill_names("s1", ws) == {
+        "everywhere", "local-only", "greenboat-send"
+    }
 
 
 def test_session_skill_view_keeps_chinese_display_name(manager):
@@ -141,7 +143,7 @@ def test_session_skill_view_keeps_chinese_display_name(manager):
 def test_workspace_without_skills_dir_is_fine(manager, tmp_path):
     ws = tmp_path / "bare-ws"
     ws.mkdir()
-    assert manager.effective_skill_names("s1", ws) == set()
+    assert manager.effective_skill_names("s1", ws) == {"greenboat-send"}
 
 
 def test_feishu_skills_require_ready_enabled_connector(manager, tmp_path, monkeypatch):
@@ -300,6 +302,6 @@ def test_parity_catalog_vs_rail_view(manager):
     view_names = {r["name"] for r in view}
     view_on = {r["name"] for r in view if r["enabled"]}
 
-    assert menu == {"alpha"}
-    assert view_names == {"alpha", "gamma"}  # disabled hidden; muted still listed (toggle)
+    assert menu == {"alpha", "greenboat-send"}
+    assert view_names == {"alpha", "gamma", "greenboat-send"}  # disabled hidden; muted still listed (toggle)
     assert view_on == menu  # what's ON in the rail == what the model sees

@@ -92,6 +92,18 @@ def test_build_engine_chat(tmp_path):
     assert engine.agent_name == "chat"
 
 
+def test_build_engine_cowork_includes_bundled_lvzhou_skill(tmp_path):
+    from coworker.agents import cowork_agent
+
+    engine = build_engine(agent=cowork_agent(), workspace=tmp_path, provider=_Stub())
+    try:
+        assert "send_lvzhou_self_message" in engine.registry.names()
+        loaded = engine.registry.execute("load_skill", {"name": "greenboat-send"})
+        assert "send_lvzhou_self_message" in loaded["instructions"]
+    finally:
+        engine.executor.close()
+
+
 def test_build_engine_code_has_agents_md_and_skills(tmp_path):
     (tmp_path / "AGENTS.md").write_text("PROJECT RULE: prefer pathlib.")
     engine = build_engine(agent=code_agent(), workspace=tmp_path, provider=_Stub())

@@ -99,6 +99,7 @@ from ..teams.registry import TeamRegistry, TeamWorker
 from ..teams.attachments import AttachmentStore
 from ..teams.tokens import BoardTokens
 from ..skills import (
+    BUILTIN_SKILLS_DIR,
     SessionSkillStore,
     SkillLoader,
     SkillStore,
@@ -5870,7 +5871,7 @@ class SessionManager:
         The single resolver behind the engine catalog, the rail list, and the composer popup.
         Persona-carried skills (OPE-58) join the merge for the session's persona — user
         disables and mutes still win over them."""
-        dirs = [self.skill_store.global_dir]
+        dirs = [BUILTIN_SKILLS_DIR, self.skill_store.global_dir]
         if workspace:
             dirs.append(self.skill_store.project_dir(workspace))
         loader = SkillLoader(dirs)
@@ -5913,6 +5914,19 @@ class SessionManager:
             if r["name"] not in disabled
         ]
         seen = {r["name"] for r in rows}
+        for entry in SkillLoader([BUILTIN_SKILLS_DIR]).catalog():
+            name = entry["name"]
+            if name in seen or name in disabled:
+                continue  # a user-installed copy shadows the bundled default
+            rows.append(
+                {
+                    "name": name,
+                    "description": entry["description"],
+                    "scope": "coworker",
+                    "enabled": overrides.get(name, True),
+                }
+            )
+            seen.add(name)
         persona_dir, allow = self.persona_skill_scope(self._persona_of(session_id))
         if persona_dir is not None:
             for entry in SkillLoader([persona_dir]).catalog():

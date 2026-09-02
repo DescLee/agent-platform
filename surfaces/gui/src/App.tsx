@@ -73,6 +73,7 @@ import { PersonasSection, SettingsView } from "./components/SettingsView";
 import { PersonaView } from "./components/PersonaView";
 import { PersonaGlyph } from "./components/personaIcon";
 import { AuditView } from "./components/AuditView";
+import { GreenboatView } from "./components/GreenboatView";
 import { ApprovalCard } from "./components/ApprovalCard";
 import { ToolRequestCard } from "./components/ToolRequestCard";
 import { DirectoryRequestCard } from "./components/DirectoryRequestCard";
@@ -83,6 +84,7 @@ import { WorkItemsCard } from "./components/WorkItemsCard";
 import { TeamChatView } from "./components/TeamChatView";
 import { WorkspaceTrustPrompt } from "./components/WorkspaceTrustPrompt";
 import { resolveRuoyiSession, type RuoyiUser } from "./auth";
+import { PetStatusBridge } from "./pet/PetWindow";
 
 const newId = () =>
   (crypto as any).randomUUID ? crypto.randomUUID().slice(0, 12) : Math.random().toString(36).slice(2, 14);
@@ -284,7 +286,7 @@ export function App() {
   const homeModelSave = useRef<Promise<void>>(Promise.resolve());
   const [homeModelSaveError, setHomeModelSaveError] = useState(false);
   const [surface, setSurface] = useState<
-    "session" | "coworkers" | "scheduled" | "integrations" | "audit" | "inbox" | "persona" | "settings"
+    "session" | "coworkers" | "scheduled" | "integrations" | "audit" | "inbox" | "greenboat" | "persona" | "settings"
   >("session");
   useEffect(() => {
     if (surface !== "session") return;
@@ -911,7 +913,7 @@ export function App() {
           break;
         case "interrupted":
           flushPartialStream();
-          setItems((p) => [...p, { kind: "notice", tone: "warn", text: "Interrupted." }]);
+          setItems((p) => [...p, { kind: "notice", tone: "warn", text: "已中断" }]);
           break;
         case "error":
           flushPartialStream();
@@ -1695,6 +1697,7 @@ export function App() {
       )}
       {/* Desktop-only auto-update prompt (15s after boot, then every 30 min; inert in browser). */}
       <UpdateBanner />
+      <PetStatusBridge running={running} />
       {/* UX-026: automation-start toast — quiet panel, neutral dot/drain, accent only
           on the action (rev 2); auto-dismisses with the 5s drain bar. */}
       {runToast && (
@@ -1811,11 +1814,13 @@ export function App() {
         onOpenIntegrations={() => setSurface("integrations")}
         onOpenAudit={() => setSurface("audit")}
         onOpenInbox={() => setSurface("inbox")}
+        onOpenGreenboat={() => setSurface("greenboat")}
         coworkersActive={surface === "coworkers" || surface === "integrations" || (surface === "persona" && personaViewReturn === "coworkers")}
         scheduledActive={surface === "scheduled"}
         integrationsActive={surface === "integrations"}
         auditActive={surface === "audit"}
         inboxActive={surface === "inbox"}
+        greenboatActive={surface === "greenboat"}
         collapsed={navCollapsed}
         onCollapse={toggleNav}
         onPeekLeave={() => setNavPeek(false)}
@@ -1844,6 +1849,8 @@ export function App() {
         />
       ) : surface === "audit" ? (
         <AuditView />
+      ) : surface === "greenboat" ? (
+        <GreenboatView />
       ) : surface === "persona" ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-6" onClick={() => setSurface(personaViewReturn)}>
           <div className="relative w-full max-w-[580px] max-h-[85vh] overflow-hidden rounded-2xl shadow-2xl" onClick={(e) => e.stopPropagation()}>

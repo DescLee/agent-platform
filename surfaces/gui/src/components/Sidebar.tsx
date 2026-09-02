@@ -139,11 +139,13 @@ interface Props {
   onOpenIntegrations: () => void;
   onOpenAudit: () => void;
   onOpenInbox: () => void;
+  onOpenGreenboat?: () => void;
   coworkersActive: boolean;
   scheduledActive: boolean;
   integrationsActive: boolean;
   auditActive: boolean;
   inboxActive: boolean;
+  greenboatActive?: boolean;
   // Collapse controls (⌘B / hover-peek). `onCollapse` docks/undocks; `onPeekLeave` hides the
   // floating peek when the pointer leaves the panel.
   collapsed?: boolean;
@@ -1074,6 +1076,19 @@ export function Sidebar(props: Props) {
           onClick={props.onOpenCoworkers}
         >
           <Icon name="sparkle" size={15} className="shrink-0" /> 专家·技能·连接器
+        </button>
+      </div>
+
+      <div className="px-2.5 mt-1">
+        <button
+          className={
+            "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] text-left hover:bg-chromeHover hover:text-ink " +
+            (props.greenboatActive ? "text-ink bg-chromeHover" : "text-muted")
+          }
+          data-testid="nav-greenboat"
+          onClick={() => props.onOpenGreenboat?.()}
+        >
+          <Icon name="radio" size={15} className="shrink-0" /> 绿舟监听
         </button>
       </div>
 

@@ -1,0 +1,174 @@
+html:has(.pet-shell),
+html:has(.pet-shell) body,
+html:has(.pet-shell) #root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+.pet-shell {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  user-select: none;
+  cursor: grab;
+  overflow: hidden;
+}
+
+.pet-shell:active { cursor: grabbing; }
+
+.pet-menu {
+  position: fixed;
+  right: 8px;
+  top: 8px;
+  z-index: 5;
+  display: grid;
+  gap: 2px;
+  min-width: 108px;
+  padding: 4px;
+  border: 1px solid rgba(34, 43, 48, 0.18);
+  border-radius: 6px;
+  background: rgba(250, 249, 246, 0.96);
+  box-shadow: 0 8px 24px rgba(20, 27, 30, 0.18);
+}
+
+.pet-menu button {
+  border: 0;
+  border-radius: 4px;
+  padding: 6px 8px;
+  background: transparent;
+  color: #26313a;
+  font: 12px/1.2 Inter, sans-serif;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pet-menu button:hover { background: rgba(38, 49, 58, 0.08); }
+
+.pet-stage {
+  position: relative;
+  width: 192px;
+  height: 220px;
+  display: grid;
+  place-items: center;
+  transform-origin: 50% 100%;
+}
+
+.pixel-character {
+  position: absolute;
+  width: 192px;
+  height: 240px;
+  display: grid;
+  grid-template-columns: repeat(32, 6px);
+  grid-template-rows: repeat(40, 6px);
+  image-rendering: pixelated;
+  transform-origin: 50% 100%;
+}
+
+.pixel { width: 6px; height: 6px; display: block; }
+.pixel-character-hulk,
+.pixel-character-surge { opacity: 0; transform: scale(0.78); }
+.pixel-character-banner { opacity: 1; transform: scale(0.78); }
+
+.pet-transforming .pixel-character-banner { animation: banner-transform 1.25s steps(10, end) both; }
+.pet-transforming .pixel-character-surge { animation: surge-transform 1.25s steps(10, end) both; }
+.pet-transforming .pixel-character-hulk { animation: hulk-transform 1.25s steps(10, end) both; }
+.pet-returning .pixel-character-banner { animation: banner-return 1.5s steps(12, end) both; }
+.pet-returning .pixel-character-hulk { opacity: 1; transform: scale(0.92); animation: hulk-return 1.5s steps(12, end) both; }
+.pet-failed .pixel-character-hulk { opacity: 1; transform: scale(0.92); }
+.pet-hulk .pixel-character-hulk { opacity: 1; transform: scale(0.92); animation: hulk-work 1.4s steps(2, end) infinite; }
+.pet-hulk .pixel-character-banner { opacity: 0; }
+.pet-failed .pixel-character-hulk { animation: hulk-failed 1.6s steps(2, end) infinite; }
+.pet-banner .pixel-character-banner { animation: banner-idle 2.2s steps(2, end) infinite; }
+
+@keyframes banner-transform { 0%, 58% { opacity: 1; transform: scale(0.78) translateY(0); } 72% { opacity: 1; transform: scale(0.78) translateY(-2px); } 73%, 100% { opacity: 0; transform: scale(0.78) translateY(-4px); } }
+@keyframes surge-transform { 0%, 18% { opacity: 0; transform: scale(0.78) translateY(0); } 28%, 72% { opacity: 1; transform: scale(0.78) translateY(-1px); } 73%, 100% { opacity: 0; transform: scale(0.78) translateY(-3px); } }
+@keyframes hulk-transform { 0%, 70% { opacity: 0; transform: scale(0.92) translateY(2px); } 71%, 100% { opacity: 1; transform: scale(0.92) translateY(0); } }
+@keyframes hulk-return { 0%, 38% { opacity: 1; transform: scale(0.92) translateY(0); } 55% { opacity: 1; transform: scale(0.92) translateY(-1px); } 56%, 100% { opacity: 0; transform: scale(0.92) translateY(0); } }
+@keyframes banner-return { 0%, 42% { opacity: 0; transform: scale(0.78) translateY(-3px); } 55% { opacity: 1; transform: scale(0.78) translateY(-1px); } 56%, 100% { opacity: 1; transform: scale(0.78) translateY(0); } }
+@keyframes hulk-work { 0%, 100% { transform: scale(0.92) translateY(0); } 50% { transform: scale(0.935) translateY(-2px); } }
+@keyframes hulk-failed { 0%, 100% { transform: scale(0.92) rotate(0); } 50% { transform: scale(0.9) rotate(-1deg); } }
+@keyframes banner-idle { 0%, 100% { transform: scale(0.78) translateY(0); } 50% { transform: scale(0.785) translateY(-1px); } }
+
+.pet-glasses {
+  position: absolute;
+  z-index: 3;
+  top: 76px;
+  left: calc(50% - 21px);
+  width: 14px;
+  height: 8px;
+  border: 2px solid #1a252b;
+  box-sizing: border-box;
+  image-rendering: pixelated;
+}
+
+.pet-glasses::after {
+  content: "";
+  position: absolute;
+  left: 20px;
+  top: -2px;
+  width: 14px;
+  height: 8px;
+  border: 2px solid #1a252b;
+  box-sizing: border-box;
+}
+
+.pet-glasses::before {
+  content: "";
+  position: absolute;
+  left: 13px;
+  top: 1px;
+  width: 9px;
+  height: 2px;
+  background: #1a252b;
+}
+
+.pet-hulk .pet-glasses,
+.pet-failed .pet-glasses { top: 214px; left: calc(50% + 40px); transform: rotate(18deg); }
+.pet-transforming .pet-glasses { animation: glasses-drop 1.25s steps(10, end) both; }
+.pet-returning .pet-glasses { animation: glasses-return 1.5s steps(12, end) both; }
+
+@keyframes glasses-drop {
+  0%, 18% { top: 76px; left: calc(50% - 21px); transform: rotate(0); }
+  34% { top: 98px; left: calc(50% - 12px); transform: rotate(24deg); }
+  54% { top: 138px; left: calc(50% + 4px); transform: rotate(78deg); }
+  76% { top: 184px; left: calc(50% + 26px); transform: rotate(142deg); }
+  100% { top: 214px; left: calc(50% + 40px); transform: rotate(198deg); }
+}
+
+@keyframes glasses-return {
+  0%, 24% { top: 214px; left: calc(50% + 40px); transform: rotate(18deg); }
+  40% { top: 190px; left: calc(50% + 28px); transform: rotate(52deg); }
+  58% { top: 150px; left: calc(50% + 8px); transform: rotate(24deg); }
+  74% { top: 112px; left: calc(50% - 8px); transform: rotate(-8deg); }
+  88%, 100% { top: 76px; left: calc(50% - 21px); transform: rotate(0); }
+}
+
+.pet-shirt-rip,
+.pet-shirt-flap { position: absolute; z-index: 3; opacity: 0; pointer-events: none; }
+.pet-shirt-rip { width: 6px; height: 6px; background: #1a252b; }
+.pet-shirt-rip-left { top: 103px; left: calc(50% - 38px); box-shadow: 12px 6px #1a252b, 24px 12px #1a252b; }
+.pet-shirt-rip-right { top: 103px; left: calc(50% + 20px); box-shadow: -12px 6px #1a252b, -24px 12px #1a252b; }
+.pet-shirt-flap { width: 12px; height: 24px; background: #263f4d; transform-origin: top center; }
+.pet-shirt-flap-left { top: 108px; left: calc(50% - 44px); }
+.pet-shirt-flap-right { top: 108px; left: calc(50% + 32px); }
+.pet-transforming .pet-shirt-rip { animation: shirt-rip 1.25s steps(10, end) both; }
+.pet-transforming .pet-shirt-flap { animation: shirt-flap 1.25s steps(10, end) both; }
+.pet-returning .pet-shirt-rip { animation: shirt-repair 1.5s steps(12, end) both; }
+.pet-returning .pet-shirt-flap { animation: shirt-repair-flap 1.5s steps(12, end) both; }
+
+@keyframes shirt-rip { 0%, 20% { opacity: 0; transform: scaleY(0); } 35%, 52% { opacity: 1; transform: scaleY(0.4); } 68%, 100% { opacity: 1; transform: scaleY(1); } }
+@keyframes shirt-flap { 0%, 52% { opacity: 0; transform: rotate(0) scaleY(0); } 68% { opacity: 1; transform: rotate(8deg) scaleY(0.65); } 100% { opacity: 1; transform: rotate(18deg) scaleY(1); } }
+@keyframes shirt-repair { 0%, 38% { opacity: 1; transform: scaleY(1); } 60% { opacity: 1; transform: scaleY(0.45); } 76%, 100% { opacity: 0; transform: scaleY(0); } }
+@keyframes shirt-repair-flap { 0%, 38% { opacity: 1; transform: rotate(18deg) scaleY(1); } 62% { opacity: 1; transform: rotate(8deg) scaleY(0.55); } 78%, 100% { opacity: 0; transform: rotate(0) scaleY(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .pixel-character,
+  .pet-glasses,
+  .pet-shirt-rip,
+  .pet-shirt-flap { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; }
+}

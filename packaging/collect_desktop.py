@@ -48,11 +48,10 @@ def collect(target: str, output: Path) -> Path:
                             str(app), str(stage / f"OpenWorker-{version}-{target}.app.zip")], check=True)
             instructions = "安装：打开 DMG，将绿巨人拖入 Applications。\n免安装：解压 app.zip，打开绿巨人.app。"
         else:
-            for folder, suffix in (("nsis", "exe"), ("msi", "msi")):
-                matches = list((bundle / folder).glob(f"*.{suffix}"))
-                if len(matches) != 1:
-                    raise ValueError(f"Expected one {suffix} installer, found {len(matches)}")
-                shutil.copy2(matches[0], stage / f"OpenWorker-{version}-{target}-setup.{suffix}")
+            installers = list((bundle / "nsis").glob("*.exe"))
+            if len(installers) != 1:
+                raise ValueError(f"Expected one EXE installer, found {len(installers)}")
+            shutil.copy2(installers[0], stage / f"OpenWorker-{version}-{target}-setup.exe")
             with tempfile.TemporaryDirectory(prefix="desktop-portable-") as portable_temp:
                 portable = Path(portable_temp) / "OpenWorker"
                 portable.mkdir()
@@ -62,7 +61,7 @@ def collect(target: str, output: Path) -> Path:
                 shutil.copytree(sidecar, portable / "sidecar")
                 shutil.make_archive(str(stage / f"OpenWorker-{version}-{target}-portable"),
                                     "zip", portable.parent, portable.name)
-            instructions = "安装：运行 setup.exe 或 setup.msi（二选一）。\n免安装：解压 portable.zip，运行 OpenWorker/lvjuren.exe；不要移动或删除 sidecar。\nWindows 需已安装 Microsoft Edge WebView2 Runtime；安装包可引导安装，免安装包不包含此系统运行时。"
+            instructions = "安装：运行 setup.exe。\n免安装：解压 portable.zip，运行 OpenWorker/lvjuren.exe；不要移动或删除 sidecar。\nWindows 需已安装 Microsoft Edge WebView2 Runtime；安装包可引导安装，免安装包不包含此系统运行时。"
         (stage / "使用说明.txt").write_text(instructions + "\n首次运行通过界面配置模型。未包含 API Key、登录 Cookie、个人数据库。\n此构建未保证签名/公证；系统可能阻止启动，请按组织安全要求审批，不自动关闭安全保护。\n", encoding="utf-8")
         commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
         files = {}

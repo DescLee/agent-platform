@@ -8,7 +8,7 @@ GitHub Actions → **Competition desktop packages** → **Run workflow**。
 | --- | --- | --- |
 | desktop-macos-arm64 | DMG | app.zip（完整 .app，含后端） |
 | desktop-macos-x64 | DMG | app.zip（完整 .app，含后端） |
-| desktop-windows-x64 | NSIS EXE、MSI | portable.zip（lvjuren.exe + sidecar） |
+| desktop-windows-x64 | NSIS EXE | portable.zip（lvjuren.exe + sidecar） |
 
 每个平台附带使用说明与 manifest.json（源码提交、版本、文件大小、SHA256）。
 Python 后端已冻结打包，运行机器不需要 Python、Node、Rust。

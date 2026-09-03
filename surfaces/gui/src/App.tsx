@@ -1257,6 +1257,13 @@ export function App() {
     // clicks New session after choosing a model.
     await homeModelSave.current;
     const target = forAgent || "cowork";
+    const nextSessionId = prepared?.sessionId || newId();
+    // Reset the parent-owned draft as well: Composer can remount after visiting
+    // another surface and must not replay an old skill/file prefill.
+    setComposerPrefill(previous => ({ text: "", nonce: (previous?.nonce ?? 0) + 1, targetSessionId: nextSessionId }));
+    setDraftIdentity(null);
+    setSendGate(null);
+    pendingPromptRef.current = null;
     setSurface("session"); // return to the conversation view if we were on a sub-view
     setItems([]);
     setUsage(emptyUsage());
@@ -1286,7 +1293,7 @@ export function App() {
     setDraftFolderPicked(false);
     setTempWorkspace(Boolean(prepared));
     if (prepared) { setWorkspace(prepared.workspace); setBranch(null); }
-    setSessionId(prepared?.sessionId || newId());
+    setSessionId(nextSessionId);
   };
   const openGreenboatDraft = async (date: string, report: string) => {
     const sid = newId();
@@ -1332,14 +1339,17 @@ export function App() {
     setSessionId(nextSessionId);
   };
   // UX-029: the setup row's folder chip — bind the draft to a folder before the first
-  // message. A fresh id re-triggers the connection effect with the folder attached.
+  // message. Reconnect with a fresh session id but keep the composing draft, just
+  // as when changing its expert. Only an explicit new conversation clears it.
   const pickDraftFolder = async (path: string, b?: string | null) => {
     await homeModelSave.current;
     setWorkspace(path);
     setBranch(b ?? null);
     setDraftFolderPicked(true);
     setTempWorkspace(false);
-    setSessionId(newId());
+    const nextSessionId = newId();
+    setDraftIdentity({ sessionId: nextSessionId, key: composerResetKey });
+    setSessionId(nextSessionId);
     getRecentWorkspaces().then(setProjects).catch(() => {});
   };
   // UX-029 send-time dialog resolutions: bind the folder, park the stashed message for

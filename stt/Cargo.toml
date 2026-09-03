@@ -15,3 +15,4 @@ ureq = "2.12"
 # APIs. We can add an opt-in Metal build once the packaged app has a verified
 # minimum macOS target.
 whisper-rs = "0.16"
+zhhz = "0.8.2"

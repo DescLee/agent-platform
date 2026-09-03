@@ -1,13 +1,13 @@
 #requires -Version 5.1
 <#
 .SYNOPSIS
-  Build the Coworker Windows desktop app + NSIS (.exe) and MSI installers.
+  Build the Coworker Windows desktop app + NSIS (.exe) installer.
 
 .DESCRIPTION
   The Windows counterpart to build_dmg.sh:
     1. PyInstaller-bundle the server into a standalone onedir folder (no venv at runtime).
     2. Stage it at binaries\sidecar\ for Tauri's `resources` slot.
-    3. `tauri build --bundles nsis,msi` -> Coworker NSIS setup .exe + .msi (resources copied in).
+    3. `tauri build --bundles nsis` -> Coworker NSIS setup .exe (resources copied in).
 
   Prerequisites (see the toolchain notes in the PR/plan):
     - Rust (rustup) with the x86_64-pc-windows-msvc target + the MSVC C++ build tools (link.exe).
@@ -26,8 +26,10 @@
 #>
 [CmdletBinding()]
 param(
-    # Which installer bundles to produce. Both by default.
-    [string]$Bundles = "nsis,msi"
+    # NSIS is the supported Windows distribution format. The GitHub runner's WiX `light.exe`
+    # intermittently fails after the EXE has already been built, which used to discard the
+    # otherwise-valid EXE artifact with the failed job.
+    [string]$Bundles = "nsis"
 )
 $ErrorActionPreference = "Stop"
 
@@ -108,5 +110,5 @@ finally {
 $BundleDir = Join-Path $Gui "src-tauri\target\release\bundle"
 Write-Host ""
 Write-Host "Done. Installers under: $BundleDir" -ForegroundColor Green
-Get-ChildItem -Path $BundleDir -Recurse -Include *.exe, *.msi -ErrorAction SilentlyContinue |
+Get-ChildItem -Path $BundleDir -Recurse -Include *.exe -ErrorAction SilentlyContinue |
     ForEach-Object { Write-Host "  $($_.FullName)" }

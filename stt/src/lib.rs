@@ -23,15 +23,21 @@ use cpal::{
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
+use zhhz::{Config as ChineseConversionConfig, Converter as ChineseConverter};
 
-/// A reasonably fast English model for short OpenWorker prompts (~142 MB).
-pub const DEFAULT_MODEL_FILE: &str = "ggml-base.en.bin";
+/// A reasonably fast multilingual model for short Chinese OpenWorker prompts (~142 MB).
+pub const DEFAULT_MODEL_FILE: &str = "ggml-base.bin";
 pub const DEFAULT_MODEL_URL: &str =
-    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin";
-pub const DEFAULT_MODEL_BYTES: u64 = 147_964_211;
+    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin";
+pub const DEFAULT_MODEL_BYTES: u64 = 147_951_465;
 pub const DEFAULT_MODEL_SHA256: &str =
-    "a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002";
+    "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe";
+const LEGACY_ENGLISH_MODEL_FILE: &str = "ggml-base.en.bin";
 const WHISPER_SAMPLE_RATE: u32 = 16_000;
+thread_local! {
+    static TRADITIONAL_TO_SIMPLIFIED: ChineseConverter =
+        ChineseConverter::new(ChineseConversionConfig::T2s);
+}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DictationStatus {
@@ -42,6 +48,7 @@ pub struct DictationStatus {
     pub download_in_progress: bool,
     pub model_name: &'static str,
     pub model_bytes: u64,
+    pub recognition_language: &'static str,
 }
 
 #[derive(Debug, Clone, Copy, Serialize)]
@@ -118,8 +125,9 @@ impl Dictation {
             model_verified,
             test_passed: model_verified && self.ready_marker_path.is_file(),
             download_in_progress: self.download_in_progress.load(Ordering::SeqCst),
-            model_name: "Whisper Base English (local)",
+            model_name: "Whisper Base Chinese (local)",
             model_bytes: DEFAULT_MODEL_BYTES,
+            recognition_language: "zh",
         }
     }
 
@@ -259,6 +267,13 @@ impl Dictation {
             self.model_path.with_extension("bin.part"),
             self.verified_marker_path.clone(),
             self.ready_marker_path.clone(),
+            self.model_path.with_file_name(LEGACY_ENGLISH_MODEL_FILE),
+            self.model_path
+                .with_file_name(LEGACY_ENGLISH_MODEL_FILE)
+                .with_extension("bin.verified"),
+            self.model_path
+                .with_file_name(LEGACY_ENGLISH_MODEL_FILE)
+                .with_extension("bin.ready"),
         ] {
             if path.exists() {
                 fs::remove_file(&path)
@@ -589,7 +604,9 @@ fn transcribe(model_path: &Path, samples: &[f32]) -> Result<String, String> {
         .create_state()
         .map_err(|e| format!("Could not prepare transcription: {e}"))?;
     let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
-    params.set_language(Some("en"));
+    // Fix the decoder to Mandarin so short prompts produce Chinese characters instead of
+    // spending part of the recording auto-detecting (or transliterating) the language.
+    params.set_language(Some("zh"));
     params.set_translate(false);
     params.set_print_progress(false);
     params.set_print_special(false);
@@ -606,7 +623,13 @@ fn transcribe(model_path: &Path, samples: &[f32]) -> Result<String, String> {
             .map_err(|e| format!("Could not read the transcript: {e}"))?;
         text.push_str(segment);
     }
-    Ok(text.trim().to_owned())
+    Ok(to_simplified_chinese(text.trim()))
+}
+
+/// Whisper's Chinese decoder can emit either Han script. Normalize every transcript to
+/// Mainland simplified Chinese before it reaches the editable composer draft.
+fn to_simplified_chinese(text: &str) -> String {
+    TRADITIONAL_TO_SIMPLIFIED.with(|converter| converter.convert(text))
 }
 
 #[cfg(test)]
@@ -617,8 +640,8 @@ mod tests {
     };
 
     use super::{
-        resample_mono, write_verification_marker, Dictation, DEFAULT_MODEL_BYTES,
-        DEFAULT_MODEL_FILE,
+        resample_mono, to_simplified_chinese, write_verification_marker, Dictation,
+        DEFAULT_MODEL_BYTES, DEFAULT_MODEL_FILE,
     };
 
     #[test]
@@ -634,8 +657,20 @@ mod tests {
     }
 
     #[test]
-    fn default_model_size_matches_the_published_base_english_artifact() {
-        assert_eq!(DEFAULT_MODEL_BYTES, 147_964_211);
+    fn default_model_size_matches_the_published_multilingual_base_artifact() {
+        assert_eq!(DEFAULT_MODEL_BYTES, 147_951_465);
+    }
+
+    #[test]
+    fn transcripts_are_normalized_to_simplified_chinese() {
+        assert_eq!(
+            to_simplified_chinese("今天天氣怎麼樣？"),
+            "今天天气怎么样？"
+        );
+        assert_eq!(
+            to_simplified_chinese("請幫我整理 meeting notes。"),
+            "请帮我整理 meeting notes。"
+        );
     }
 
     #[test]

@@ -155,6 +155,12 @@ interface Props {
 export function Composer(props: Props) {
   const [text, setText] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  // Ignore file reads belonging to a draft that has been left or unmounted.
+  const draftGeneration = useRef(0);
+  useLayoutEffect(() => {
+    draftGeneration.current += 1;
+    return () => { draftGeneration.current += 1; };
+  }, [props.resetKey]);
   // "/" force-run (SKILLS-SPEC §4.1 #3). The popup derives from the draft: it is open while
   // the text is a bare "/query" (no whitespace yet) and no skill is picked. Selecting a row
   // pins the chosen skill above the textarea while the message body remains plain editable text.
@@ -213,9 +219,11 @@ export function Composer(props: Props) {
   }, [mentionQuery]);
 
   const pickKnowledgeFile = async (file: KnowledgeFile) => {
+    const generation = draftGeneration.current;
     const content = file.source === "uploaded"
       ? await readKnowledgeAttachment(file)
       : await readArtifact(file.session_id, file.path || "");
+    if (generation !== draftGeneration.current) return;
     let attachment: Attachment | null = null;
     if (content.ok && content.kind === "image" && content.data_url) {
       attachment = { kind: "image", name: file.name, data_url: content.data_url };
@@ -299,6 +307,15 @@ export function Composer(props: Props) {
     setText("");
     setAttachments([]);
     setPendingSkill(null);
+    setAttachMenuOpen(false);
+    setBindMenu(null);
+    setAttachNotice(null);
+    setDragging(false);
+    setSlashSkills(null);
+    setSlashIndex(0);
+    setMentionFiles(null);
+    setMentionIndex(0);
+    if (fileInput.current) fileInput.current.value = "";
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.resetKey]);
 
@@ -400,6 +417,7 @@ export function Composer(props: Props) {
   // size limit is REJECTED with a visible notice — never attached, never silently dropped.
   // The rationale is token cost: a big PDF re-rides every turn of the conversation.
   const addFiles = async (files: FileList | File[]) => {
+    const generation = draftGeneration.current;
     const list = Array.from(files);
     let maxPages = 20;
     let maxMb = 10;
@@ -413,6 +431,7 @@ export function Composer(props: Props) {
       }
     }
     const accepted: File[] = [];
+    if (generation !== draftGeneration.current) return;
     for (const file of list) {
       if (isPdfFile(file) && file.size > maxMb * 1024 * 1024) {
         showAttachNotice(
@@ -423,10 +442,12 @@ export function Composer(props: Props) {
       accepted.push(file);
     }
     const read = (await Promise.all(accepted.map(readFile))).filter(Boolean) as Attachment[];
+    if (generation !== draftGeneration.current) return;
     const next: Attachment[] = [];
     for (const a of read) {
       if (a.kind === "pdf" && a.data_url) {
         const info = await inspectPdf(a.data_url).catch(() => null);
+        if (generation !== draftGeneration.current) return;
         if (info?.ok && (info.pages ?? 0) > maxPages) {
           showAttachNotice(
             `已跳过 ${a.name}：共 ${info.pages} 页，超过 ${maxPages} 页限制（设置 → Token 节省）`,

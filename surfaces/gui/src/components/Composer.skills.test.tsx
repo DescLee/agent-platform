@@ -3,7 +3,8 @@
 // picked skill rides onSend as its own field — never as message text.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { StrictMode } from "react";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import * as attachmentsApi from "../attach";
 import { Composer } from "./Composer";
 import { greenboatSummaryPrompt } from "../greenboatReport";
 
@@ -47,9 +48,75 @@ const box = () => screen.getByPlaceholderText(/告诉绿巨人/);
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe("Composer / skills popup", () => {
+  it("preserves the edited draft across folder reconnects but clears it for a new conversation", () => {
+    stubFetch();
+    const p = props({ sessionId: "s1", resetKey: "s1", workspace: "/first", prefill: {
+      nonce: 1, text: "initial", skill: { name: "greet" },
+      attachments: [{ kind: "text", name: "notes.md", text: "notes" }],
+    } });
+    const view = render(<Composer {...p} />);
+    fireEvent.change(box(), { target: { value: "my unfinished edits" } });
+    for (const [sessionId, workspace] of [["s2", "/second"], ["s3", "/third"]]) {
+      view.rerender(<Composer {...p} sessionId={sessionId} workspace={workspace} />);
+      expect((box() as HTMLTextAreaElement).value).toBe("my unfinished edits");
+      expect(screen.getByText("notes.md")).toBeTruthy();
+      expect(screen.getByTestId("selected-skill")).toBeTruthy();
+    }
+    view.rerender(<Composer {...p} sessionId="s4" resetKey="s4" prefill={{ nonce: 2, text: "", targetSessionId: "s4" }} />);
+    expect((box() as HTMLTextAreaElement).value).toBe("");
+    expect(screen.queryByText("notes.md")).toBeNull();
+    expect(screen.queryByTestId("selected-skill")).toBeNull();
+  });
+
+  it("clears text, uploaded/referenced files and the skill on each new draft, including remounts", () => {
+    stubFetch();
+    const p = props({ resetKey: "s1", prefill: {
+      nonce: 1, text: "unfinished draft", skill: { name: "greet" },
+      attachments: [
+        { kind: "text", name: "upload.md", text: "upload" },
+        { kind: "text", name: "reference.md", text: "reference", knowledge_ref: "file-1" },
+      ],
+    } });
+    const view = render(<Composer {...p} />);
+    expect(screen.getByTestId("selected-skill")).toBeTruthy();
+    expect(screen.getByText("upload.md")).toBeTruthy();
+    expect(screen.getByText("reference.md")).toBeTruthy();
+    const fresh = props({ sessionId: "s2", resetKey: "s2", prefill: { nonce: 2, text: "", targetSessionId: "s2" } });
+    view.rerender(<Composer {...fresh} />);
+    const assertEmpty = () => {
+      expect((box() as HTMLTextAreaElement).value).toBe("");
+      expect(screen.queryByTestId("selected-skill")).toBeNull();
+      expect(screen.queryByText("upload.md")).toBeNull();
+      expect(screen.queryByText("reference.md")).toBeNull();
+    };
+    assertEmpty();
+    view.unmount();
+    const remounted = render(<Composer {...fresh} />);
+    assertEmpty();
+    fireEvent.change(box(), { target: { value: "another draft" } });
+    remounted.rerender(<Composer {...fresh} sessionId="s3" resetKey="s3" prefill={{ nonce: 3, text: "", targetSessionId: "s3" }} />);
+    assertEmpty();
+  });
+
+  it("does not attach an upload that finishes after starting a new draft", async () => {
+    stubFetch();
+    let complete!: (value: Awaited<ReturnType<typeof attachmentsApi.readFile>>) => void;
+    vi.spyOn(attachmentsApi, "readFile").mockImplementation(() => new Promise(resolve => { complete = resolve; }));
+    const p = props({ resetKey: "s1" });
+    const view = render(<Composer {...p} />);
+    fireEvent.change(view.container.querySelector('input[type="file"]')!, {
+      target: { files: [new File(["old"], "late.md", { type: "text/plain" })] },
+    });
+    view.rerender(<Composer {...p} sessionId="s2" resetKey="s2" />);
+    await act(async () => { complete({ kind: "text", name: "late.md", text: "old" }); });
+    expect(screen.queryByText("late.md")).toBeNull();
+    expect((box() as HTMLTextAreaElement).value).toBe("");
+  });
+
   it("keeps the Greenboat file and prompt when StrictMode replays mount effects", async () => {
     stubFetch();
     const attachment = { kind: "file" as const, name: "今日消息.md", path: "/scratch/s1/今日消息.md", mime: "text/markdown" };
